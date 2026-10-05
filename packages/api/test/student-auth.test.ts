@@ -127,3 +127,20 @@ describe("POST /api/student/reissue (lost device)", () => {
     expect(res.json()).toEqual({ ok: true });
   });
 });
+
+describe("access-code rate limit", () => {
+  it("allows RATE_LIMIT_AUTH_MAX attempts per window, then answers 429", async () => {
+    const Fastify = (await import("fastify")).default;
+    const limited = Fastify();
+    await limited.register((await import("@fastify/cookie")).default, { secret: "x".repeat(32) });
+    await limited.register((await import("@fastify/rate-limit")).default, { max: 1000, timeWindow: "1 minute" });
+    await limited.register(studentAuthRoutes, { prefix: "/api/student" });
+
+    const attempt = () =>
+      limited.inject({ method: "POST", url: "/api/student/redeem", payload: { code: "not-a-real-code" } });
+    // test config sets RATE_LIMIT_AUTH_MAX=3
+    for (let i = 0; i < 3; i++) expect((await attempt()).statusCode).toBe(401);
+    expect((await attempt()).statusCode).toBe(429);
+    await limited.close();
+  });
+});
