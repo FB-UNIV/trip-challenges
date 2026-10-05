@@ -80,6 +80,18 @@ describe("POST /api/student/redeem", () => {
     // Single use.
     expect((await redeem(s.code!)).statusCode).toBe(401);
   });
+
+  // Found by e2e: React StrictMode (or a double tap / link prefetch) fires two redeems at
+  // once. Both passed the "unredeemed" check before either marked the code spent, so the
+  // single-use code minted two sessions and the browser kept a cookie for a revoked one.
+  it("redeems a code exactly once under concurrent requests", async () => {
+    const s = await makeStudent(trip, { unredeemedCode: true });
+    const results = await Promise.all([redeem(s.code!), redeem(s.code!), redeem(s.code!)]);
+    expect(results.map((r) => r.statusCode).sort()).toEqual([200, 401, 401]);
+    expect(await count("student_session", "student_id = $1 AND revoked_at IS NULL", [s.id])).toBe(1);
+    const winner = results.find((r) => r.statusCode === 200)!;
+    expect((await me(sessionCookie(winner))).statusCode).toBe(200);
+  });
 });
 
 describe("POST /api/student/reissue (lost device)", () => {
