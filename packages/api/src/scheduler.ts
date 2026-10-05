@@ -1,7 +1,8 @@
 // Background erasure runner. Fires grace-window + hard-deadline erasures.
 // HA-safe: a Postgres advisory lock ensures only ONE api replica runs each tick.
 import { pool } from "./db.js";
-import { findTripsDueForErasure, eraseTrip, warnUpcomingErasures } from "./erasure.js";
+import { config } from "./config.js";
+import { findTripsDueForErasure, eraseTrip, warnUpcomingErasures, alertErasureFailure } from "./erasure.js";
 import { processRosterBatch } from "./roster-worker.js";
 
 const LOCK_KEY = 918273645; // arbitrary, stable across replicas
@@ -19,13 +20,19 @@ export function startErasureScheduler(intervalMs = 60_000) {
       if (rows[0]?.locked) {
         try {
           const due = await findTripsDueForErasure();
+          let healthy = true;
           for (const id of due) {
             try {
               await eraseTrip(id);
             } catch (e) {
+              healthy = false;
               console.error(`[erasure] failed for trip ${id}`, e);
+              await alertErasureFailure(id, e).catch((err) => console.error("[erasure] alerting failed", err));
             }
           }
+          // Dead-man's switch: only a tick where every due erasure succeeded checks in, so
+          // a stopped scheduler or a stuck erasure both go quiet and the monitor alerts.
+          if (healthy) await pingHeartbeat();
           // Escalating warnings for erasures still ahead (deduped in erasure_warning).
           try {
             await warnUpcomingErasures();
@@ -56,4 +63,13 @@ export function startErasureScheduler(intervalMs = 60_000) {
   }, intervalMs);
   timer.unref?.();
   return timer;
+}
+
+async function pingHeartbeat(): Promise<void> {
+  if (!config.HEARTBEAT_URL) return;
+  try {
+    await fetch(config.HEARTBEAT_URL, { signal: AbortSignal.timeout(5000) });
+  } catch (e) {
+    console.error("[scheduler] heartbeat ping failed", e);
+  }
 }

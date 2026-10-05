@@ -40,6 +40,21 @@ export async function sendCoTeacherInvite(to: string, tripName: string, acceptUr
   );
 }
 
+export async function sendErasureFailedAlert(
+  to: string,
+  tripName: string,
+  tripId: string,
+  detail: string,
+): Promise<void> {
+  await sendMail(
+    to,
+    `ACTION NEEDED: erasure failed for ${tripName}`,
+    `Erasing the student data for "${tripName}" (trip ${tripId}) failed:\n\n${detail}\n\n` +
+      `It is retried automatically every minute. If this keeps happening, check Vault, ` +
+      `the object store and the API logs: until erasure completes, the data still exists.`,
+  );
+}
+
 export async function sendErasureWarning(to: string, tripName: string, when: Date): Promise<void> {
   await sendMail(
     to,
