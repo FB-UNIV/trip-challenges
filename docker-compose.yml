@@ -1,0 +1,121 @@
+# Self-hosted stack (ADR-0003) behind a SEPARATE Traefik edge VPS.
+# The edge routes to this host over a PRIVATE link (WireGuard/VPN). web + api are
+# exposed ONLY on the private bind address; data stores stay fully internal.
+#
+# Edge config lives on the Traefik VPS: see traefik/dynamic.yml (file provider).
+# Set APP_BIND_ADDR to this host's WireGuard/VPN IP (NOT 0.0.0.0 — never expose
+# these ports to the public internet; Traefik terminates TLS + adds headers).
+
+services:
+  web:
+    # Pull a released image by setting IMAGE_WEB=<registry>/<owner>/trip-web:<tag>,
+    # or build locally (default). `docker compose build` tags to this name.
+    image: ${IMAGE_WEB:-trip-web:local}
+    build:
+      context: .
+      dockerfile: packages/web/Dockerfile
+    restart: unless-stopped
+    networks: [internal]
+    ports:
+      - "${APP_BIND_ADDR:-127.0.0.1}:8080:80"
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.challenges.rule=Host(`challenges.quicheandco.fr`)"
+      - "traefik.http.routers.challenges.entrypoints=websecure"
+      - "traefik.http.routers.challenges.service=challenges-web-svc"
+      - "traefik.http.services.challenges-web-svc.loadbalancer.server.port=8080"
+
+  api:
+    image: ${IMAGE_API:-trip-api:local}
+    build:
+      context: .
+      dockerfile: packages/api/Dockerfile
+    restart: unless-stopped
+    env_file: .env
+    networks: [internal]
+    ports:
+      - "${APP_BIND_ADDR:-127.0.0.1}:3000:3000"
+    depends_on:
+      postgres: { condition: service_healthy }
+      # minio: { condition: service_healthy }
+      vault: { condition: service_started }
+      clamav: { condition: service_healthy }
+    # HA: run a second app host + list both in traefik/dynamic.yml (Traefik LB + health-checks)
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.challenges-api.rule=Host(`challenges.quicheandco.fr`) && PathPrefix(`/api`)"
+      - "traefik.http.routers.challenges-api.entrypoints=websecure"
+      - "traefik.http.routers.challenges-api.service=challenges-api-svc"
+      - "traefik.http.services.challenges-api-svc.loadbalancer.server.port=3000"
+
+  postgres:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    networks: [internal]
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB}
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+    volumes:
+      - pg_data:/var/lib/postgresql/data
+      - ./packages/api/db/schema.sql:/docker-entrypoint-initdb.d/01-schema.sql:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  # minio:
+  #   image: minio/minio:latest
+  #   restart: unless-stopped
+  #   networks: [internal]
+  #   command: server /data --console-address ":9001"
+  #   environment:
+  #     MINIO_ROOT_USER: ${MINIO_ROOT_USER}
+  #     MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD}
+  #   volumes:
+  #     - minio_data:/data
+  #   healthcheck:
+  #     test: ["CMD", "mc", "ready", "local"]
+  #     interval: 5s
+  #     timeout: 5s
+  #     retries: 10
+  #
+  vault:
+    image: hashicorp/vault:latest
+    restart: unless-stopped
+    networks: [internal]
+    cap_add: [IPC_LOCK]
+    environment:
+      VAULT_DEV_ROOT_TOKEN_ID: ${VAULT_TOKEN}
+      VAULT_DEV_LISTEN_ADDRESS: "0.0.0.0:8200"
+    # DEV MODE ONLY. Prod: real storage, unseal keys, AppRole, kept OUT of DB backups (ADR-0001).
+    command: server -dev
+    volumes:
+      - vault_data:/vault/file
+
+  # Antivirus for uploaded photos (scanned via clamd INSTREAM before storage).
+  # Enable enforcement with AV_SCAN_ENABLED=true in .env. First boot downloads
+  # signature DBs (freshclam) — the healthcheck gates the api until clamd is ready.
+  clamav:
+    image: clamav/clamav:latest
+    restart: unless-stopped
+    networks: [internal]
+    volumes:
+      - clamav_data:/var/lib/clamav
+    healthcheck:
+      test: ["CMD", "clamdcheck.sh"]
+      interval: 15s
+      timeout: 10s
+      retries: 20
+      start_period: 120s
+
+networks:
+  internal:
+    driver: bridge
+
+volumes:
+  pg_data:
+  # minio_data:
+  vault_data:
+  clamav_data:

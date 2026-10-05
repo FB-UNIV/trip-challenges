@@ -1,0 +1,50 @@
+# Traefik FILE-PROVIDER config — lives on your Traefik edge VPS. Load it via:
+#   providers:
+#     file:
+#       filename: /etc/traefik/dynamic.yml
+#       watch: true
+#
+# The app host exposes web:8080 and api:3000 on its private WireGuard/VPN IP
+# (docker-compose APP_BIND_ADDR). Replace APP_BACKEND_HOST below with that IP.
+# web (8080) serves the PWA; api (3000) serves everything under /api.
+
+http:
+  routers:
+    trip-web:
+      rule: "Host(`challenges.example.org`)"
+      entryPoints: [websecure]
+      service: trip-web
+      middlewares: [trip-sec]
+      tls: {}
+    trip-api:
+      rule: "Host(`challenges.example.org`) && PathPrefix(`/api`)"
+      entryPoints: [websecure]
+      service: trip-api
+      middlewares: [trip-sec]
+      tls: {}
+
+  services:
+    trip-web:
+      loadBalancer:
+        servers:
+          - url: "http://APP_BACKEND_HOST:8080"   # web container's exposed port
+    trip-api:
+      loadBalancer:
+        servers:
+          - url: "http://APP_BACKEND_HOST:3000"   # api container's exposed port
+
+  middlewares:
+    trip-sec:
+      headers:
+        stsSeconds: 63072000
+        stsIncludeSubdomains: true
+        stsPreload: true
+        contentTypeNosniff: true
+        frameDeny: true
+        referrerPolicy: no-referrer
+        customResponseHeaders:
+          Permissions-Policy: "camera=(self), geolocation=()"
+        contentSecurityPolicy: >-
+          default-src 'self'; img-src 'self' blob: data:; script-src 'self';
+          style-src 'self' 'unsafe-inline'; connect-src 'self';
+          frame-ancestors 'none'; base-uri 'none'

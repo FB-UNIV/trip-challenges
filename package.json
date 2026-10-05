@@ -1,0 +1,21 @@
+{
+  "name": "trip-challenges",
+  "private": true,
+  "version": "0.0.0",
+  "description": "PWA for photo-challenge school trips. Strict data erasure for minors' data.",
+  "workspaces": [
+    "packages/shared",
+    "packages/api",
+    "packages/web"
+  ],
+  "scripts": {
+    "build": "npm run build --workspaces --if-present",
+    "dev:api": "npm run build --workspace @trip/shared && npm run dev --workspace @trip/api",
+    "dev:web": "npm run build --workspace @trip/shared && npm run dev --workspace @trip/web",
+    "typecheck": "npm run typecheck --workspaces --if-present",
+    "test": "npm run test --workspaces --if-present"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}

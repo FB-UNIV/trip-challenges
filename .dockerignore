@@ -1,0 +1,14 @@
+**/node_modules
+**/dist
+**/build
+.git
+.github
+.forgejo
+*.log
+.env
+.env.*
+!.env.example
+data/
+volumes/
+docs/
+**/*.test.ts
