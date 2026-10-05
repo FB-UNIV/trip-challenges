@@ -29,8 +29,11 @@ describe("health", () => {
 
 describe("startErasureScheduler", () => {
   let timer: ReturnType<typeof startErasureScheduler> | undefined;
-  afterEach(() => {
+  afterEach(async () => {
     clearInterval(timer);
+    // A tick already in flight keeps running after clearInterval; let it finish so it
+    // can't drain or erase the next test's data.
+    await new Promise((r) => setTimeout(r, 100));
     vi.restoreAllMocks();
   });
 
@@ -47,6 +50,31 @@ describe("startErasureScheduler", () => {
       expect(await count("student", "trip_id = $1", [live])).toBe(1);
     }, { timeout: 10_000 });
     expect(hasKey(live)).toBe(true);
+  });
+
+  it("still drains the roster when another replica holds the erasure lock (#37)", async () => {
+    // Every connection the scheduler opens from now on reports the erasure lock as held
+    // by another replica; we record which advisory locks those connections try.
+    const ERASURE_LOCK = 918273645, ROSTER_LOCK = 553311;
+    const tried: number[] = [];
+    const realConnect = pool.connect.bind(pool);
+    vi.spyOn(pool, "connect").mockImplementation((async () => {
+      const c = await realConnect();
+      return {
+        ...c,
+        query: async (sql: string, params?: unknown[]) => {
+          if (sql.includes("pg_try_advisory_lock")) tried.push(params?.[0] as number);
+          return sql.includes("pg_try_advisory_lock") && params?.[0] === ERASURE_LOCK
+            ? { rows: [{ locked: false }], rowCount: 1 }
+            : c.query(sql, params as any);
+        },
+      };
+    }) as any);
+
+    timer = startErasureScheduler(20);
+    await vi.waitFor(() => expect(tried).toContain(ERASURE_LOCK));
+    // A tick that lost the erasure lock must still go on to drain the roster.
+    await vi.waitFor(() => expect(tried).toContain(ROSTER_LOCK));
   });
 
   it("logs a trip whose erasure fails and keeps ticking", async () => {
