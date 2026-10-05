@@ -128,14 +128,14 @@ work. To exercise the **real** OIDC flow instead, point `OIDC_*` at a dev Pocket
 ## 8. Checks
 
 ```bash
-npm test           # Vitest — 39 tests, no infrastructure required
+npm test           # Vitest + API coverage thresholds — no infrastructure required
 npm run typecheck  # tsc across all workspaces
 npm run build      # api → dist, web → static bundle + service worker
 ```
 
 For end-to-end work against live services, keep the dev compose up and drive the API with
-`curl` (see the `verify`/E2E scripts pattern). Tests themselves mock Vault/S3 and need no
-infra.
+`curl` (see the `verify`/E2E scripts pattern). Tests themselves need no infra: API tests run
+the real schema in PGlite (in-process Postgres) with in-memory Vault/S3/SMTP fakes.
 
 ## 9. Layout
 

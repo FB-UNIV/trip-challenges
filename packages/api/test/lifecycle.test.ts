@@ -1,0 +1,124 @@
+import { vi, describe, it, expect, beforeEach } from "vitest";
+
+vi.mock("pg", () => import("./support/fake-pg.js"));
+vi.mock("../src/config.js", () => import("./support/config.js"));
+vi.mock("../src/crypto/vault.js", () => import("./support/fake-vault.js"));
+vi.mock("../src/storage/s3.js", () => import("./support/fake-s3.js"));
+vi.mock("../src/email/mailer.js", () => import("./support/fake-mailer.js"));
+
+import { advanceTrip, computeResults } from "../src/lifecycle.js";
+import {
+  pool, resetAll, makeTeacher, makeTrip, makeStudent, makeTeam, makeChallenge,
+  makeSubmission, makeNomination, setStats,
+} from "./support/harness.js";
+
+let owner: string;
+beforeEach(async () => {
+  await resetAll();
+  owner = await makeTeacher();
+});
+
+type Row = { challenge_title: string; placement: number; team_name_vetted: string; points: string; is_grand_champion: boolean };
+const results = async (tripId: string) =>
+  (await pool.query<Row>(
+    `SELECT challenge_title, placement, team_name_vetted, points, is_grand_champion
+       FROM result WHERE trip_id = $1 ORDER BY is_grand_champion, challenge_title, placement, team_name_vetted`,
+    [tripId],
+  )).rows.map((r) => ({ ...r, points: Number(r.points) }));
+
+describe("advanceTrip", () => {
+  it("throws for an unknown trip", async () => {
+    await expect(advanceTrip("00000000-0000-0000-0000-000000000000", "challenge")).rejects.toThrow("no such trip");
+  });
+
+  it("flags illegal transitions", async () => {
+    const trip = await makeTrip(owner, { phase: "grace" });
+    await expect(advanceTrip(trip, "erased")).rejects.toMatchObject({ illegal: true });
+  });
+
+  it("auto-nominates each team's latest submission when voting opens", async () => {
+    const trip = await makeTrip(owner, { phase: "challenge" });
+    const ch = await makeChallenge(trip);
+    const a = await makeStudent(trip);
+    const b = await makeStudent(trip);
+    const teamA = await makeTeam(trip, "A", [a.id]);
+    const teamB = await makeTeam(trip, "B", [b.id]);
+
+    await makeSubmission(trip, ch, teamA, a.id, { createdAt: new Date("2030-01-01T10:00:00Z") });
+    const latestA = await makeSubmission(trip, ch, teamA, a.id, { createdAt: new Date("2030-01-01T11:00:00Z") });
+    // A removed photo is never auto-nominated, even if it is the newest.
+    const removed = await makeSubmission(trip, ch, teamA, a.id, { createdAt: new Date("2030-01-01T12:00:00Z") });
+    await pool.query(`UPDATE submission SET removed_by_teacher_id = $2 WHERE id = $1`, [removed, owner]);
+    // Team B already chose: its nomination must be left alone.
+    const bOld = await makeSubmission(trip, ch, teamB, b.id, { createdAt: new Date("2030-01-01T09:00:00Z") });
+    await makeSubmission(trip, ch, teamB, b.id, { createdAt: new Date("2030-01-01T13:00:00Z") });
+    await makeNomination(trip, ch, teamB, bOld, "pending");
+
+    await advanceTrip(trip, "voting");
+
+    const { rows } = await pool.query<{ team_id: string; submission_id: string; state: string; auto_nominated: boolean }>(
+      `SELECT team_id, submission_id, state, auto_nominated FROM nomination WHERE trip_id = $1 AND active ORDER BY auto_nominated`,
+      [trip],
+    );
+    expect(rows).toEqual([
+      { team_id: teamB, submission_id: bOld, state: "pending", auto_nominated: false },
+      { team_id: teamA, submission_id: latestA, state: "pending", auto_nominated: true },
+    ]);
+    expect((await pool.query(`SELECT phase FROM trip WHERE id = $1`, [trip])).rows[0]).toEqual({ phase: "voting" });
+  });
+});
+
+describe("computeResults (via advance voting -> reveal)", () => {
+  async function seed(tripId: string, challengeId: string, team: string, wilson: number, state: "approved" | "pending" = "approved") {
+    const s = await makeStudent(tripId);
+    const teamId = await makeTeam(tripId, team, [s.id]);
+    const sub = await makeSubmission(tripId, challengeId, teamId, s.id);
+    const nom = await makeNomination(tripId, challengeId, teamId, sub, state);
+    await setStats(tripId, nom, wilson);
+    return { teamId, sub };
+  }
+
+  it("ranks with shared placements, scales by multiplier, and flags tied grand champions", async () => {
+    const trip = await makeTrip(owner, { phase: "voting" });
+    const boss = await makeChallenge(trip, { title: "Boss", multiplier: 2 });
+    const small = await makeChallenge(trip, { title: "Small", multiplier: 0.8 });
+
+    // Boss: Foxes 1st; Owls and Bears tie for 2nd ("1224" ranking) → 10, 6, 6.
+    await seed(trip, boss, "Foxes", 0.8);
+    const owls = await seed(trip, boss, "Owls", 0.5);
+    await seed(trip, boss, "Bears", 0.5);
+    await seed(trip, boss, "Pending", 0.99, "pending"); // not approved → not ranked
+    // Small: Owls 1st → 5 × 0.8 = 4, so Owls total 10 ties Foxes.
+    const s = await makeSubmission(trip, small, owls.teamId, (await makeStudent(trip)).id);
+    await setStats(trip, await makeNomination(trip, small, owls.teamId, s), 0.3);
+
+    await advanceTrip(trip, "reveal");
+
+    expect(await results(trip)).toEqual([
+      { challenge_title: "Boss", placement: 1, team_name_vetted: "Foxes", points: 10, is_grand_champion: false },
+      { challenge_title: "Boss", placement: 2, team_name_vetted: "Bears", points: 6, is_grand_champion: false },
+      { challenge_title: "Boss", placement: 2, team_name_vetted: "Owls", points: 6, is_grand_champion: false },
+      { challenge_title: "Small", placement: 1, team_name_vetted: "Owls", points: 4, is_grand_champion: false },
+      { challenge_title: "Grand Champion", placement: 0, team_name_vetted: "Foxes", points: 10, is_grand_champion: true },
+      { challenge_title: "Grand Champion", placement: 0, team_name_vetted: "Owls", points: 10, is_grand_champion: true },
+    ]);
+  });
+
+  it("treats an unvoted challenge as an all-way tie for 1st", async () => {
+    const trip = await makeTrip(owner, { phase: "voting" });
+    const ch = await makeChallenge(trip, { title: "Quiet" });
+    await seed(trip, ch, "A", 0);
+    await seed(trip, ch, "B", 0);
+    await computeResults(trip);
+    const rows = (await results(trip)).filter((r) => !r.is_grand_champion);
+    expect(rows.map((r) => [r.team_name_vetted, r.placement, r.points])).toEqual([["A", 1, 5], ["B", 1, 5]]);
+  });
+
+  it("names no grand champion when nobody scored", async () => {
+    const trip = await makeTrip(owner, { phase: "voting", pointsTable: [] });
+    const ch = await makeChallenge(trip);
+    await seed(trip, ch, "A", 0.5);
+    await computeResults(trip);
+    expect((await results(trip)).some((r) => r.is_grand_champion)).toBe(false);
+  });
+});
