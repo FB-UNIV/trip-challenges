@@ -10,7 +10,9 @@ import { healthRoutes } from "../src/routes/health.js";
 import { startErasureScheduler } from "../src/scheduler.js";
 import { enqueueRoster } from "../src/roster-worker.js";
 import { hasKey, faults } from "./support/fake-vault.js";
-import { pool, resetAll, buildApp, makeTeacher, makeTrip, count } from "./support/harness.js";
+import { s3faults } from "./support/fake-s3.js";
+import { sent } from "./support/fake-mailer.js";
+import { pool, resetAll, buildApp, makeTeacher, makeTrip, addCoTeacher, count } from "./support/harness.js";
 
 beforeEach(resetAll);
 
@@ -131,5 +133,54 @@ describe("startErasureScheduler", () => {
       timer = startErasureScheduler(20);
       await expectRecovers(due, err);
     });
+  });
+
+});
+
+describe("erasure alerting and heartbeat (#24)", () => {
+  let timer: ReturnType<typeof startErasureScheduler> | undefined;
+  let pings: string[];
+  beforeEach(() => {
+    pings = [];
+    vi.stubGlobal("fetch", vi.fn(async (url: string) => {
+      pings.push(url);
+      return new Response("OK");
+    }));
+  });
+  afterEach(() => {
+    clearInterval(timer);
+    vi.unstubAllGlobals();
+    vi.restoreAllMocks();
+  });
+
+  it("emails the trip's teachers and the ops address when erasure fails, at most hourly", async () => {
+    const owner = await makeTeacher("owner@school.test");
+    const due = await makeTrip(owner, { name: "Rome", phase: "challenge", hardEraseAt: new Date(Date.now() - 1000) });
+    await addCoTeacher(due, await makeTeacher("co@school.test"));
+    vi.spyOn(console, "error").mockImplementation(() => {});
+    s3faults.deleteFailures = 3; // three ticks in a row fail
+
+    timer = startErasureScheduler(20);
+    await vi.waitFor(() => expect(hasKey(due)).toBe(false)); // 4th tick succeeds
+
+    const alerts = sent.filter((m) => m.kind === "erasure_failed");
+    expect(alerts.map((m) => m.to).sort()).toEqual(["co@school.test", "ops@school.test", "owner@school.test"]);
+    expect(alerts[0]!.args).toEqual(["Rome", due, expect.stringContaining("SlowDown")]);
+  });
+
+  it("pings the heartbeat after a healthy tick", async () => {
+    timer = startErasureScheduler(20);
+    await vi.waitFor(() => expect(pings).toContain("http://heartbeat.test/ping"));
+  });
+
+  it("withholds the heartbeat while an erasure is failing, so the monitor alerts", async () => {
+    await makeTrip(await makeTeacher(), { phase: "challenge", hardEraseAt: new Date(Date.now() - 1000) });
+    vi.spyOn(console, "error").mockImplementation(() => {});
+    s3faults.deleteFailures = 1_000;
+
+    timer = startErasureScheduler(20);
+    await vi.waitFor(() => expect(sent.some((m) => m.kind === "erasure_failed")).toBe(true));
+    await new Promise((r) => setTimeout(r, 100)); // several more failing ticks
+    expect(pings).toEqual([]);
   });
 });

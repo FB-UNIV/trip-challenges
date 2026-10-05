@@ -30,3 +30,6 @@ export async function sendCoTeacherInvite(to: string, tripName: string, acceptUr
 export async function sendErasureWarning(to: string, tripName: string, when: Date) {
   record("erasure_warning", to, [tripName, when]);
 }
+export async function sendErasureFailedAlert(to: string, tripName: string, tripId: string, detail: string) {
+  record("erasure_failed", to, [tripName, tripId, detail]);
+}

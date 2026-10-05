@@ -54,4 +54,11 @@ describe("env schema", () => {
   it("rejects a non-positive rate limit", () => {
     expect(Env.safeParse({ ...base, RATE_LIMIT_AUTH_MAX: "0" }).success).toBe(false);
   });
+  it("accepts optional alert email and heartbeat URL, validating both", () => {
+    expect(Env.parse(base).ALERT_EMAIL).toBeUndefined();
+    const parsed = Env.parse({ ...base, ALERT_EMAIL: "ops@school.test", HEARTBEAT_URL: "https://hc.example/ping/abc" });
+    expect(parsed).toMatchObject({ ALERT_EMAIL: "ops@school.test", HEARTBEAT_URL: "https://hc.example/ping/abc" });
+    expect(Env.safeParse({ ...base, ALERT_EMAIL: "nope" }).success).toBe(false);
+    expect(Env.safeParse({ ...base, HEARTBEAT_URL: "nope" }).success).toBe(false);
+  });
 });
