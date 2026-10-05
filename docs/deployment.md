@@ -207,10 +207,11 @@ curl -sk https://<PUBLIC_HOST>/api/healthz          # via the edge/proxy
 
 ---
 
-## 7. CI/CD (Forgejo Actions)
+## 7. CI/CD (GitHub Actions)
 
-Workflows in [`.forgejo/workflows/`](../.forgejo/workflows): `ci.yml` runs typecheck → test
-→ build on every push/PR; `release.yml` builds and pushes `trip-api` + `trip-web` images on
-a `v*` tag. Then set `IMAGE_API`/`IMAGE_WEB` in `.env` to the pushed tags and
-`docker compose up -d` to deploy the built images instead of building on the host. Registry
-variables/secrets are documented in the README's CI/CD section.
+Workflows in [`.github/workflows/`](../.github/workflows): `ci.yml` runs typecheck → test
+→ build (and a Docker build) on every PR/push; `release.yml` uses release-please to cut
+semver releases and pushes `trip-api` + `trip-web` images to GHCR. Then set
+`IMAGE_API`/`IMAGE_WEB` in `.env` to the pushed tags (e.g. `ghcr.io/<owner>/trip-api:0.1.0`),
+`docker login ghcr.io` on the host (the images are private), and `docker compose up -d` to
+deploy the built images instead of building on the host. See the README's CI/CD section.
