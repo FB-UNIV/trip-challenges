@@ -81,19 +81,45 @@ describe("GET /api/duels/next", () => {
     expect([pair.aNominationId, pair.bNominationId].sort()).toEqual([noms.A, noms.B].sort());
   });
 
-  // BUG: /next never checks that the challenge belongs to the voter's trip, so a student
-  // of trip X can be served (and then cast) duels on trip Y's nominations.
-  it.fails("does not serve pairs from another trip's challenge", async () => {
+  // #16: a student of trip X must never be served trip Y's nominations.
+  it("404s for a challenge outside the voter's trip", async () => {
     const outsider = await makeStudent(await makeTrip(await makeTeacher(), { phase: "voting" }));
-    expect((await next(outsider.cookie)).json().pair).toBeNull();
+    const res = await next(outsider.cookie);
+    expect(res.statusCode).toBe(404);
+    expect(res.json().pair).toBeUndefined();
   });
 
-  // BUG: /next and /cast don't check the trip phase, so voting works before the Voting
-  // Period opens (as soon as nominations are approved) and after it closes.
-  it.fails("does not serve pairs outside the voting period", async () => {
+  // #17: duels only happen during the Voting Period.
+  it.each(["challenge", "reveal"])("serves no pair while the trip is in %s", async (phase) => {
     noms.C = (await contender(trip, ch, "C")).nom;
-    await pool.query(`UPDATE trip SET phase = 'challenge' WHERE id = $1`, [trip]);
-    expect((await next(voter.cookie)).json().pair).toBeNull();
+    await pool.query(`UPDATE trip SET phase = $2 WHERE id = $1`, [trip, phase]);
+    expect((await next(voter.cookie)).json()).toEqual({ pair: null, reason: "closed" });
+  });
+});
+
+describe("POST /api/duels/cast — trip and phase checks (#16, #17)", () => {
+  beforeEach(async () => {
+    noms.C = (await contender(trip, ch, "C")).nom;
+  });
+
+  it("refuses a vote once voting has closed, even with a token served during voting", async () => {
+    const { pair } = (await next(voter.cookie)).json();
+    await pool.query(`UPDATE trip SET phase = 'reveal' WHERE id = $1`, [trip]);
+    const res = await cast(voter.cookie, pair.pairToken, pair.aNominationId);
+    expect(res.statusCode).toBe(409);
+    expect(res.json().error).toBe("closed");
+    expect((await pool.query(`SELECT count(*)::int AS n FROM duel`)).rows[0]).toEqual({ n: 0 });
+  });
+
+  it("refuses a validly signed token for another trip's challenge", async () => {
+    // Defence in depth: even a correctly signed pair can't move votes across trips.
+    const { signPair } = await import("../src/lib/pairToken.js");
+    const { config } = await import("./support/config.js");
+    const outsider = await makeStudent(await makeTrip(await makeTeacher(), { phase: "voting" }));
+    const token = signPair(config.SESSION_SECRET, outsider.id, ch, noms.B!, noms.C!);
+    const res = await cast(outsider.cookie, token, noms.B!);
+    expect(res.statusCode).toBe(404);
+    expect((await pool.query(`SELECT count(*)::int AS n FROM duel`)).rows[0]).toEqual({ n: 0 });
   });
 });
 

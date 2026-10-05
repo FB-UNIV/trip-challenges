@@ -35,29 +35,29 @@ test("a duel pair is bound to the voter who was served it", async ({ browser }) 
 });
 
 test("students can't vote on another trip's challenge (#16)", async ({ browser }) => {
-  test.fail(true, "Known bug #16: /api/duels/next doesn't check the challenge's trip");
   const teacher = await signInTeacher(browser);
   const { challenge, contenders } = await seedTrip(browser, teacher);
   const otherTrip = await teacher.api.createTrip(unique("Other"));
+  await teacher.api.advance(otherTrip, "challenge");
+  await teacher.api.advance(otherTrip, "voting");
   const [outsider] = await enrollStudents(browser, teacher, otherTrip, 1);
 
-  const { pair } = await (await outsider!.api.nextDuel(challenge.id)).json();
-  try {
-    expect(pair).toBeNull();
-  } finally {
-    await closeAll(teacher, outsider!, ...contenders);
-  }
+  expect((await outsider!.api.nextDuel(challenge.id)).status()).toBe(404);
+
+  await closeAll(teacher, outsider!, ...contenders);
 });
 
 test("duels are only served during the voting period (#17)", async ({ browser }) => {
-  test.fail(true, "Known bug #17: duels don't check the trip phase");
   const teacher = await signInTeacher(browser);
   const { challenge, contenders } = await seedTrip(browser, teacher, { phase: "challenge" });
+  const [voter] = contenders;
 
-  const { pair } = await (await contenders[0]!.api.nextDuel(challenge.id)).json();
-  try {
-    expect(pair).toBeNull();
-  } finally {
-    await closeAll(teacher, ...contenders);
-  }
+  expect(await (await voter!.api.nextDuel(challenge.id)).json()).toEqual({ pair: null, reason: "closed" });
+
+  // The vote screen says so instead of offering a pair.
+  await voter!.page.goto(`/vote/${challenge.id}`);
+  await expect(voter!.page.getByText("Voting isn't open right now.")).toBeVisible();
+  await expect(voter!.page.locator("button.pick")).toHaveCount(0);
+
+  await closeAll(teacher, ...contenders);
 });
