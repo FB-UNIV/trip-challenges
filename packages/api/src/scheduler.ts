@@ -46,7 +46,11 @@ export function startErasureScheduler(intervalMs = 60_000) {
     }
   };
 
-  const timer = setInterval(() => void tick(), intervalMs);
+  // A failed tick (e.g. Postgres restarting) is logged and retried next interval. Letting
+  // it escape would be an unhandled rejection, which terminates the process (#19).
+  const timer = setInterval(() => {
+    tick().catch((e) => console.error("[scheduler] tick failed", e));
+  }, intervalMs);
   timer.unref?.();
   return timer;
 }
