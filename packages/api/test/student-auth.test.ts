@@ -132,6 +132,28 @@ describe("POST /api/student/reissue (lost device)", () => {
     expect((await me(sessionCookie(redeemed))).statusCode).toBe(200);
   });
 
+  it("never logs the student's address when the reissue mail fails (#20)", async () => {
+    const { Writable } = await import("node:stream");
+    const { default: Fastify } = await import("fastify");
+    const { loggerOptions } = await import("../src/lib/logging.js");
+    const lines: string[] = [];
+    const logged = Fastify({
+      logger: { ...loggerOptions("production"), stream: new Writable({ write(c, _e, cb) { lines.push(c.toString()); cb(); } }) },
+    });
+    await logged.register((await import("@fastify/cookie")).default, { secret: "x".repeat(32) });
+    await logged.register(studentAuthRoutes, { prefix: "/api/student" });
+
+    const s = await makeStudent(trip, { email: "minor@school.test" });
+    mailer.fail = true; // the SMTP error echoes the recipient: "550 rejected <minor@school.test>"
+    await logged.inject({ method: "POST", url: "/api/student/reissue", payload: { tripId: trip, email: s.email } });
+
+    const all = lines.join("");
+    expect(all).toContain("reissue mail failed");
+    expect(all).toContain("EENVELOPE");
+    expect(all).not.toContain("minor@school.test");
+    await logged.close();
+  });
+
   it("still answers neutrally when the mail fails", async () => {
     const s = await makeStudent(trip);
     mailer.fail = true;

@@ -29,6 +29,13 @@ describe("mailer", () => {
     expect(log).toHaveBeenCalledWith(expect.stringContaining("[mail:dev] to=a@school.test :: Hi"));
   });
 
+  it("refuses to fall back to printing mail in production (it would log access codes)", async () => {
+    const m = await loadMailer({ SMTP_HOST: undefined, NODE_ENV: "production" });
+    const log = vi.spyOn(console, "log").mockImplementation(() => {});
+    await expect(m.sendAccessCode("kid@school.test", "Rome", "https://app/join?code=SECRET")).rejects.toThrow(/SMTP/);
+    expect(log).not.toHaveBeenCalled();
+  });
+
   it("sends through SMTP with auth, implicit TLS on 465", async () => {
     const m = await loadMailer({ SMTP_HOST: "smtp.test", SMTP_PORT: 465, SMTP_USER: "u", SMTP_PASSWORD: "p" });
     expect(transport.opts).toEqual({ host: "smtp.test", port: 465, secure: true, auth: { user: "u", pass: "p" } });
