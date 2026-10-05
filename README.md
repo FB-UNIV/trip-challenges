@@ -205,8 +205,8 @@ first failed assertion.
 
 ## CI/CD (GitHub Actions)
 
-`main` is protected: every change lands through a PR, squash-merged with the PR title as
-the commit message. PR titles must be [Conventional Commits](https://www.conventionalcommits.org)
+Every change lands on `main` through a PR, squash-merged with the PR title as the commit
+message (a team convention — branch protection isn't available on this private repo's plan). PR titles must be [Conventional Commits](https://www.conventionalcommits.org)
 (`feat:`, `fix:`, `docs:`, …) — they drive the version.
 
 Workflows live in [`.github/workflows/`](./.github/workflows):

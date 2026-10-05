@@ -20,7 +20,7 @@ linter configured. `scripts/e2e.mjs` is a live-stack smoke test — see its head
 
 ## Git workflow
 
-- Never commit or push to `main` — it is protected. Branch (`feat/…`, `fix/…`, `ci/…`, `docs/…`),
+- Never commit or push to `main` — it isn't protected by GitHub (private repo on Free), so this is on us. Branch (`feat/…`, `fix/…`, `ci/…`, `docs/…`),
   push, open a PR with `gh pr create`.
 - PRs are squash-merged; the **PR title** is the commit and must be a Conventional Commit.
   It sets the semver bump: `fix:` patch, `feat:` minor, `feat!:` major. `docs/ci/chore/…` don't release.
