@@ -32,7 +32,7 @@ export async function studentAuthRoutes(app: FastifyInstance) {
   // Tighter rate limit on redemption — anti brute-force on Access Codes.
   app.post(
     "/redeem",
-    { config: { rateLimit: { max: 5, timeWindow: "1 minute" } } },
+    { config: { rateLimit: { max: config.RATE_LIMIT_AUTH_MAX, timeWindow: "1 minute" } } },
     async (req, reply) => {
       const parsed = RedeemAccessCode.safeParse(req.body);
       if (!parsed.success) {
@@ -103,7 +103,7 @@ export async function studentAuthRoutes(app: FastifyInstance) {
   // stranger who knows the email can't log the Student out without also reading the email.
   app.post(
     "/reissue",
-    { config: { rateLimit: { max: 5, timeWindow: "1 minute" } } },
+    { config: { rateLimit: { max: config.RATE_LIMIT_AUTH_MAX, timeWindow: "1 minute" } } },
     async (req, reply) => {
       const parsed = ReissueAccessCode.safeParse(req.body);
       if (!parsed.success) {
