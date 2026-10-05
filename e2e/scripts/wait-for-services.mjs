@@ -21,8 +21,17 @@ function tcp(host, port) {
 }
 
 async function http(url) {
-  const res = await fetch(url, { signal: AbortSignal.timeout(2000) });
-  if (!res.ok) throw new Error(`${url} -> ${res.status}`);
+  // AbortSignal.timeout's timer is unref'd: if a just-started container accepts the
+  // connection but never answers, Node would exit (code 13) with the await unsettled.
+  // A plain setTimeout keeps the process alive until the attempt times out.
+  const ctrl = new AbortController();
+  const timer = setTimeout(() => ctrl.abort(new Error("timeout")), 2000);
+  try {
+    const res = await fetch(url, { signal: ctrl.signal });
+    if (!res.ok) throw new Error(`${url} -> ${res.status}`);
+  } finally {
+    clearTimeout(timer);
+  }
 }
 
 const deadline = Date.now() + timeoutMs;
