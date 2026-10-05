@@ -203,31 +203,30 @@ E2E_BASE=http://localhost:3100 E2E_LOG=/tmp/api.log node scripts/e2e.mjs
 Point `E2E_BASE`/`E2E_LOG` at wherever your dev API listens and logs. Exits non-zero on the
 first failed assertion.
 
-## CI/CD (Forgejo Actions)
+## CI/CD (GitHub Actions)
 
-Workflows live in [`.forgejo/workflows/`](./.forgejo/workflows):
+`main` is protected: every change lands through a PR, squash-merged with the PR title as
+the commit message. PR titles must be [Conventional Commits](https://www.conventionalcommits.org)
+(`feat:`, `fix:`, `docs:`, …) — they drive the version.
 
-- **`ci.yml`** — on push to `main` and every PR: `npm ci` → typecheck → test → build.
-- **`release.yml`** — on a version tag (`v*`): builds and pushes the `trip-api` and
-  `trip-web` Docker images to your Forgejo registry, then creates a Forgejo release.
+Workflows live in [`.github/workflows/`](./.github/workflows):
 
-Cut a release:
+- **`ci.yml`** — every PR and push to `main`: `npm ci` → typecheck → test → build, plus a
+  Docker build (no push) of both images.
+- **`pr-title.yml`** — rejects PR titles that aren't Conventional Commits.
+- **`release.yml`** — [release-please](https://github.com/googleapis/release-please) keeps a
+  release PR open with the next [semver](https://semver.org) version and `CHANGELOG.md`.
+  Merging it tags `vX.Y.Z`, creates the GitHub release, and pushes
+  `ghcr.io/<owner>/trip-api` and `trip-web` as `:X.Y.Z`, `:X.Y` and `:latest`.
 
-```bash
-git tag v1.0.0 && git push origin v1.0.0
-```
+Version bumps: `fix:` → patch, `feat:` → minor, `feat!:` / `BREAKING CHANGE:` → major
+(minor while < 1.0). Other types don't release.
 
-Configure once in **Settings ▸ Actions** (Variables & Secrets):
+Optional secret `RELEASE_PLEASE_TOKEN` (fine-grained PAT, contents + pull-requests write):
+without it, release PRs don't trigger CI and can't satisfy the required checks.
 
-| Key | Type | Purpose |
-|---|---|---|
-| `REGISTRY` | variable | registry host, e.g. `forge.example.org` |
-| `REGISTRY_TOKEN` | secret | token with `package:write` for the pushing user |
-| `RELEASE_TOKEN` | secret | token with `repo:write` (creates the release) |
-
-Images are tagged `…/trip-api:<version>`, `:<major>.<minor>` and `:latest`. Deploy them
-by setting `IMAGE_API` / `IMAGE_WEB` in `.env` and running `docker compose pull && up -d`.
-The runner must have Docker (buildx) and be able to fetch the referenced actions.
+Deploy a release by setting `IMAGE_API` / `IMAGE_WEB` in `.env` to the pushed tags and
+running `docker compose pull && docker compose up -d`.
 
 ## Erasure
 

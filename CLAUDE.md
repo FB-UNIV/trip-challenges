@@ -15,8 +15,17 @@ npm run dev:web             # builds @trip/shared, then Vite on :5173 (proxies /
 docker compose -f docker-compose.dev.yml up -d   # Postgres, MinIO, Vault for local dev
 ```
 
-CI (`.forgejo/workflows/ci.yml`) runs typecheck → test → build. There is no linter configured.
-`scripts/e2e.mjs` is a live-stack smoke test — see its header for usage.
+CI (`.github/workflows/ci.yml`) runs typecheck → test → build + Docker builds. There is no
+linter configured. `scripts/e2e.mjs` is a live-stack smoke test — see its header for usage.
+
+## Git workflow
+
+- Never commit or push to `main` — it is protected. Branch (`feat/…`, `fix/…`, `ci/…`, `docs/…`),
+  push, open a PR with `gh pr create`.
+- PRs are squash-merged; the **PR title** is the commit and must be a Conventional Commit.
+  It sets the semver bump: `fix:` patch, `feat:` minor, `feat!:` major. `docs/ci/chore/…` don't release.
+- Releases are cut by merging release-please's `chore(main): release …` PR — never tag by hand
+  or edit `CHANGELOG.md` / `.release-please-manifest.json` manually.
 
 ## Layout
 
