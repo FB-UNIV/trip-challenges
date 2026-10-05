@@ -17,8 +17,13 @@ services:
       - ./packages/api/db/schema.sql:/docker-entrypoint-initdb.d/01-schema.sql:ro
 
   minio:
-    image: minio/minio:latest
+    # MinIO no longer publishes images on Docker Hub (minio/minio is gone); Chainguard
+    # builds the same server from source. It runs as non-root, hence the tmpfs data dir —
+    # fine for dev, where Vault is in-memory too, so blobs never outlive a restart anyway.
+    image: cgr.dev/chainguard/minio:latest
     command: server /data --console-address ":9001"
+    tmpfs:
+      - /data:mode=1777
     environment:
       MINIO_ROOT_USER: ${MINIO_ROOT_USER:-trip-minio}
       MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:-devpass123}
