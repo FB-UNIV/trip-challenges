@@ -64,7 +64,7 @@ export const api = {
       body: JSON.stringify({ challengeId, submissionId }),
     }),
   nextDuel: (challengeId: string) =>
-    req<{ pair: DuelPair | null; reason?: "not_enough" | "exhausted" }>(
+    req<{ pair: DuelPair | null; reason?: "not_enough" | "exhausted" | "closed" }>(
       `/api/duels/next?challengeId=${challengeId}`,
     ),
   castDuel: (body: CastDuel) =>
