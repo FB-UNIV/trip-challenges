@@ -69,11 +69,16 @@ export async function studentAuthRoutes(app: FastifyInstance) {
       // Issue a device-bound session; mark the code spent.
       const token = randomBytes(32).toString("base64url");
       const tokenHash = await argon2.hash(token);
-      await tx(async (c) => {
-        await c.query(
-          `UPDATE student SET access_code_state = 'redeemed' WHERE id = $1`,
-          [student.id],
+      const spent = await tx(async (c) => {
+        // Claim the code atomically: only the request that flips THIS code (same hash, so
+        // a concurrent reissue can't be spent by the old code) from 'unredeemed' wins.
+        // Concurrent redeems (double tap, link prefetch, StrictMode) get 401.
+        const claim = await c.query(
+          `UPDATE student SET access_code_state = 'redeemed'
+            WHERE id = $1 AND access_code_state = 'unredeemed' AND access_code_hash = $2`,
+          [student.id, student.access_code_hash],
         );
+        if (claim.rowCount !== 1) return false;
         // Revoke any prior device session: redeeming the (possibly re-issued) code binds a
         // new device and retires the old one (CONTEXT: Access Code — revoke on redeem).
         await c.query(
@@ -84,7 +89,9 @@ export async function studentAuthRoutes(app: FastifyInstance) {
           `INSERT INTO student_session (student_id, token_hash) VALUES ($1, $2)`,
           [student.id, tokenHash],
         );
+        return true;
       });
+      if (!spent) return reply.code(401).send({ error: "unauthorized", message: "bad code" });
 
       reply.setCookie("student_session", `${student.id}.${token}`, {
         httpOnly: true,
