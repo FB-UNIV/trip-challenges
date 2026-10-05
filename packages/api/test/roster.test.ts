@@ -6,6 +6,7 @@ vi.mock("../src/crypto/vault.js", () => import("./support/fake-vault.js"));
 vi.mock("../src/storage/s3.js", () => import("./support/fake-s3.js"));
 vi.mock("../src/email/mailer.js", () => import("./support/fake-mailer.js"));
 
+import argon2 from "argon2";
 import { rosterRoutes } from "../src/routes/roster.js";
 import { enqueueRoster, processRosterBatch } from "../src/roster-worker.js";
 import { sent, mailer } from "./support/fake-mailer.js";
@@ -104,20 +105,50 @@ describe("roster worker", () => {
     expect(rows[0]!.last_error).toBe("EENVELOPE");
   });
 
-  // BUG: the Student row is inserted before the mail is sent. When SMTP fails once, the
-  // retry hits ON CONFLICT DO NOTHING, skips the mail and marks the item 'done' — the
-  // student never receives a code and nothing surfaces as 'failed'.
-  it.fails("still delivers the code after a transient SMTP failure", async () => {
+  // #18: the Student row used to be inserted before the mail was sent, so after one SMTP
+  // failure the retry hit ON CONFLICT DO NOTHING, skipped the mail and marked it 'done'.
+  it("still delivers a working code after a transient SMTP failure", async () => {
     await enqueueRoster(trip, ["kid@school.test"]);
     mailer.failTimes = 1;
     await processRosterBatch();
+
     expect(sent).toHaveLength(1);
+    expect((await items()).map((i) => [i.status, i.attempts])).toEqual([["done", 1]]);
+    // The mailed code (not one minted for the failed attempt) is the one that redeems.
+    const code = decodeURIComponent((sent[0]!.args[1] as string).split("code=")[1]!);
+    const [studentId, secret] = code.split(".") as [string, string];
+    const { rows } = await pool.query<{ access_code_hash: string; access_code_sent_at: Date | null }>(
+      `SELECT access_code_hash, access_code_sent_at FROM student WHERE id = $1`, [studentId],
+    );
+    expect(await argon2.verify(rows[0]!.access_code_hash, secret)).toBe(true);
+    expect(rows[0]!.access_code_sent_at).toBeInstanceOf(Date);
   });
 
-  it.fails("marks the item failed (not done) when the code could never be mailed", async () => {
+  it("marks the item failed (not done) when the code could never be mailed", async () => {
     await enqueueRoster(trip, ["kid@school.test"]);
     mailer.fail = true;
     await processRosterBatch();
-    expect((await items())[0]!.status).toBe("failed");
+    expect((await items()).map((i) => [i.status, i.attempts])).toEqual([["failed", 5]]);
+    expect(sent).toHaveLength(0);
+  });
+
+  it("re-importing an address whose code never went out sends it then", async () => {
+    await enqueueRoster(trip, ["kid@school.test"]);
+    mailer.fail = true;
+    await processRosterBatch();
+    mailer.fail = false;
+
+    await enqueueRoster(trip, ["kid@school.test"]);
+    await processRosterBatch();
+    expect(sent).toHaveLength(1);
+    expect(await count("student", "trip_id = $1", [trip])).toBe(1);
+  });
+
+  it("never re-mails a student whose code was already sent", async () => {
+    await enqueueRoster(trip, ["kid@school.test"]);
+    await processRosterBatch();
+    await enqueueRoster(trip, ["kid@school.test"]);
+    await processRosterBatch();
+    expect(sent).toHaveLength(1);
   });
 });
