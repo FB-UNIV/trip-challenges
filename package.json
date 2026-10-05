@@ -6,14 +6,17 @@
   "workspaces": [
     "packages/shared",
     "packages/api",
-    "packages/web"
+    "packages/web",
+    "e2e"
   ],
   "scripts": {
     "build": "npm run build --workspaces --if-present",
     "dev:api": "npm run build --workspace @trip/shared && npm run dev --workspace @trip/api",
     "dev:web": "npm run build --workspace @trip/shared && npm run dev --workspace @trip/web",
     "typecheck": "npm run typecheck --workspaces --if-present",
-    "test": "npm run test --workspaces --if-present"
+    "test": "npm run test --workspaces --if-present",
+    "e2e:services": "docker compose -f docker-compose.dev.yml -f e2e/docker-compose.e2e.yml up -d && node e2e/scripts/wait-for-services.mjs",
+    "test:e2e": "npm run e2e --workspace @trip/e2e"
   },
   "engines": {
     "node": ">=20"
