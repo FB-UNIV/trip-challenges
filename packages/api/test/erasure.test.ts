@@ -7,7 +7,7 @@ vi.mock("../src/storage/s3.js", () => import("./support/fake-s3.js"));
 vi.mock("../src/email/mailer.js", () => import("./support/fake-mailer.js"));
 
 import { eraseTrip, findTripsDueForErasure, warnUpcomingErasures } from "../src/erasure.js";
-import { decrypt, hasKey } from "./support/fake-vault.js";
+import { decrypt, hasKey, faults } from "./support/fake-vault.js";
 import { objects } from "./support/fake-s3.js";
 import { sent, mailer } from "./support/fake-mailer.js";
 import {
@@ -77,6 +77,26 @@ describe("eraseTrip", () => {
     // The other trip is untouched.
     expect(hasKey(bystander)).toBe(true);
     expect(await count("submission", "trip_id = $1", [bystander])).toBe(2);
+  });
+});
+
+describe("eraseTrip is resumable (#24)", () => {
+  // Crypto-erasure is only real once the Vault key is gone. If the key step fails, the
+  // trip must stay due so the next scheduler tick finishes it, never marked 'erased'.
+  it("leaves the trip due when destroying the key fails, and a rerun completes it", async () => {
+    const { trip } = await populatedTrip();
+    faults.destroyKeyFailures = 1;
+
+    await expect(eraseTrip(trip)).rejects.toThrow(/sealed/);
+    expect(hasKey(trip)).toBe(true);
+    expect((await pool.query(`SELECT phase FROM trip WHERE id = $1`, [trip])).rows[0]).toEqual({ phase: "grace" });
+    expect(await findTripsDueForErasure(new Date("2100-01-01"))).toContain(trip);
+    expect(await auditActions(trip)).not.toContain("erasure_fired");
+
+    await eraseTrip(trip); // next tick
+    expect(hasKey(trip)).toBe(false);
+    expect((await pool.query(`SELECT phase FROM trip WHERE id = $1`, [trip])).rows[0]).toEqual({ phase: "erased" });
+    expect((await auditActions(trip)).filter((a) => a === "erasure_fired")).toHaveLength(1);
   });
 });
 
