@@ -177,15 +177,22 @@ traefik/    dynamic.yml (edge file-provider config)
 
 ## Testing
 
-`npm test` runs the Vitest suite (39 tests, no infrastructure required):
+`npm test` runs the Vitest suite with no infrastructure required. The API suite enforces
+coverage thresholds (`packages/api/vitest.config.ts`; ~99% of statements today).
 
 - **shared** — schema defaults/validation (`TripConfig`, `ChallengeInput`, …)
-- **api/wilson** — Wilson lower-bound ranking properties (ADR-0002)
-- **api/pairToken** — duel token sign/verify, tamper + voter-binding
-- **api/envelope** — AES-GCM seal/open round-trip + auth-tag tamper detection (Vault mocked)
-- **api/env-schema** — env parsing/defaults (pure, split from config for testability)
-- **api/avscan** — clamd INSTREAM framing + reply parsing (`OK` / `FOUND` / error)
-- **api/erasureWarning** — upcoming-erasure warning bracket selection
+- **api routes + domain** — every route plugin, the lifecycle/results computation, erasure,
+  the scheduler and the roster worker, run against the real `db/schema.sql` in
+  [PGlite](https://pglite.dev) (in-process Postgres) with in-memory Vault, S3 and SMTP fakes
+  (`packages/api/test/support/`). The fake Vault refuses to decrypt once a trip's key is
+  destroyed, so erasure tests check crypto-erasure, not just row deletion.
+- **api I/O wrappers** — Vault transit (stubbed `fetch`), S3 (mocked SDK), SMTP (mocked
+  nodemailer), OIDC discovery, image normalisation (real sharp), clamd over a local socket.
+- **api pure helpers** — Wilson ranking, duel pair tokens, envelope AES-GCM framing, env
+  parsing, erasure-warning brackets, clamd INSTREAM framing.
+
+Known bugs are pinned as `it.fails(...)` tests with a `// BUG:` comment; they flip to
+"unexpectedly passed" once fixed.
 
 ### End-to-end (full stack)
 
