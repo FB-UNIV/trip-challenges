@@ -1,4 +1,6 @@
--- Trip Challenges schema. Mirrors docs/data-model.md.
+-- 0001_baseline: the Trip Challenges schema as first deployed (was db/schema.sql).
+-- Never edit an applied migration: add a new numbered file instead (see src/migrate.ts).
+-- Mirrors docs/data-model.md.
 -- 🔒 columns hold ciphertext (Vault transit, per-Trip key). Destroying the key
 -- crypto-erases them (ADR-0001). Plain columns are non-PII and survive Erasure.
 

@@ -6,6 +6,8 @@ import rateLimit from "@fastify/rate-limit";
 import multipart from "@fastify/multipart";
 import { config } from "./config.js";
 import { ensureBucket } from "./storage/s3.js";
+import { pool } from "./db.js";
+import { migrate } from "./migrate.js";
 import { ensureTransitEngine } from "./crypto/vault.js";
 import { healthRoutes } from "./routes/health.js";
 import { studentAuthRoutes } from "./routes/student-auth.js";
@@ -48,6 +50,8 @@ await app.register(studentAuthRoutes, { prefix: "/api/student" });
 await app.register(submissionRoutes, { prefix: "/api/submissions" });
 await app.register(duelRoutes, { prefix: "/api/duels" });
 
+const applied = await migrate(pool); // before serving: the schema must be current
+if (applied.length) app.log.info({ applied }, "schema migrations applied");
 await ensureBucket();
 await ensureTransitEngine();
 startErasureScheduler();

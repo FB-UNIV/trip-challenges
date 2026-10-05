@@ -13,8 +13,6 @@ services:
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-devpass}
     ports:
       - "127.0.0.1:${PG_HOST_PORT:-5432}:5432"
-    volumes:
-      - ./packages/api/db/schema.sql:/docker-entrypoint-initdb.d/01-schema.sql:ro
 
   minio:
     # MinIO no longer publishes images on Docker Hub (minio/minio is gone); Chainguard

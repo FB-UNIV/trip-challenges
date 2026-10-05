@@ -84,7 +84,7 @@ docker compose build
 docker compose up -d
 ```
 
-The Postgres schema (`packages/api/db/schema.sql`) loads automatically on first boot.
+The API applies the Postgres schema itself at boot: numbered SQL files in `packages/api/db/migrations/`, each in a transaction, recorded in `schema_migrations`, under an advisory lock so replicas don't race. A database created by the old `schema.sql` init script is adopted at `0001_baseline` automatically. To change the schema, add the next numbered file; never edit one that has shipped.
 clamav downloads signature databases on first boot (~1–2 min); the `api` waits for it.
 
 ### 3A. Edge model (separate Traefik VPS)
@@ -197,8 +197,10 @@ curl -sk https://<PUBLIC_HOST>/api/healthz          # via the edge/proxy
 
 - **Logs:** `docker compose logs -f api`. No student PII is ever logged (design invariant);
   ship logs to your aggregator, but keep them **off** the Vault storage medium.
-- **Upgrades:** pull/build new images, `docker compose up -d`. The schema file is applied
-  only on an empty database — apply migrations manually for schema changes to a live DB.
+- **Upgrades:** pull/build new images, `docker compose up -d`. The API applies any pending
+  schema migrations at boot before serving (watch for `schema migrations applied` in the
+  logs). A failing migration is rolled back and the API exits, so the old release keeps
+  the database untouched; take a Postgres backup before upgrading anyway.
 - **Backups & erasure:** back up Postgres + object store together; back up Vault storage
   **separately and tightly** — this separation is what makes crypto-erasure real. Full rules
   in [hardening §2](./production-hardening.md#2-backups-and-the-erasure-guarantee).

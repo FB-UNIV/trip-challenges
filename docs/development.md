@@ -32,7 +32,7 @@ docker compose -f docker-compose.dev.yml up -d
 
 | Service | Host port | Notes |
 |---|---|---|
-| Postgres | `5432` | schema auto-loads on first boot |
+| Postgres | `5432` | empty; the API applies the migrations when it starts |
 | MinIO | `9000` (API), `9001` (web console) | default creds `trip-minio` / `devpass123` |
 | Vault | `8200` | dev mode, root token `dev-root-token` |
 
@@ -148,7 +148,7 @@ packages/
     src/storage/    s3.ts — S3-compatible object store (MinIO/AWS/R2/B2)
     src/erasure.ts  the crypto-erasure job + upcoming-erasure warnings
     src/scheduler.ts background ticks (erasure, warnings, roster drain) under advisory locks
-    db/schema.sql   loaded on first Postgres boot
+    db/migrations/  numbered SQL, applied by the API at boot (src/migrate.ts)
     test/           Vitest unit tests
   web/      React PWA (Vite) — student + teacher UI, inline styles + index.css
 docs/       adr/ · data-model.md · deployment.md · development.md · production-hardening.md
