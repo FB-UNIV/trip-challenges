@@ -10,7 +10,9 @@ const rankOf = (p: string) => PHASES.indexOf(p);
 export function TripAdmin() {
   const { id } = useParams();
   const trip = useAsync(() => api.getTrip(id!), [id]);
-  if (trip.loading) return <p className="muted">Loading…</p>;
+  // Only the first load blanks the page: a reload after a save must keep the cards
+  // mounted, or their confirmations ("Saved.") vanish before anyone sees them (#30).
+  if (trip.loading && !trip.data) return <p className="muted">Loading…</p>;
   const t = trip.data;
   if (!t) return <p className="err">Not found.</p>;
 
@@ -21,9 +23,10 @@ export function TripAdmin() {
         <PhasePill phase={t.phase} dot />
       </div>
       <div style={{ padding: "2px 2px 0" }}><PhaseTrail phase={t.phase} variant="teacher" /></div>
-      <Tiles tripId={id!} phase={t.phase} />
+      <Tiles key={t.phase} tripId={id!} phase={t.phase} />
       <PhaseControl tripId={id!} phase={t.phase} onChange={trip.reload} />
-      <div className="admin-grid">
+      {/* Remount on a phase change so phase-dependent lists (moderation, tiles) refetch. */}
+      <div className="admin-grid" key={t.phase}>
         <Settings tripId={id!} trip={t} onSaved={trip.reload} />
         <CoTeachers tripId={id!} />
         <Roster tripId={id!} />
