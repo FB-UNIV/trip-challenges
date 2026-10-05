@@ -182,8 +182,16 @@ error **code/name** on failure, never the address; audit rows reference IDs, not
 you add code or change log statements, re-check: **no email, name, or access code in any log
 or error string.** A leak here defeats erasure (logs outlive the key).
 
-Because the app never logs PII, `eraseTrip`'s `scrubLogs()` step is an **intentional no-op** —
-there is nothing app-side to scrub. The one residual that erasure *cannot* reach is your
+Enforced in code and tests (`packages/api/src/lib/logging.ts`, `test/logging.test.ts`):
+
+- request URLs are logged **without their query string** (invite tokens, ids);
+- `email` / `code` keys are redacted at any depth, plus cookies and `Authorization`;
+- a failed access-code mail logs only the SMTP error **code**: SMTP errors echo the recipient;
+- with `NODE_ENV=production` and no `SMTP_HOST`, the mailer **refuses** to send instead of
+  falling back to printing the mail (which would log access codes).
+
+Because the app never logs PII, erasure has no log-scrubbing step: there is nothing app-side
+to scrub. The one residual that erasure *cannot* reach is your
 **external SMTP relay's delivery logs**: relays typically record recipient addresses, and the
 app has no API into them. This is an **operator responsibility**:
 

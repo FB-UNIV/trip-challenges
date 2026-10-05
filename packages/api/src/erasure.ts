@@ -37,9 +37,10 @@ export async function eraseTrip(tripId: string): Promise<void> {
     // so a failure below is retried on the next tick instead of being forgotten (#24).
   });
 
-  // 3. Scrub email-delivery + app logs of Trip identifiers/PII, rotate.
-  //    TODO: wire to your log pipeline (structured logs keyed by trip_id).
-  await scrubLogs(tripId);
+  // 3. Logs need no scrubbing: student PII never enters them by construction (opaque
+  //    ids only; query strings, emails and codes stripped, see lib/logging.ts and
+  //    docs/production-hardening.md). Email-provider delivery logs are bounded by the
+  //    provider's retention setting, an operational control documented there too (#20).
 
   // 4. THE decisive step: destroy the Trip's Vault key. Residual copies in
   //    DB/MinIO backups become permanently unreadable. Idempotent, so a retry after a
@@ -54,10 +55,6 @@ export async function eraseTrip(tripId: string): Promise<void> {
   });
 }
 
-async function scrubLogs(_tripId: string): Promise<void> {
-  // Placeholder: student PII should never enter logs in the first place
-  // (log opaque IDs only). Email-delivery records get purged/rotated here.
-}
 
 /** Trips whose grace window elapsed or hard deadline passed. Run on a schedule. */
 export async function findTripsDueForErasure(now = new Date()): Promise<string[]> {

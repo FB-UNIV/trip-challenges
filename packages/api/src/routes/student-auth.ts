@@ -155,7 +155,9 @@ export async function studentAuthRoutes(app: FastifyInstance) {
       try {
         await sendAccessCode(email, trip.name ?? "the trip", joinUrl);
       } catch (e) {
-        req.log.error({ err: e }, "reissue mail failed"); // never surface via the response
+        // Code/name only: SMTP errors echo the recipient, i.e. the minor's address (#20).
+        const err = e as { code?: string; name?: string };
+        req.log.error({ smtpError: err?.code ?? err?.name ?? "error" }, "reissue mail failed"); // never surface via the response
       }
       return reply.send(neutral);
     },

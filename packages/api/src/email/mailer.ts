@@ -14,7 +14,11 @@ const transport = config.SMTP_HOST
 
 export async function sendMail(to: string, subject: string, text: string): Promise<void> {
   if (!transport) {
-    // Dev fallback. Do not enable in production.
+    // The dev fallback prints the whole mail (access codes, emails). In production that
+    // would put minors' PII and live credentials in the logs, so fail instead (#20).
+    if (config.NODE_ENV === "production") {
+      throw new Error("SMTP is not configured (SMTP_HOST unset); refusing to print mail in production");
+    }
     console.log(`[mail:dev] to=${to} :: ${subject}\n${text}\n`);
     return;
   }
