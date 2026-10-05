@@ -16,7 +16,7 @@ async function vault(path: string, body?: unknown, method = "POST") {
     body: body ? JSON.stringify(body) : undefined,
   });
   if (!res.ok) {
-    throw new Error(`vault ${path} -> ${res.status} ${await res.text()}`);
+    throw Object.assign(new Error(`vault ${path} -> ${res.status} ${await res.text()}`), { status: res.status });
   }
   return res.status === 204 ? {} : ((await res.json()) as any);
 }
@@ -88,8 +88,14 @@ export async function dataKey(
  * After this, no 🔒 value for the Trip is recoverable, anywhere.
  */
 export async function destroyTripKey(tripId: string): Promise<void> {
-  await vault(`${config.VAULT_TRANSIT_MOUNT}/keys/${keyName(tripId)}/config`, {
-    deletion_allowed: true,
-  });
-  await vault(`${config.VAULT_TRANSIT_MOUNT}/keys/${keyName(tripId)}`, undefined, "DELETE");
+  try {
+    await vault(`${config.VAULT_TRANSIT_MOUNT}/keys/${keyName(tripId)}/config`, {
+      deletion_allowed: true,
+    });
+    await vault(`${config.VAULT_TRANSIT_MOUNT}/keys/${keyName(tripId)}`, undefined, "DELETE");
+  } catch (e: any) {
+    // Already gone (e.g. a retried erasure that failed after this step): job done.
+    if (e?.status === 404) return;
+    throw e;
+  }
 }

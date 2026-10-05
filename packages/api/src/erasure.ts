@@ -32,7 +32,8 @@ export async function eraseTrip(tripId: string): Promise<void> {
     await c.query(`DELETE FROM roster_import_item WHERE trip_id = $1`, [tripId]);
     await c.query(`DELETE FROM trip_teacher_invite WHERE trip_id = $1`, [tripId]);
     await c.query(`DELETE FROM challenge WHERE trip_id = $1`, [tripId]);
-    await c.query(`UPDATE trip SET phase = 'erased' WHERE id = $1`, [tripId]);
+    // NOT tombstoned yet: until the key is destroyed (step 4) the trip must stay due,
+    // so a failure below is retried on the next tick instead of being forgotten (#24).
   });
 
   // 3. Scrub email-delivery + app logs of Trip identifiers/PII, rotate.
@@ -40,14 +41,16 @@ export async function eraseTrip(tripId: string): Promise<void> {
   await scrubLogs(tripId);
 
   // 4. THE decisive step: destroy the Trip's Vault key. Residual copies in
-  //    DB/MinIO backups become permanently unreadable.
+  //    DB/MinIO backups become permanently unreadable. Idempotent, so a retry after a
+  //    later failure is safe.
   await destroyTripKey(tripId);
 
-  // 5. Audit (PII-free) — survives.
-  await pool.query(
-    `INSERT INTO audit_log (trip_id, action) VALUES ($1, 'erasure_fired')`,
-    [tripId],
-  );
+  // 5. Only now tombstone the Trip, together with the (PII-free, surviving) audit row.
+  //    Every step above is idempotent: re-running a half-finished erasure converges.
+  await tx(async (c) => {
+    await c.query(`UPDATE trip SET phase = 'erased' WHERE id = $1`, [tripId]);
+    await c.query(`INSERT INTO audit_log (trip_id, action) VALUES ($1, 'erasure_fired')`, [tripId]);
+  });
 }
 
 async function scrubLogs(_tripId: string): Promise<void> {

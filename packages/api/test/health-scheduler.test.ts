@@ -9,7 +9,7 @@ vi.mock("../src/email/mailer.js", () => import("./support/fake-mailer.js"));
 import { healthRoutes } from "../src/routes/health.js";
 import { startErasureScheduler } from "../src/scheduler.js";
 import { enqueueRoster } from "../src/roster-worker.js";
-import { hasKey } from "./support/fake-vault.js";
+import { hasKey, faults } from "./support/fake-vault.js";
 import { pool, resetAll, buildApp, makeTeacher, makeTrip, count } from "./support/harness.js";
 
 beforeEach(resetAll);
@@ -52,13 +52,10 @@ describe("startErasureScheduler", () => {
   it("logs a trip whose erasure fails and keeps ticking", async () => {
     const due = await makeTrip(await makeTeacher(), { phase: "challenge", hardEraseAt: new Date(Date.now() - 1000) });
     const err = vi.spyOn(console, "error").mockImplementation(() => {});
-    const realQuery = pool.query.bind(pool);
-    vi.spyOn(pool, "query").mockImplementation((async (sql: string, params?: unknown[]) => {
-      if (sql.includes("'erasure_fired'")) throw new Error("audit insert failed");
-      return realQuery(sql, params as any);
-    }) as any);
+    faults.destroyKeyFailures = 1; // e.g. Vault sealed for one tick
 
     timer = startErasureScheduler(20);
     await vi.waitFor(() => expect(err).toHaveBeenCalledWith(`[erasure] failed for trip ${due}`, expect.any(Error)), { timeout: 10_000 });
+    await vi.waitFor(() => expect(hasKey(due)).toBe(false), { timeout: 10_000 }); // finished on a later tick
   });
 });
