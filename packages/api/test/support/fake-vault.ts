@@ -8,7 +8,12 @@ const keys = new Map<string, Buffer>();
 export const keyName = (tripId: string) => `trip-${tripId}`;
 export const hasKey = (tripId: string) => keys.has(tripId);
 export const keyCount = () => keys.size;
-export const resetVault = () => keys.clear();
+/** Fault injection: the next `destroyKeyFailures` calls to destroyTripKey throw. */
+export const faults = { destroyKeyFailures: 0 };
+export const resetVault = () => {
+  keys.clear();
+  faults.destroyKeyFailures = 0;
+};
 
 function key(tripId: string): Buffer {
   const k = keys.get(tripId);
@@ -43,5 +48,9 @@ export async function dataKey(tripId: string): Promise<{ plaintext: Buffer; wrap
 }
 
 export async function destroyTripKey(tripId: string): Promise<void> {
-  keys.delete(tripId);
+  if (faults.destroyKeyFailures > 0) {
+    faults.destroyKeyFailures--;
+    throw new Error("vault: 503 Vault is sealed");
+  }
+  keys.delete(tripId); // idempotent, like the real client for an already-deleted key
 }

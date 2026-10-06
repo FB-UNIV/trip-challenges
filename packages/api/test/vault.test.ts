@@ -73,6 +73,11 @@ describe("vault transit client", () => {
     ]);
   });
 
+  it("treats an already-deleted key as destroyed, so an interrupted erasure can be retried", async () => {
+    reply = () => new Response(JSON.stringify({ errors: ["no existing key named trip-t1 could be found"] }), { status: 404 });
+    await expect(vault.destroyTripKey("t1")).resolves.toBeUndefined();
+  });
+
   it("surfaces Vault errors with status and body", async () => {
     reply = () => new Response("permission denied", { status: 403 });
     await expect(vault.encrypt("t1", Buffer.from("x"))).rejects.toThrow("vault transit/encrypt/trip-t1 -> 403 permission denied");
