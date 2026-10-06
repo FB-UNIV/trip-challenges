@@ -97,6 +97,26 @@ describe("GET /api/duels/next", () => {
   });
 });
 
+describe("voting closes at voting_closes_at (#26)", () => {
+  beforeEach(async () => {
+    noms.C = (await contender(trip, ch, "C")).nom;
+  });
+
+  it("serves no pair and refuses casts once the planned close time has passed", async () => {
+    const { pair } = (await next(voter.cookie)).json();
+    await pool.query(`UPDATE trip SET voting_closes_at = now() - interval '1 minute' WHERE id = $1`, [trip]);
+
+    expect((await next(voter.cookie)).json()).toEqual({ pair: null, reason: "closed" });
+    const res = await cast(voter.cookie, pair.pairToken, pair.aNominationId);
+    expect(res.statusCode).toBe(409);
+  });
+
+  it("keeps voting open before the planned close time", async () => {
+    await pool.query(`UPDATE trip SET voting_closes_at = now() + interval '1 hour' WHERE id = $1`, [trip]);
+    expect((await next(voter.cookie)).json().pair).not.toBeNull();
+  });
+});
+
 describe("POST /api/duels/cast — trip and phase checks (#16, #17)", () => {
   beforeEach(async () => {
     noms.C = (await contender(trip, ch, "C")).nom;

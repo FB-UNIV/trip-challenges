@@ -5,6 +5,10 @@ export default defineConfig({
     // PGlite boots a WASM Postgres per test file; the first query can take a few seconds.
     testTimeout: 20_000,
     hookTimeout: 20_000,
+    // Each test file boots its own WASM Postgres; too many at once starves the CPU and
+    // setup hooks time out (seen with 11 workers on a 12-core machine).
+    maxWorkers: 4,
+    minWorkers: 1,
     coverage: {
       provider: "v8",
       include: ["src/**/*.ts"],

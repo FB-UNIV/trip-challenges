@@ -14,7 +14,12 @@ import { s3faults } from "./support/fake-s3.js";
 import { sent } from "./support/fake-mailer.js";
 import { pool, resetAll, buildApp, makeTeacher, makeTrip, addCoTeacher, count } from "./support/harness.js";
 
-beforeEach(resetAll);
+beforeEach(async () => {
+  await resetAll();
+  // Scheduler ticks ping HEARTBEAT_URL (test config); never hit the network.
+  vi.stubGlobal("fetch", vi.fn(async () => new Response("OK")));
+});
+afterEach(() => vi.unstubAllGlobals());
 
 describe("health", () => {
   it("reports liveness and DB readiness", async () => {
@@ -77,6 +82,15 @@ describe("startErasureScheduler", () => {
     await vi.waitFor(() => expect(tried).toContain(ERASURE_LOCK), { timeout: 10_000 });
     // A tick that lost the erasure lock must still go on to drain the roster.
     await vi.waitFor(() => expect(tried).toContain(ROSTER_LOCK), { timeout: 10_000 });
+  });
+
+  it("auto-advances trips whose planned dates have passed (#26)", async () => {
+    const trip = await makeTrip(await makeTeacher(), { phase: "draft", challengeOpensAt: new Date(Date.now() - 1000) });
+    timer = startErasureScheduler(20);
+    await vi.waitFor(async () => {
+      const { rows } = await pool.query<{ phase: string }>(`SELECT phase FROM trip WHERE id = $1`, [trip]);
+      expect(rows[0]!.phase).toBe("challenge");
+    }, { timeout: 10_000 });
   });
 
   it("logs a trip whose erasure fails and keeps ticking", async () => {

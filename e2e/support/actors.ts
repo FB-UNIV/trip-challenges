@@ -17,7 +17,8 @@ export type Student = { email: string; context: BrowserContext; page: Page; api:
 export const ACCESS_CODE_SUBJECT = /^Your access code for /;
 
 export async function signInTeacher(browser: Browser, email = uniqueEmail("teacher")): Promise<Teacher> {
-  const context = await browser.newContext({ baseURL: WEB_URL });
+  // A real school's timezone, so date inputs are checked against UTC conversion.
+  const context = await browser.newContext({ baseURL: WEB_URL, timezoneId: "Europe/Paris" });
   const res = await context.request.post("/api/auth/teacher/dev-login", { data: { email } });
   expect(res.ok(), await res.text()).toBe(true);
   return { email, context, page: await context.newPage(), api: new TeacherApi(context.request) };

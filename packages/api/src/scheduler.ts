@@ -4,6 +4,7 @@ import { pool } from "./db.js";
 import { config } from "./config.js";
 import { findTripsDueForErasure, eraseTrip, warnUpcomingErasures, alertErasureFailure } from "./erasure.js";
 import { processRosterBatch } from "./roster-worker.js";
+import { autoAdvanceDue } from "./lifecycle.js";
 
 const LOCK_KEY = 918273645; // arbitrary, stable across replicas
 
@@ -19,6 +20,12 @@ export function startErasureScheduler(intervalMs = 60_000) {
       // below has its own lock and must still run here (#37).
       if (rows[0]?.locked) {
         try {
+          // Planned phase changes first (#26), so a trip opening today is live this tick.
+          try {
+            await autoAdvanceDue();
+          } catch (e) {
+            console.error("[lifecycle] auto-advance pass failed", e);
+          }
           const due = await findTripsDueForErasure();
           let healthy = true;
           for (const id of due) {
