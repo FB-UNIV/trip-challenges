@@ -45,7 +45,7 @@ describe("startErasureScheduler", () => {
     await vi.waitFor(async () => {
       expect(hasKey(due)).toBe(false);
       expect(await count("student", "trip_id = $1", [live])).toBe(1);
-    });
+    }, { timeout: 10_000 });
     expect(hasKey(live)).toBe(true);
   });
 
@@ -59,6 +59,6 @@ describe("startErasureScheduler", () => {
     }) as any);
 
     timer = startErasureScheduler(20);
-    await vi.waitFor(() => expect(err).toHaveBeenCalledWith(`[erasure] failed for trip ${due}`, expect.any(Error)));
+    await vi.waitFor(() => expect(err).toHaveBeenCalledWith(`[erasure] failed for trip ${due}`, expect.any(Error)), { timeout: 10_000 });
   });
 });

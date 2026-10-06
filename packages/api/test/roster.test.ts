@@ -40,9 +40,10 @@ describe("POST /api/trips/:id/roster", () => {
     for (const it of await items()) expect(it.email_enc.toString()).not.toContain("school.test");
     expect(await auditActions(trip)).toContain("roster_enqueued");
 
-    await vi.waitFor(async () => expect(await count("student", "trip_id = $1", [trip])).toBe(2));
+    // The worker runs in the background (two argon2 hashes + Vault); allow it time under load.
+    await vi.waitFor(async () => expect(await count("student", "trip_id = $1", [trip])).toBe(2), { timeout: 10_000 });
     // Addresses are normalised before use.
-    await vi.waitFor(() => expect(sent.map((m) => m.to).sort()).toEqual(["kid1@school.test", "kid2@school.test"]));
+    await vi.waitFor(() => expect(sent.map((m) => m.to).sort()).toEqual(["kid1@school.test", "kid2@school.test"]), { timeout: 10_000 });
   });
 
   it("rejects bad input, missing auth and non-members", async () => {
