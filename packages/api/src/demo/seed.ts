@@ -55,7 +55,7 @@ const CHALLENGES = [
 ];
 // Demo-only access codes: cheap argon2 params keep seeding fast (verify reads the params
 // from the hash, so these codes redeem exactly like real ones).
-const DEMO_ARGON = { type: argon2.argon2id, memoryCost: 4096, timeCost: 2, parallelism: 1 };
+const DEMO_ARGON = { type: argon2.argon2id, memoryCost: 4096, timeCost: 2, parallelism: 1 } as const;
 
 type Res = { statusCode: number; body: string; json: () => any; cookies: { name: string; value: string }[] };
 
