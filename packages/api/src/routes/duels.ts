@@ -5,7 +5,8 @@ import type { PoolClient } from "pg";
 import { CastDuel } from "@trip/shared";
 import { config } from "../config.js";
 import { pool, tx } from "../db.js";
-import { requireStudent } from "../auth/student.js";
+import { z } from "zod";
+import { guard, tripFrom, studentOf, tripOf } from "../auth/guard.js";
 import { wilsonLower } from "../lib/wilson.js";
 import { signPair as sign, verifyPair as verify } from "../lib/pairToken.js";
 
@@ -16,16 +17,19 @@ const verifyPair = (token: string, voterId: string) =>
 
 export async function duelRoutes(app: FastifyInstance) {
   // Serve the next pair for a Challenge.
-  app.get("/next", async (req, reply) => {
-    const ctx = await requireStudent(req);
-    if (!ctx) return reply.code(401).send({ error: "unauthorized", message: "no session" });
-    const challengeId = (req.query as any)?.challengeId as string | undefined;
-    if (!challengeId) return reply.code(400).send({ error: "bad_request", message: "challengeId" });
-
-    // Only this voter's trip (#16), and only during the Voting Period (#17).
-    const phase = await challengePhase(pool, challengeId, ctx.tripId);
-    if (!phase) return reply.code(404).send({ error: "not_found", message: "challenge" });
-    if (phase !== "voting") return { pair: null, reason: "closed" };
+  // Only this voter's trip (#16), and only during the Voting Period (#17).
+  app.get("/next", {
+    preHandler: guard({
+      role: "student",
+      query: z.object({ challengeId: z.string() }),
+      trip: tripFrom.challenge("query.challengeId"),
+      phases: ["voting"],
+      closed: { status: 200, body: { pair: null, reason: "closed" } },
+    }),
+  }, async (req) => {
+    const ctx = studentOf(req);
+    const { challengeId } = req.query as { challengeId: string };
+    if (tripOf(req).votingClosed) return { pair: null, reason: "closed" };
 
     // Eligible = approved+active nominations for this challenge, not the voter's team,
     // and not already exhausted against this voter. Least-compared-first.
@@ -76,9 +80,14 @@ export async function duelRoutes(app: FastifyInstance) {
   });
 
   // Cast the result of a duel.
-  app.post("/cast", async (req, reply) => {
-    const ctx = await requireStudent(req);
-    if (!ctx) return reply.code(401).send({ error: "unauthorized", message: "no session" });
+  app.post("/cast", {
+    preHandler: guard({
+      role: "student",
+      phases: ["voting"],
+      closed: { status: 409, body: { error: "closed", message: "closed" } },
+    }),
+  }, async (req, reply) => {
+    const ctx = studentOf(req);
     const parsed = CastDuel.safeParse(req.body);
     if (!parsed.success) return reply.code(400).send({ error: "bad_request", message: "invalid" });
 

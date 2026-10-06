@@ -12,19 +12,6 @@ export function readTeacher(req: FastifyRequest, reply: FastifyReply): TeacherCt
   return { teacherId: un.value };
 }
 
-/** Guard: 401 if no teacher. Returns ctx on success. */
-export async function requireTeacher(
-  req: FastifyRequest,
-  reply: FastifyReply,
-): Promise<TeacherCtx | null> {
-  const ctx = readTeacher(req, reply);
-  if (!ctx) {
-    reply.code(401).send({ error: "unauthorized", message: "teacher login required" });
-    return null;
-  }
-  return ctx;
-}
-
 /** Assert the teacher is owner or co-teacher on a Trip. */
 export async function assertTripAccess(teacherId: string, tripId: string): Promise<boolean> {
   const { rowCount } = await pool.query(

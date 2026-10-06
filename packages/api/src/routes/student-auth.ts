@@ -7,24 +7,23 @@ import { randomBytes, timingSafeEqual } from "node:crypto";
 import { RedeemAccessCode, ReissueAccessCode } from "@trip/shared";
 import { config } from "../config.js";
 import { pool, tx } from "../db.js";
-import { requireStudent } from "../auth/student.js";
+import { guard, studentOf, tripOf } from "../auth/guard.js";
 import { hmac } from "../crypto/vault.js";
 import { sendAccessCode } from "../email/mailer.js";
 
 export async function studentAuthRoutes(app: FastifyInstance) {
   // Who am I + my trip's state (UI bootstrap).
-  app.get("/me", async (req, reply) => {
-    const ctx = await requireStudent(req);
-    if (!ctx) return reply.code(401).send({ error: "unauthorized", message: "no session" });
-    const { rows } = await pool.query<{ name: string; phase: string }>(
-      `SELECT name, phase FROM trip WHERE id = $1`,
+  app.get("/me", { preHandler: guard({ role: "student" }) }, async (req) => {
+    const ctx = studentOf(req);
+    const { rows } = await pool.query<{ name: string }>(
+      `SELECT name FROM trip WHERE id = $1`,
       [ctx.tripId],
     );
     return {
       studentId: ctx.studentId,
       tripId: ctx.tripId,
       tripName: rows[0]?.name ?? "",
-      phase: rows[0]?.phase ?? "",
+      phase: tripOf(req).phase,
       teamId: ctx.teamId,
     };
   });
@@ -32,7 +31,7 @@ export async function studentAuthRoutes(app: FastifyInstance) {
   // Tighter rate limit on redemption — anti brute-force on Access Codes.
   app.post(
     "/redeem",
-    { config: { rateLimit: { max: config.RATE_LIMIT_AUTH_MAX, timeWindow: "1 minute" } } },
+    { preHandler: guard({ role: "public" }), config: { rateLimit: { max: config.RATE_LIMIT_AUTH_MAX, timeWindow: "1 minute" } } },
     async (req, reply) => {
       const parsed = RedeemAccessCode.safeParse(req.body);
       if (!parsed.success) {
@@ -110,7 +109,7 @@ export async function studentAuthRoutes(app: FastifyInstance) {
   // stranger who knows the email can't log the Student out without also reading the email.
   app.post(
     "/reissue",
-    { config: { rateLimit: { max: config.RATE_LIMIT_AUTH_MAX, timeWindow: "1 minute" } } },
+    { preHandler: guard({ role: "public" }), config: { rateLimit: { max: config.RATE_LIMIT_AUTH_MAX, timeWindow: "1 minute" } } },
     async (req, reply) => {
       const parsed = ReissueAccessCode.safeParse(req.body);
       if (!parsed.success) {

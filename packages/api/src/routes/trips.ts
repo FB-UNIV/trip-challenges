@@ -4,16 +4,19 @@ import type { FastifyInstance } from "fastify";
 import { randomUUID } from "node:crypto";
 import { TripConfig, TripConfigPatch } from "@trip/shared";
 import { pool, tx } from "../db.js";
-import { readTeacher, requireTeacher, assertTripAccess } from "../auth/teacher.js";
+import { readTeacher, assertTripAccess } from "../auth/teacher.js";
+import { guard, tripFrom, teacherOf, tripOf, type Phase } from "../auth/guard.js";
 import { createTripKey, destroyTripKey, keyName } from "../crypto/vault.js";
 import { advanceTrip } from "../lifecycle.js";
 import { eraseTrip } from "../erasure.js";
 
 export async function tripRoutes(app: FastifyInstance) {
+  const anyTeacher = guard({ role: "teacher" });
+  const member = guard({ role: "teacher", trip: tripFrom.trip("params.id") });
+
   // Create a Trip (owner = caller).
-  app.post("/", async (req, reply) => {
-    const teacher = await requireTeacher(req, reply);
-    if (!teacher) return;
+  app.post("/", { preHandler: anyTeacher }, async (req, reply) => {
+    const teacher = teacherOf(req);
     const parsed = TripConfig.safeParse(req.body);
     if (!parsed.success) {
       return reply.code(400).send({ error: "bad_request", message: parsed.error.message });
@@ -57,9 +60,8 @@ export async function tripRoutes(app: FastifyInstance) {
   });
 
   // List Trips the caller manages.
-  app.get("/", async (req, reply) => {
-    const teacher = await requireTeacher(req, reply);
-    if (!teacher) return;
+  app.get("/", { preHandler: anyTeacher }, async (req) => {
+    const teacher = teacherOf(req);
     const { rows } = await pool.query(
       `SELECT t.id, t.name, t.phase, t.trip_end_date, t.hard_erase_at, tt.role
          FROM trip t
@@ -72,13 +74,8 @@ export async function tripRoutes(app: FastifyInstance) {
   });
 
   // Get one Trip (must be a member).
-  app.get("/:id", async (req, reply) => {
-    const teacher = await requireTeacher(req, reply);
-    if (!teacher) return;
-    const id = (req.params as { id: string }).id;
-    if (!(await assertTripAccess(teacher.teacherId, id))) {
-      return reply.code(404).send({ error: "not_found", message: "no such trip" });
-    }
+  app.get("/:id", { preHandler: member }, async (req, reply) => {
+    const id = tripOf(req).id;
     const { rows } = await pool.query(
       `SELECT id, name, phase, max_team_size, points_table, challenge_opens_at,
               voting_opens_at, voting_closes_at, grace_days, trip_end_date,
@@ -90,13 +87,8 @@ export async function tripRoutes(app: FastifyInstance) {
   });
 
   // Advance the phase (teacher-confirmed transition).
-  app.post("/:id/advance", async (req, reply) => {
-    const teacher = await requireTeacher(req, reply);
-    if (!teacher) return;
-    const id = (req.params as { id: string }).id;
-    if (!(await assertTripAccess(teacher.teacherId, id))) {
-      return reply.code(404).send({ error: "not_found", message: "no such trip" });
-    }
+  app.post("/:id/advance", { preHandler: member }, async (req, reply) => {
+    const id = tripOf(req).id;
     const to = (req.body as { to?: string })?.to;
     if (!to) return reply.code(400).send({ error: "bad_request", message: "to" });
     try {
@@ -109,13 +101,8 @@ export async function tripRoutes(app: FastifyInstance) {
   });
 
   // Fire Erasure early (teacher). Irreversible.
-  app.post("/:id/erase", async (req, reply) => {
-    const teacher = await requireTeacher(req, reply);
-    if (!teacher) return;
-    const id = (req.params as { id: string }).id;
-    if (!(await assertTripAccess(teacher.teacherId, id))) {
-      return reply.code(404).send({ error: "not_found", message: "no such trip" });
-    }
+  app.post("/:id/erase", { preHandler: member }, async (req, reply) => {
+    const id = tripOf(req).id;
     await eraseTrip(id);
     return { ok: true, erased: true };
   });
@@ -125,7 +112,7 @@ export async function tripRoutes(app: FastifyInstance) {
   // and advances reveal->grace. Until then only a Trip teacher (running the ceremony) may
   // read them, so student phones can't leak the leaderboard ahead of the shared reveal.
   // From 'grace' onward they are a public keepsake (and survive Erasure).
-  app.get("/:id/results", async (req, reply) => {
+  app.get("/:id/results", { preHandler: guard({ role: "public" }) }, async (req, reply) => {
     const id = (req.params as { id: string }).id;
     const { rows: tr } = await pool.query<{ phase: string }>(
       `SELECT phase FROM trip WHERE id = $1`,
@@ -155,17 +142,16 @@ export async function tripRoutes(app: FastifyInstance) {
   // hand-breaks). computeResults flags every top-total Team as a co-champion; the Teacher
   // picks one during the ceremony (phase 'reveal', before results publish at reveal->grace).
   // The chosen row stays; the other co-champion rows are dropped.
-  app.post("/:id/grand-champion", async (req, reply) => {
-    const teacher = await requireTeacher(req, reply);
-    if (!teacher) return;
-    const id = (req.params as { id: string }).id;
-    if (!(await assertTripAccess(teacher.teacherId, id))) {
-      return reply.code(404).send({ error: "not_found", message: "no such trip" });
-    }
-    const { rows: tr } = await pool.query<{ phase: string }>(`SELECT phase FROM trip WHERE id = $1`, [id]);
-    if (tr[0]?.phase !== "reveal") {
-      return reply.code(409).send({ error: "wrong_phase", message: "tie-break is only available during the reveal" });
-    }
+  app.post("/:id/grand-champion", {
+    preHandler: guard({
+      role: "teacher",
+      trip: tripFrom.trip("params.id"),
+      phases: ["reveal"],
+      closed: { status: 409, body: { error: "wrong_phase", message: "tie-break is only available during the reveal" } },
+    }),
+  }, async (req, reply) => {
+    const teacher = teacherOf(req);
+    const id = tripOf(req).id;
     const resultId = (req.body as { resultId?: string })?.resultId;
     if (!resultId) return reply.code(400).send({ error: "bad_request", message: "resultId" });
 
@@ -191,27 +177,29 @@ export async function tripRoutes(app: FastifyInstance) {
 
   // Edit Trip config after creation — phase-gated per docs/data-model.md#editability.
   // Any provided field that isn't editable in the current phase rejects the whole request.
-  app.patch("/:id", async (req, reply) => {
-    const teacher = await requireTeacher(req, reply);
-    if (!teacher) return;
-    const id = (req.params as { id: string }).id;
-    if (!(await assertTripAccess(teacher.teacherId, id))) {
-      return reply.code(404).send({ error: "not_found", message: "no such trip" });
-    }
+  app.patch("/:id", {
+    preHandler: guard({
+      role: "teacher",
+      trip: tripFrom.trip("params.id"),
+      phases: LIVE,
+      closed: { status: 409, body: { error: "erased", message: "trip is erased" } },
+    }),
+  }, async (req, reply) => {
+    const teacher = teacherOf(req);
+    const id = tripOf(req).id;
     const parsed = TripConfigPatch.safeParse(req.body);
     if (!parsed.success) return reply.code(400).send({ error: "bad_request", message: parsed.error.message });
     const patch = parsed.data;
 
-    const { rows: cur } = await pool.query<{ phase: string; trip_end_date: string; max_retention_days: number }>(
-      `SELECT phase, trip_end_date, max_retention_days FROM trip WHERE id = $1`,
+    const { phase } = tripOf(req);
+    const { rows: cur } = await pool.query<{ trip_end_date: string; max_retention_days: number }>(
+      `SELECT trip_end_date, max_retention_days FROM trip WHERE id = $1`,
       [id],
     );
-    const trip = cur[0];
-    if (!trip) return reply.code(404).send({ error: "not_found", message: "no such trip" });
-    if (trip.phase === "erased") return reply.code(409).send({ error: "erased", message: "trip is erased" });
+    const trip = cur[0]!;
 
-    const beforeReveal = rank(trip.phase) < rank("reveal");
-    const draftOnly = trip.phase === "draft";
+    const beforeReveal = rank(phase) < rank("reveal");
+    const draftOnly = phase === "draft";
 
     // field key -> [db column, value, editable in this phase?]
     const fields: Record<string, [string, unknown, boolean]> = {};
@@ -229,7 +217,7 @@ export async function tripRoutes(app: FastifyInstance) {
     if (blocked.length) {
       return reply.code(409).send({
         error: "locked_in_phase",
-        message: `not editable in phase '${trip.phase}': ${blocked.join(", ")}`,
+        message: `not editable in phase '${phase}': ${blocked.join(", ")}`,
       });
     }
 
@@ -258,5 +246,6 @@ export async function tripRoutes(app: FastifyInstance) {
 }
 
 // Phase ordering for editability gates (draft < challenge < ... < erased).
-const PHASES = ["draft", "challenge", "voting", "reveal", "grace", "erased"];
-const rank = (p: string) => PHASES.indexOf(p);
+const PHASES: Phase[] = ["draft", "challenge", "voting", "reveal", "grace", "erased"];
+const LIVE = PHASES.filter((p) => p !== "erased");
+const rank = (p: string) => PHASES.indexOf(p as Phase);

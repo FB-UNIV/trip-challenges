@@ -144,6 +144,7 @@ packages/
   shared/   zod schemas + types — the single source of truth for api + web
   api/      Fastify service
     src/routes/     HTTP endpoints (trips, roster, teams, submissions, duels, invites, …)
+    src/auth/       sessions + guard.ts: every route's preHandler (role, trip, phases)
     src/crypto/     Vault transit + envelope encryption
     src/storage/    s3.ts — S3-compatible object store (MinIO/AWS/R2/B2)
     src/erasure.ts  the crypto-erasure job + upcoming-erasure warnings

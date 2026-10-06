@@ -7,18 +7,16 @@
 import type { FastifyInstance } from "fastify";
 import { RosterImport } from "@trip/shared";
 import { pool } from "../db.js";
-import { requireTeacher, assertTripAccess } from "../auth/teacher.js";
+import { guard, tripFrom, teacherOf, tripOf } from "../auth/guard.js";
 import { enqueueRoster, processRosterBatch } from "../roster-worker.js";
 
 export async function rosterRoutes(app: FastifyInstance) {
+  const member = guard({ role: "teacher", trip: tripFrom.trip("params.id") });
+
   // POST /api/trips/:id/roster — enqueue emails; returns 202 with how many were queued.
-  app.post("/:id/roster", async (req, reply) => {
-    const teacher = await requireTeacher(req, reply);
-    if (!teacher) return;
-    const tripId = (req.params as { id: string }).id;
-    if (!(await assertTripAccess(teacher.teacherId, tripId))) {
-      return reply.code(404).send({ error: "not_found", message: "no such trip" });
-    }
+  app.post("/:id/roster", { preHandler: member }, async (req, reply) => {
+    const teacher = teacherOf(req);
+    const tripId = tripOf(req).id;
     const parsed = RosterImport.safeParse(req.body);
     if (!parsed.success) {
       return reply.code(400).send({ error: "bad_request", message: parsed.error.message });
@@ -36,13 +34,8 @@ export async function rosterRoutes(app: FastifyInstance) {
   });
 
   // GET /api/trips/:id/roster/status — progress for the admin UI.
-  app.get("/:id/roster/status", async (req, reply) => {
-    const teacher = await requireTeacher(req, reply);
-    if (!teacher) return;
-    const tripId = (req.params as { id: string }).id;
-    if (!(await assertTripAccess(teacher.teacherId, tripId))) {
-      return reply.code(404).send({ error: "not_found", message: "no such trip" });
-    }
+  app.get("/:id/roster/status", { preHandler: member }, async (req) => {
+    const tripId = tripOf(req).id;
     const { rows } = await pool.query<{ status: string; n: string }>(
       `SELECT status, count(*)::text AS n FROM roster_import_item WHERE trip_id = $1 GROUP BY status`,
       [tripId],

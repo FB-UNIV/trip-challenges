@@ -7,24 +7,24 @@ import { z } from "zod";
 import { ChallengeInput, ChallengePatch } from "@trip/shared";
 import { config } from "../config.js";
 import { pool } from "../db.js";
-import { requireTeacher, assertTripAccess } from "../auth/teacher.js";
-import { requireStudent } from "../auth/student.js";
+import { guard, tripFrom, studentOf, tripOf, type Phase } from "../auth/guard.js";
 
 const CreateChallenge = ChallengeInput.extend({ tripId: z.string().uuid() });
 
 export async function challengeRoutes(app: FastifyInstance) {
+  const ofMyChallenge = (phases?: Phase[], message?: string) => guard({
+    role: "teacher",
+    trip: tripFrom.challenge("params.id"),
+    phases,
+    closed: message ? { status: 409, body: { error: "locked_in_phase", message } } : undefined,
+  });
+
   // Create (teacher, must own/co the Trip).
-  app.post("/", async (req, reply) => {
-    const teacher = await requireTeacher(req, reply);
-    if (!teacher) return;
-    const parsed = CreateChallenge.safeParse(req.body);
-    if (!parsed.success) {
-      return reply.code(400).send({ error: "bad_request", message: parsed.error.message });
-    }
-    const { tripId, title, instructions, multiplier } = parsed.data;
-    if (!(await assertTripAccess(teacher.teacherId, tripId))) {
-      return reply.code(404).send({ error: "not_found", message: "no such trip" });
-    }
+  app.post("/", {
+    preHandler: guard({ role: "teacher", body: CreateChallenge, trip: tripFrom.trip("body.tripId") }),
+  }, async (req, reply) => {
+    const tripId = tripOf(req).id;
+    const { title, instructions, multiplier } = req.body as z.infer<typeof CreateChallenge>;
     const qrSlug = randomBytes(8).toString("base64url");
     const { rows } = await pool.query<{ id: string }>(
       `INSERT INTO challenge (trip_id, title, instructions, multiplier, qr_slug)
@@ -36,20 +36,12 @@ export async function challengeRoutes(app: FastifyInstance) {
 
   // Edit content (teacher). Title/instructions/multiplier only; the qr_slug never changes.
   // Allowed until results are computed (phase < reveal) — see data-model.md#editability.
-  app.patch("/:id", async (req, reply) => {
-    const teacher = await requireTeacher(req, reply);
-    if (!teacher) return;
+  app.patch("/:id", {
+    preHandler: ofMyChallenge(["draft", "challenge", "voting"], "challenges can't be edited once results are computed"),
+  }, async (req, reply) => {
     const id = (req.params as { id: string }).id;
     const parsed = ChallengePatch.safeParse(req.body);
     if (!parsed.success) return reply.code(400).send({ error: "bad_request", message: parsed.error.message });
-
-    const ch = await challengeWithPhase(id);
-    if (!ch || !(await assertTripAccess(teacher.teacherId, ch.trip_id))) {
-      return reply.code(404).send({ error: "not_found", message: "challenge" });
-    }
-    if (rank(ch.phase) >= rank("reveal")) {
-      return reply.code(409).send({ error: "locked_in_phase", message: "challenges can't be edited once results are computed" });
-    }
 
     const sets: string[] = [];
     const vals: unknown[] = [];
@@ -65,29 +57,17 @@ export async function challengeRoutes(app: FastifyInstance) {
 
   // Delete (teacher) — draft only: once a Trip leaves draft the QR may be printed/distributed,
   // and deleting would leave a dead QR in the wild (data-model.md#editability).
-  app.delete("/:id", async (req, reply) => {
-    const teacher = await requireTeacher(req, reply);
-    if (!teacher) return;
+  app.delete("/:id", {
+    preHandler: ofMyChallenge(["draft"], "a challenge can only be deleted while the trip is in draft"),
+  }, async (req) => {
     const id = (req.params as { id: string }).id;
-    const ch = await challengeWithPhase(id);
-    if (!ch || !(await assertTripAccess(teacher.teacherId, ch.trip_id))) {
-      return reply.code(404).send({ error: "not_found", message: "challenge" });
-    }
-    if (ch.phase !== "draft") {
-      return reply.code(409).send({ error: "locked_in_phase", message: "a challenge can only be deleted while the trip is in draft" });
-    }
     await pool.query(`DELETE FROM challenge WHERE id = $1`, [id]);
     return { ok: true };
   });
 
   // List a Trip's challenges (teacher).
-  app.get("/", async (req, reply) => {
-    const teacher = await requireTeacher(req, reply);
-    if (!teacher) return;
-    const tripId = (req.query as any)?.tripId as string | undefined;
-    if (!tripId || !(await assertTripAccess(teacher.teacherId, tripId))) {
-      return reply.code(404).send({ error: "not_found", message: "no such trip" });
-    }
+  app.get("/", { preHandler: guard({ role: "teacher", trip: tripFrom.trip("query.tripId") }) }, async (req) => {
+    const tripId = tripOf(req).id;
     const { rows } = await pool.query(
       `SELECT id, title, instructions, multiplier, qr_slug FROM challenge WHERE trip_id = $1`,
       [tripId],
@@ -96,9 +76,8 @@ export async function challengeRoutes(app: FastifyInstance) {
   });
 
   // Student: list challenges in my Trip (for the voting screen).
-  app.get("/for-student", async (req, reply) => {
-    const ctx = await requireStudent(req);
-    if (!ctx) return reply.code(401).send({ error: "unauthorized", message: "no session" });
+  app.get("/for-student", { preHandler: guard({ role: "student" }) }, async (req) => {
+    const ctx = studentOf(req);
     const { rows } = await pool.query(
       `SELECT id, title, instructions FROM challenge WHERE trip_id = $1`,
       [ctx.tripId],
@@ -107,7 +86,7 @@ export async function challengeRoutes(app: FastifyInstance) {
   });
 
   // Public: resolve a scanned slug to basic Challenge info (shown before login).
-  app.get("/by-slug/:slug", async (req, reply) => {
+  app.get("/by-slug/:slug", { preHandler: guard({ role: "public" }) }, async (req, reply) => {
     const slug = (req.params as { slug: string }).slug;
     const { rows } = await pool.query(
       `SELECT id, title, instructions FROM challenge WHERE qr_slug = $1`,
@@ -118,18 +97,10 @@ export async function challengeRoutes(app: FastifyInstance) {
   });
 
   // Printable QR (teacher).
-  app.get("/:id/qr.png", async (req, reply) => {
-    const teacher = await requireTeacher(req, reply);
-    if (!teacher) return;
+  app.get("/:id/qr.png", { preHandler: ofMyChallenge() }, async (req, reply) => {
     const id = (req.params as { id: string }).id;
-    const { rows } = await pool.query<{ qr_slug: string; trip_id: string }>(
-      `SELECT qr_slug, trip_id FROM challenge WHERE id = $1`,
-      [id],
-    );
-    const ch = rows[0];
-    if (!ch || !(await assertTripAccess(teacher.teacherId, ch.trip_id))) {
-      return reply.code(404).send({ error: "not_found", message: "challenge" });
-    }
+    const { rows } = await pool.query<{ qr_slug: string }>(`SELECT qr_slug FROM challenge WHERE id = $1`, [id]);
+    const ch = rows[0]!;
     const png = await QRCode.toBuffer(`${config.PUBLIC_BASE_URL}/c/${ch.qr_slug}`, {
       type: "png",
       width: 512,
@@ -138,15 +109,4 @@ export async function challengeRoutes(app: FastifyInstance) {
     reply.header("content-type", "image/png");
     return reply.send(png);
   });
-}
-
-const PHASES = ["draft", "challenge", "voting", "reveal", "grace", "erased"];
-const rank = (p: string) => PHASES.indexOf(p);
-
-async function challengeWithPhase(id: string): Promise<{ trip_id: string; phase: string } | undefined> {
-  const { rows } = await pool.query<{ trip_id: string; phase: string }>(
-    `SELECT c.trip_id, t.phase FROM challenge c JOIN trip t ON t.id = c.trip_id WHERE c.id = $1`,
-    [id],
-  );
-  return rows[0];
 }

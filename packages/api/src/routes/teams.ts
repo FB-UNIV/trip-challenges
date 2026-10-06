@@ -4,24 +4,21 @@
 import type { FastifyInstance } from "fastify";
 import { CreateTeam, JoinTeam } from "@trip/shared";
 import { pool, tx } from "../db.js";
-import { requireStudent } from "../auth/student.js";
+import { guard, studentOf } from "../auth/guard.js";
 import { encrypt, decrypt } from "../crypto/vault.js";
 
-// Team ops are only allowed before the challenge period locks membership.
-async function tripFormable(tripId: string): Promise<{ ok: boolean; maxTeamSize: number }> {
-  const { rows } = await pool.query<{ phase: string; max_team_size: number }>(
-    `SELECT phase, max_team_size FROM trip WHERE id = $1`,
-    [tripId],
-  );
-  const t = rows[0];
-  return { ok: t?.phase === "draft", maxTeamSize: t?.max_team_size ?? 0 };
-}
-
 export async function teamRoutes(app: FastifyInstance) {
+  const student = guard({ role: "student" });
+  // Team ops are only allowed before the challenge period locks membership.
+  const formable = guard({
+    role: "student",
+    phases: ["draft"],
+    closed: { status: 409, body: { error: "locked", message: "teams are locked" } },
+  });
+
   // List teams (to join). Names decrypted for display within the Trip.
-  app.get("/", async (req, reply) => {
-    const ctx = await requireStudent(req);
-    if (!ctx) return reply.code(401).send({ error: "unauthorized", message: "no session" });
+  app.get("/", { preHandler: student }, async (req) => {
+    const ctx = studentOf(req);
     const { rows } = await pool.query<{ id: string; name_enc: Buffer; members: number }>(
       `SELECT t.id, t.name_enc, COUNT(tm.student_id)::int AS members
          FROM team t LEFT JOIN team_member tm ON tm.team_id = t.id
@@ -39,14 +36,11 @@ export async function teamRoutes(app: FastifyInstance) {
   });
 
   // Create a team (creator becomes its first member).
-  app.post("/", async (req, reply) => {
-    const ctx = await requireStudent(req);
-    if (!ctx) return reply.code(401).send({ error: "unauthorized", message: "no session" });
+  app.post("/", { preHandler: formable }, async (req, reply) => {
+    const ctx = studentOf(req);
     if (ctx.teamId) return reply.code(409).send({ error: "in_team", message: "leave your team first" });
     const parsed = CreateTeam.safeParse(req.body);
     if (!parsed.success) return reply.code(400).send({ error: "bad_request", message: "name" });
-    const { ok } = await tripFormable(ctx.tripId);
-    if (!ok) return reply.code(409).send({ error: "locked", message: "teams are locked" });
 
     const nameEnc = await encrypt(ctx.tripId, Buffer.from(parsed.data.name, "utf8"));
     const teamId = await tx(async (c) => {
@@ -65,14 +59,16 @@ export async function teamRoutes(app: FastifyInstance) {
   });
 
   // Join an existing team.
-  app.post("/join", async (req, reply) => {
-    const ctx = await requireStudent(req);
-    if (!ctx) return reply.code(401).send({ error: "unauthorized", message: "no session" });
+  app.post("/join", { preHandler: formable }, async (req, reply) => {
+    const ctx = studentOf(req);
     if (ctx.teamId) return reply.code(409).send({ error: "in_team", message: "leave your team first" });
     const parsed = JoinTeam.safeParse(req.body);
     if (!parsed.success) return reply.code(400).send({ error: "bad_request", message: "teamId" });
-    const { ok, maxTeamSize } = await tripFormable(ctx.tripId);
-    if (!ok) return reply.code(409).send({ error: "locked", message: "teams are locked" });
+    const { rows: trip } = await pool.query<{ max_team_size: number }>(
+      `SELECT max_team_size FROM trip WHERE id = $1`,
+      [ctx.tripId],
+    );
+    const maxTeamSize = trip[0]!.max_team_size;
 
     try {
       await tx(async (c) => {
@@ -107,12 +103,9 @@ export async function teamRoutes(app: FastifyInstance) {
   });
 
   // Leave your team (deletes the team if it becomes empty).
-  app.post("/leave", async (req, reply) => {
-    const ctx = await requireStudent(req);
-    if (!ctx) return reply.code(401).send({ error: "unauthorized", message: "no session" });
+  app.post("/leave", { preHandler: formable }, async (req, reply) => {
+    const ctx = studentOf(req);
     if (!ctx.teamId) return reply.code(409).send({ error: "no_team", message: "not in a team" });
-    const { ok } = await tripFormable(ctx.tripId);
-    if (!ok) return reply.code(409).send({ error: "locked", message: "teams are locked" });
 
     await tx(async (c) => {
       await c.query(`DELETE FROM team_member WHERE team_id = $1 AND student_id = $2`, [
