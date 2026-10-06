@@ -191,6 +191,35 @@ curl -sk https://<PUBLIC_HOST>/api/healthz          # via the edge/proxy
 - Create a trip, import a one-line roster, confirm an access-code email is delivered.
 - Upload a photo; confirm it's scanned and stored (see `docker compose logs api`).
 
+### Staging demo data
+
+To click through every screen on a **staging** stack without real students, seed three demo
+trips owned by your teacher account (sign in once via PocketID first so it exists):
+
+```bash
+docker compose exec -e SEED_DEMO=staging api \
+  node packages/api/dist/scripts/seed-demo.js --teacher you@school.org   # add --small for a quick run
+```
+
+It drives the API's own routes in-process, so it also exercises Vault keys, encryption, photo
+processing/scanning, voting and results on the real stack. You get:
+
+| Trip | State | Try |
+|---|---|---|
+| `[DEMO] draft — …` | 4 teams, 3 challenges (QR codes) | join links → form/join teams, edit settings, advance |
+| `[DEMO] voting — …` | approved nominations from every team | join links → vote; moderation; advance to reveal |
+| `[DEMO] reveal — …` | real duels cast, results computed | ceremony link, tie-break, advance to grace |
+
+Admin, ceremony and per-phone **join links** are printed (demo students use undeliverable
+`@example.invalid` addresses; no email is sent). Remove everything — through the normal
+erasure path, keys destroyed — with:
+
+```bash
+docker compose exec -e SEED_DEMO=staging api node packages/api/dist/scripts/seed-demo.js --erase
+```
+
+The script refuses to run without `SEED_DEMO=staging`. Never run it on production.
+
 ---
 
 ## 6. Operate
