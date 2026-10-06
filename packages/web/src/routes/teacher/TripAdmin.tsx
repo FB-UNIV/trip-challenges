@@ -54,6 +54,14 @@ function Tiles({ tripId, phase }: { tripId: string; phase: string }) {
   );
 }
 
+// <input type="datetime-local"> works in the teacher's local time; the API stores instants.
+const toLocalInput = (iso: string | null | undefined) => {
+  if (!iso) return "";
+  const d = new Date(iso);
+  return new Date(d.getTime() - d.getTimezoneOffset() * 60_000).toISOString().slice(0, 16);
+};
+const fromLocalInput = (v: string) => (v ? new Date(v).toISOString() : null);
+
 function Settings({ tripId, trip, onSaved }: { tripId: string; trip: any; onSaved: () => void }) {
   const draft = trip.phase === "draft";
   const beforeReveal = rankOf(trip.phase) < rankOf("reveal");
@@ -65,6 +73,9 @@ function Settings({ tripId, trip, onSaved }: { tripId: string; trip: any; onSave
     graceDays: String(trip.grace_days ?? 7),
     maxRetentionDays: String(trip.max_retention_days ?? 30),
     tripEndDate: String(trip.trip_end_date ?? "").slice(0, 10),
+    challengeOpensAt: toLocalInput(trip.challenge_opens_at),
+    votingOpensAt: toLocalInput(trip.voting_opens_at),
+    votingClosesAt: toLocalInput(trip.voting_closes_at),
   };
   const [form, setForm] = useState(initial);
   const [points, setPoints] = useState<{ placement: number; points: number }[]>(
@@ -83,6 +94,9 @@ function Settings({ tripId, trip, onSaved }: { tripId: string; trip: any; onSave
     if (form.graceDays !== initial.graceDays) patch.graceDays = Number(form.graceDays);
     if (form.maxRetentionDays !== initial.maxRetentionDays) patch.maxRetentionDays = Number(form.maxRetentionDays);
     if (form.tripEndDate !== initial.tripEndDate) patch.tripEndDate = form.tripEndDate;
+    for (const k of ["challengeOpensAt", "votingOpensAt", "votingClosesAt"] as const) {
+      if (form[k] !== initial[k]) patch[k] = fromLocalInput(form[k]);
+    }
     if (draft && form.maxTeamSize !== initial.maxTeamSize) patch.maxTeamSize = Number(form.maxTeamSize);
     const normPoints = points.map((p, i) => ({ placement: i + 1, points: Number(p.points) }));
     if (beforeReveal && JSON.stringify(normPoints) !== JSON.stringify(trip.points_table ?? [])) {
@@ -111,6 +125,15 @@ function Settings({ tripId, trip, onSaved }: { tripId: string; trip: any; onSave
         <Field label="Max retention days" type="number" value={form.maxRetentionDays} onChange={set("maxRetentionDays")} />
       </div>
       <Field label="Trip end date" type="date" value={form.tripEndDate} onChange={set("tripEndDate")} />
+
+      <div style={{ marginTop: 10, fontWeight: 700, fontSize: 14 }}>Planned dates</div>
+      <p className="muted tiny" style={{ margin: "2px 0 6px" }}>
+        The trip moves on by itself: challenges open, then voting opens. Voting stops at its
+        close time; you start the reveal ceremony yourself.
+      </p>
+      <Field label="Challenge opens" type="datetime-local" value={form.challengeOpensAt} onChange={set("challengeOpensAt")} />
+      <Field label="Voting opens" type="datetime-local" value={form.votingOpensAt} onChange={set("votingOpensAt")} />
+      <Field label="Voting closes" type="datetime-local" value={form.votingClosesAt} onChange={set("votingClosesAt")} />
 
       <div style={{ marginTop: 10 }}>
         <div style={{ fontWeight: 700, fontSize: 14 }}>
