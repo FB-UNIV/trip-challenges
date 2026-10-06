@@ -14,7 +14,12 @@ import { s3faults } from "./support/fake-s3.js";
 import { sent } from "./support/fake-mailer.js";
 import { pool, resetAll, buildApp, makeTeacher, makeTrip, addCoTeacher, count } from "./support/harness.js";
 
-beforeEach(resetAll);
+beforeEach(async () => {
+  await resetAll();
+  // Scheduler ticks ping HEARTBEAT_URL (test config); never hit the network.
+  vi.stubGlobal("fetch", vi.fn(async () => new Response("OK")));
+});
+afterEach(() => vi.unstubAllGlobals());
 
 describe("health", () => {
   it("reports liveness and DB readiness", async () => {
