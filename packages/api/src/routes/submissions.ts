@@ -2,9 +2,11 @@
 // (EXIF/GPS stripped) and envelope-encrypted before hitting MinIO.
 import type { FastifyInstance } from "fastify";
 import { randomUUID } from "node:crypto";
+import { z } from "zod";
 import { pool } from "../db.js";
 import { requireStudent } from "../auth/student.js";
 import { readTeacher, assertTripAccess } from "../auth/teacher.js";
+import { guard, tripFrom, studentOf, teacherOf, tripOf } from "../auth/guard.js";
 import { normalizeImage } from "../lib/image.js";
 import { sealBlob, openBlob } from "../crypto/envelope.js";
 import { putBlob, getBlob, blobKey } from "../storage/s3.js";
@@ -12,24 +14,18 @@ import { avScanEnabled, scanBuffer } from "../security/avscan.js";
 
 export async function submissionRoutes(app: FastifyInstance) {
   // Upload a photo for a Challenge (any team member; challenge phase only).
-  app.post("/", async (req, reply) => {
-    const ctx = await requireStudent(req);
-    if (!ctx) return reply.code(401).send({ error: "unauthorized", message: "no session" });
+  app.post("/", {
+    preHandler: guard({
+      role: "student",
+      query: z.object({ challengeId: z.string() }),
+      trip: tripFrom.challenge("query.challengeId"),
+      phases: ["challenge"],
+      closed: { status: 409, body: { error: "closed", message: "submissions are closed" } },
+    }),
+  }, async (req, reply) => {
+    const ctx = studentOf(req);
     if (!ctx.teamId) return reply.code(409).send({ error: "no_team", message: "join a team first" });
-
-    const challengeId = (req.query as any)?.challengeId as string | undefined;
-    if (!challengeId) return reply.code(400).send({ error: "bad_request", message: "challengeId" });
-
-    const { rows } = await pool.query<{ phase: string }>(
-      `SELECT t.phase FROM challenge c JOIN trip t ON t.id = c.trip_id
-        WHERE c.id = $1 AND c.trip_id = $2`,
-      [challengeId, ctx.tripId],
-    );
-    const trip = rows[0];
-    if (!trip) return reply.code(404).send({ error: "not_found", message: "challenge" });
-    if (trip.phase !== "challenge") {
-      return reply.code(409).send({ error: "closed", message: "submissions are closed" });
-    }
+    const { challengeId } = req.query as { challengeId: string };
 
     const file = await req.file();
     if (!file || !file.mimetype.startsWith("image/")) {
@@ -73,11 +69,9 @@ export async function submissionRoutes(app: FastifyInstance) {
   });
 
   // List my team's submissions for a challenge (to nominate from).
-  app.get("/", async (req, reply) => {
-    const ctx = await requireStudent(req);
-    if (!ctx) return reply.code(401).send({ error: "unauthorized", message: "no session" });
-    const challengeId = (req.query as any)?.challengeId as string | undefined;
-    if (!challengeId) return reply.code(400).send({ error: "bad_request", message: "challengeId" });
+  app.get("/", { preHandler: guard({ role: "student", query: z.object({ challengeId: z.string() }) }) }, async (req) => {
+    const ctx = studentOf(req);
+    const { challengeId } = req.query as { challengeId: string };
     if (!ctx.teamId) return { submissions: [] };
     const { rows } = await pool.query(
       `SELECT s.id, s.created_at,
@@ -92,8 +86,8 @@ export async function submissionRoutes(app: FastifyInstance) {
 
   // Fetch a decrypted photo. Visible to: the owning Team always; a Teacher of the
   // Trip always (standing oversight); any authed student once it's an approved,
-  // active Nomination and the Trip is voting/reveal.
-  app.get("/:id/photo", async (req, reply) => {
+  // active Nomination and the Trip is voting/reveal. Mixed audience, so the checks stay here.
+  app.get("/:id/photo", { preHandler: guard({ role: "public" }) }, async (req, reply) => {
     const id = (req.params as { id: string }).id;
     const { rows } = await pool.query<{
       trip_id: string;
@@ -137,18 +131,12 @@ export async function submissionRoutes(app: FastifyInstance) {
   });
 
   // Teacher standing removal of ANY submission (child-safety backstop).
-  app.post("/:id/remove", async (req, reply) => {
-    const teacher = await requireTeacherOr401(req, reply);
-    if (!teacher) return;
+  app.post("/:id/remove", {
+    preHandler: guard({ role: "teacher", trip: tripFrom.submission("params.id") }),
+  }, async (req) => {
+    const teacher = teacherOf(req);
+    const sub = { trip_id: tripOf(req).id };
     const id = (req.params as { id: string }).id;
-    const { rows } = await pool.query<{ trip_id: string }>(
-      `SELECT trip_id FROM submission WHERE id = $1`,
-      [id],
-    );
-    const sub = rows[0];
-    if (!sub || !(await assertTripAccess(teacher.teacherId, sub.trip_id))) {
-      return reply.code(404).send({ error: "not_found", message: "submission" });
-    }
     await pool.query(
       `UPDATE submission SET removed_by_teacher_id = $2 WHERE id = $1`,
       [id, teacher.teacherId],
@@ -165,14 +153,4 @@ export async function submissionRoutes(app: FastifyInstance) {
     );
     return { ok: true };
   });
-}
-
-// local helper to avoid importing requireTeacher's send-on-fail twice
-async function requireTeacherOr401(req: any, reply: any) {
-  const t = readTeacher(req, reply);
-  if (!t) {
-    reply.code(401).send({ error: "unauthorized", message: "teacher login required" });
-    return null;
-  }
-  return t;
 }

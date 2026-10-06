@@ -5,33 +5,23 @@
 // so a forwarded link can't grant a stranger access to minors' data.
 import type { FastifyInstance } from "fastify";
 import { randomBytes, createHash } from "node:crypto";
+import { z } from "zod";
 import { InviteCoTeacher, AcceptInvite } from "@trip/shared";
 import { config } from "../config.js";
 import { pool } from "../db.js";
-import { requireTeacher, assertTripAccess } from "../auth/teacher.js";
+import { guard, tripFrom, teacherOf, tripOf } from "../auth/guard.js";
 import { sendCoTeacherInvite } from "../email/mailer.js";
 
 const INVITE_TTL_DAYS = 7;
 const sha256 = (s: string) => createHash("sha256").update(s).digest("hex");
 
-async function isOwner(teacherId: string, tripId: string): Promise<boolean> {
-  const { rowCount } = await pool.query(
-    `SELECT 1 FROM trip_teacher WHERE trip_id = $1 AND teacher_id = $2 AND role = 'owner'`,
-    [tripId, teacherId],
-  );
-  return (rowCount ?? 0) > 0;
-}
-
 // Trip-scoped management (mounted under /api/trips).
 export async function tripInviteRoutes(app: FastifyInstance) {
+  const member = guard({ role: "teacher", trip: tripFrom.trip("params.id") });
+
   // Current teachers on the Trip (for the admin UI).
-  app.get("/:id/teachers", async (req, reply) => {
-    const teacher = await requireTeacher(req, reply);
-    if (!teacher) return;
-    const tripId = (req.params as { id: string }).id;
-    if (!(await assertTripAccess(teacher.teacherId, tripId))) {
-      return reply.code(404).send({ error: "not_found", message: "no such trip" });
-    }
+  app.get("/:id/teachers", { preHandler: member }, async (req) => {
+    const tripId = tripOf(req).id;
     const { rows } = await pool.query(
       `SELECT t.id, t.email, t.display_name, tt.role
          FROM trip_teacher tt JOIN teacher t ON t.id = tt.teacher_id
@@ -43,13 +33,8 @@ export async function tripInviteRoutes(app: FastifyInstance) {
   });
 
   // Pending (unaccepted, unexpired) invites.
-  app.get("/:id/invites", async (req, reply) => {
-    const teacher = await requireTeacher(req, reply);
-    if (!teacher) return;
-    const tripId = (req.params as { id: string }).id;
-    if (!(await assertTripAccess(teacher.teacherId, tripId))) {
-      return reply.code(404).send({ error: "not_found", message: "no such trip" });
-    }
+  app.get("/:id/invites", { preHandler: member }, async (req) => {
+    const tripId = tripOf(req).id;
     const { rows } = await pool.query(
       `SELECT id, email, expires_at
          FROM trip_teacher_invite
@@ -61,13 +46,11 @@ export async function tripInviteRoutes(app: FastifyInstance) {
   });
 
   // Invite a co-teacher by email (owner only).
-  app.post("/:id/invites", async (req, reply) => {
-    const teacher = await requireTeacher(req, reply);
-    if (!teacher) return;
-    const tripId = (req.params as { id: string }).id;
-    if (!(await isOwner(teacher.teacherId, tripId))) {
-      return reply.code(403).send({ error: "forbidden", message: "only the trip owner can invite co-teachers" });
-    }
+  app.post("/:id/invites", {
+    preHandler: guard({ role: "teacher", trip: tripFrom.trip("params.id"), owner: "only the trip owner can invite co-teachers" }),
+  }, async (req, reply) => {
+    const teacher = teacherOf(req);
+    const tripId = tripOf(req).id;
     const parsed = InviteCoTeacher.safeParse(req.body);
     if (!parsed.success) return reply.code(400).send({ error: "bad_request", message: parsed.error.message });
     const email = parsed.data.email.trim().toLowerCase();
@@ -108,13 +91,16 @@ export async function tripInviteRoutes(app: FastifyInstance) {
   });
 
   // Revoke a pending invite (owner only).
-  app.delete("/:id/invites/:inviteId", async (req, reply) => {
-    const teacher = await requireTeacher(req, reply);
-    if (!teacher) return;
-    const { id: tripId, inviteId } = req.params as { id: string; inviteId: string };
-    if (!(await isOwner(teacher.teacherId, tripId))) {
-      return reply.code(403).send({ error: "forbidden", message: "only the trip owner can revoke invites" });
-    }
+  app.delete("/:id/invites/:inviteId", {
+    preHandler: guard({
+      role: "teacher",
+      params: z.object({ id: z.string(), inviteId: z.string().uuid() }),
+      trip: tripFrom.trip("params.id"),
+      owner: "only the trip owner can revoke invites",
+    }),
+  }, async (req) => {
+    const tripId = tripOf(req).id;
+    const { inviteId } = req.params as { inviteId: string };
     await pool.query(
       `DELETE FROM trip_teacher_invite WHERE id = $1 AND trip_id = $2 AND accepted_at IS NULL`,
       [inviteId, tripId],
@@ -127,9 +113,10 @@ export async function tripInviteRoutes(app: FastifyInstance) {
 export async function inviteRoutes(app: FastifyInstance) {
   // Preview an invite by token — shows what the recipient is accepting (no auth;
   // possession of the token is the credential). Never reveals more than the invitee already knows.
-  app.get("/preview", async (req, reply) => {
-    const token = (req.query as { token?: string })?.token;
-    if (!token) return reply.code(400).send({ error: "bad_request", message: "token" });
+  app.get("/preview", {
+    preHandler: guard({ role: "public", query: z.object({ token: z.string().min(1) }) }),
+  }, async (req, reply) => {
+    const { token } = req.query as { token: string };
     const { rows } = await pool.query<{ email: string; trip_name: string; expired: boolean }>(
       `SELECT i.email, t.name AS trip_name, i.expires_at <= now() AS expired
          FROM trip_teacher_invite i JOIN trip t ON t.id = i.trip_id
@@ -141,9 +128,8 @@ export async function inviteRoutes(app: FastifyInstance) {
   });
 
   // Accept an invite (must be signed in as a teacher).
-  app.post("/accept", async (req, reply) => {
-    const teacher = await requireTeacher(req, reply);
-    if (!teacher) return;
+  app.post("/accept", { preHandler: guard({ role: "teacher" }) }, async (req, reply) => {
+    const teacher = teacherOf(req);
     const parsed = AcceptInvite.safeParse(req.body);
     if (!parsed.success) return reply.code(400).send({ error: "bad_request", message: "token" });
 

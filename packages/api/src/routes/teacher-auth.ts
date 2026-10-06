@@ -4,6 +4,7 @@ import type { FastifyInstance } from "fastify";
 import { getOidcClient, oidcGenerators } from "../auth/oidc.js";
 import { config } from "../config.js";
 import { pool } from "../db.js";
+import { guard } from "../auth/guard.js";
 
 const TEN_MIN = 600;
 
@@ -28,7 +29,10 @@ function setTeacherSession(reply: import("fastify").FastifyReply, teacherId: str
 }
 
 export async function teacherAuthRoutes(app: FastifyInstance) {
-  app.get("/login", async (req, reply) => {
+  // These routes establish (or read) the teacher session, so none can require one.
+  const open = { preHandler: guard({ role: "public" }) };
+
+  app.get("/login", open, async (req, reply) => {
     const client = await getOidcClient();
     const state = oidcGenerators.state();
     const nonce = oidcGenerators.nonce();
@@ -54,7 +58,7 @@ export async function teacherAuthRoutes(app: FastifyInstance) {
     return reply.redirect(url);
   });
 
-  app.get("/callback", async (req, reply) => {
+  app.get("/callback", open, async (req, reply) => {
     const client = await getOidcClient();
     const state = reply.unsignCookie(req.cookies["oidc_state"] ?? "");
     const nonce = reply.unsignCookie(req.cookies["oidc_nonce"] ?? "");
@@ -95,7 +99,7 @@ export async function teacherAuthRoutes(app: FastifyInstance) {
 
   // DEV ONLY: log in as a teacher without OIDC. Never enabled in production.
   if (config.NODE_ENV !== "production") {
-    app.post("/dev-login", async (req, reply) => {
+    app.post("/dev-login", open, async (req, reply) => {
       const email = (req.body as { email?: string })?.email ?? "dev-teacher@example.org";
       const { rows } = await pool.query<{ id: string }>(
         `INSERT INTO teacher (oidc_subject, email, display_name)
@@ -109,13 +113,13 @@ export async function teacherAuthRoutes(app: FastifyInstance) {
     });
   }
 
-  app.post("/logout", async (_req, reply) => {
+  app.post("/logout", open, async (_req, reply) => {
     reply.clearCookie("teacher_session", { path: "/" });
     return { ok: true };
   });
 
-  // Who am I? (UI bootstrap)
-  app.get("/me", async (req, reply) => {
+  // Who am I? (UI bootstrap) Reads the session itself: a stale cookie for a deleted teacher is a 401 too.
+  app.get("/me", open, async (req, reply) => {
     const raw = req.cookies["teacher_session"];
     const un = raw ? reply.unsignCookie(raw) : { valid: false, value: null };
     if (!un.valid || !un.value) return reply.code(401).send({ error: "unauthorized", message: "no session" });

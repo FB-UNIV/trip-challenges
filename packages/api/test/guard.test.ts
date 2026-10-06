@@ -105,6 +105,14 @@ describe("guard: roles", () => {
     expect((await get("/p/public")).json()).toEqual({ trip: null, teacher: null, student: null });
   });
 
+  it("refuses, at registration, checks that would have nothing to check", () => {
+    expect(() => guard({ role: "teacher", phases: ["draft"] })).toThrow(/trip/);
+    expect(() => guard({ role: "teacher", owner: "x" })).toThrow(/trip/);
+    expect(() => guard({ role: "public", phases: ["draft"] })).toThrow(/trip/);
+    expect(() => guard({ role: "student", trip: tripFrom.trip("params.id"), owner: "x" })).toThrow(/teacher/);
+    expect(() => guard({ role: "student", phases: ["draft"] })).not.toThrow(); // their own trip
+  });
+
   it("reading the trip context on an unguarded route is a programming error, not a silent undefined", async () => {
     expect((await get("/p/unguarded-reader")).statusCode).toBe(500);
   });

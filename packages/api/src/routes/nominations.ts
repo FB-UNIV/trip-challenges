@@ -1,34 +1,34 @@
 // Nominations. A Team nominates one Submission per Challenge for voting; the Teacher
 // moderates before voting opens. Only approved+active nominations become votable.
 import type { FastifyInstance } from "fastify";
+import { z } from "zod";
 import { NominateInput } from "@trip/shared";
 import { pool, tx } from "../db.js";
-import { requireStudent } from "../auth/student.js";
-import { requireTeacher, assertTripAccess } from "../auth/teacher.js";
+import { guard, tripFrom, studentOf, teacherOf, tripOf } from "../auth/guard.js";
 
 export async function nominationRoutes(app: FastifyInstance) {
   // Student: set the team's active nomination for a challenge (replaces any prior).
-  app.post("/", async (req, reply) => {
-    const ctx = await requireStudent(req);
-    if (!ctx) return reply.code(401).send({ error: "unauthorized", message: "no session" });
+  app.post("/", {
+    preHandler: guard({
+      role: "student",
+      phases: ["challenge"],
+      closed: { status: 409, body: { error: "closed", message: "nominations are closed" } },
+    }),
+  }, async (req, reply) => {
+    const ctx = studentOf(req);
     if (!ctx.teamId) return reply.code(409).send({ error: "no_team", message: "join a team first" });
     const parsed = NominateInput.safeParse(req.body);
     if (!parsed.success) return reply.code(400).send({ error: "bad_request", message: "invalid" });
     const { challengeId, submissionId } = parsed.data;
 
     // Submission must be this team's, for this challenge, in this trip, and not removed.
-    const { rows } = await pool.query<{ phase: string }>(
-      `SELECT t.phase
-         FROM submission s JOIN trip t ON t.id = s.trip_id
+    const { rowCount } = await pool.query(
+      `SELECT 1 FROM submission s
         WHERE s.id = $1 AND s.challenge_id = $2 AND s.team_id = $3
           AND s.trip_id = $4 AND s.removed_by_teacher_id IS NULL`,
       [submissionId, challengeId, ctx.teamId, ctx.tripId],
     );
-    const trip = rows[0];
-    if (!trip) return reply.code(404).send({ error: "not_found", message: "submission" });
-    if (trip.phase !== "challenge") {
-      return reply.code(409).send({ error: "closed", message: "nominations are closed" });
-    }
+    if (!rowCount) return reply.code(404).send({ error: "not_found", message: "submission" });
 
     await tx(async (c) => {
       // Retire the current active nomination for this (team, challenge), then add the new one.
@@ -47,14 +47,15 @@ export async function nominationRoutes(app: FastifyInstance) {
   });
 
   // Teacher: list active nominations for review (optionally by state).
-  app.get("/trip/:tripId", async (req, reply) => {
-    const teacher = await requireTeacher(req, reply);
-    if (!teacher) return;
-    const tripId = (req.params as { tripId: string }).tripId;
-    if (!(await assertTripAccess(teacher.teacherId, tripId))) {
-      return reply.code(404).send({ error: "not_found", message: "no such trip" });
-    }
-    const state = (req.query as any)?.state as string | undefined;
+  app.get("/trip/:tripId", {
+    preHandler: guard({
+      role: "teacher",
+      query: z.object({ state: z.string().optional() }),
+      trip: tripFrom.trip("params.tripId"),
+    }),
+  }, async (req) => {
+    const tripId = tripOf(req).id;
+    const { state } = req.query as { state?: string };
     const { rows } = await pool.query(
       `SELECT n.id, n.challenge_id, n.team_id, n.submission_id, n.state
          FROM nomination n
@@ -68,18 +69,11 @@ export async function nominationRoutes(app: FastifyInstance) {
 
   // Teacher: approve / reject a nomination.
   for (const decision of ["approve", "reject"] as const) {
-    app.post(`/:id/${decision}`, async (req, reply) => {
-      const teacher = await requireTeacher(req, reply);
-      if (!teacher) return;
+    app.post(`/:id/${decision}`, {
+      preHandler: guard({ role: "teacher", trip: tripFrom.nomination("params.id") }),
+    }, async (req) => {
+      const teacher = teacherOf(req);
       const id = (req.params as { id: string }).id;
-      const { rows } = await pool.query<{ trip_id: string }>(
-        `SELECT trip_id FROM nomination WHERE id = $1 AND active`,
-        [id],
-      );
-      const nom = rows[0];
-      if (!nom || !(await assertTripAccess(teacher.teacherId, nom.trip_id))) {
-        return reply.code(404).send({ error: "not_found", message: "nomination" });
-      }
       const state = decision === "approve" ? "approved" : "rejected";
       await pool.query(
         `UPDATE nomination
