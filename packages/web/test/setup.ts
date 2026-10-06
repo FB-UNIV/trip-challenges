@@ -20,7 +20,7 @@ const bridge = (inner: typeof fetch): typeof fetch => async (input, init) => {
     const body = new NodeFormData();
     for (const [key, value] of init.body) {
       body.append(key, typeof value === "string" ? value
-        : (new NodeFile([await bytesOf(value)], value.name, { type: value.type }) as unknown as Blob));
+        : (new NodeFile([new Uint8Array(await bytesOf(value))], value.name, { type: value.type }) as unknown as Blob));
     }
     init = { ...init, body };
   }

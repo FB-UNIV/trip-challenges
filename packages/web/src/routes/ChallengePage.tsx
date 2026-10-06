@@ -1,6 +1,6 @@
 import { useRef, useState } from "react";
 import { Link, useParams } from "react-router-dom";
-import { api } from "../api.js";
+import { api, HttpError } from "../api.js";
 import { Button, Card, Field, PhasePill, useAsync } from "../ui.js";
 
 export function ChallengePage() {
@@ -69,7 +69,7 @@ function UploadAndNominate({ challengeId }: { challengeId: string }) {
               if (!f) return;
               setBusy(true); setErr("");
               try { await api.uploadSubmission(challengeId, f); if (fileRef.current) fileRef.current.value = ""; subs.reload(); }
-              catch (e: any) { setErr(e?.message ?? "Upload failed"); }
+              catch (e) { setErr(e instanceof HttpError ? e.reason : "Upload failed"); }
               finally { setBusy(false); }
             }}
           >{busy ? "Uploading…" : "Upload"}</Button>
@@ -90,7 +90,11 @@ function UploadAndNominate({ challengeId }: { challengeId: string }) {
               <img src={api.photoUrl(s.id)} alt="" className="photo" style={{ aspectRatio: "1" }} />
               <Button
                 variant={s.nominated ? "gold" : "ghost"} size="mini"
-                onClick={async () => { await api.nominate(challengeId, s.id); subs.reload(); }}
+                onClick={async () => {
+                  setErr("");
+                  try { await api.nominate(challengeId, s.id); subs.reload(); }
+                  catch (e) { setErr(e instanceof HttpError ? e.reason : "Nomination failed"); }
+                }}
               >{s.nominated ? "Nominated ✓" : "Nominate"}</Button>
             </div>
           ))}

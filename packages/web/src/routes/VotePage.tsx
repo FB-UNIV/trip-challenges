@@ -26,8 +26,12 @@ export function VotePage() {
     if (!pair || busy) return;
     setBusy(true);
     try {
-      await api.castDuel({ pairToken: pair.pairToken, winnerNominationId });
-      setJudged((n) => n + 1);
+      try {
+        await api.castDuel({ pairToken: pair.pairToken, winnerNominationId });
+        setJudged((n) => n + 1);
+      } catch {
+        // Refused (voting just closed, pair already cast…): the next load says what's going on.
+      }
       setPair(null);
       await load();
     } finally {
