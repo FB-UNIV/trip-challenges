@@ -49,9 +49,10 @@ test("a teacher creates a trip, manages challenges and settings, and edits lock 
     await settings.getByLabel("Trip name").fill(`${name} (edited)`);
     await settings.getByLabel("Grace days").fill("3");
     await settings.getByRole("button", { name: "Save settings" }).click();
-    // Not asserting the "Saved." message: saving reloads the trip, which remounts the
-    // card and drops the message before anyone can see it (#30).
+    // The confirmation must survive the trip reload that follows a save (#30).
+    await expect(settings.getByText("Saved.")).toBeVisible();
     await expect(teacher.page.getByRole("heading", { name: `${name} (edited)`, level: 2 })).toBeVisible();
+    await expect(settings.getByText("Saved.")).toBeVisible();
     expect(await teacher.api.trip(tripId)).toMatchObject({ name: `${name} (edited)`, grace_days: 3 });
   });
 
