@@ -23,10 +23,10 @@ export function TripAdmin() {
         <PhasePill phase={t.phase} dot />
       </div>
       <div style={{ padding: "2px 2px 0" }}><PhaseTrail phase={t.phase} variant="teacher" /></div>
-      <Tiles key={t.phase} tripId={id!} phase={t.phase} />
+      <Tiles key={`tiles-${t.phase}`} tripId={id!} phase={t.phase} />
       <PhaseControl tripId={id!} phase={t.phase} onChange={trip.reload} />
       {/* Remount on a phase change so phase-dependent lists (moderation, tiles) refetch. */}
-      <div className="admin-grid" key={t.phase}>
+      <div className="admin-grid" key={`grid-${t.phase}`}>
         <Settings tripId={id!} trip={t} onSaved={trip.reload} />
         <CoTeachers tripId={id!} />
         <Roster tripId={id!} />
