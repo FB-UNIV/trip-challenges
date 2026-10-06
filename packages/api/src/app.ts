@@ -22,6 +22,7 @@ import { submissionRoutes } from "./routes/submissions.js";
 
 export async function buildServer(): Promise<FastifyInstance> {
   const app = Fastify({
+    trustProxy: config.TRUST_PROXY, // client IP from X-Forwarded-For, only via the proxy (#67)
     // Never log student PII or bearer secrets (Erasure › logs, #20): see lib/logging.ts.
     logger: loggerOptions(config.NODE_ENV),
     bodyLimit: 15 * 1024 * 1024, // 15MB — photo uploads
@@ -30,7 +31,15 @@ export async function buildServer(): Promise<FastifyInstance> {
   await app.register(helmet, { contentSecurityPolicy: false }); // CSP handled at edge
   await app.register(cors, { origin: config.PUBLIC_BASE_URL, credentials: true });
   await app.register(cookie, { secret: config.SESSION_SECRET });
-  await app.register(rateLimit, { max: config.RATE_LIMIT_MAX, timeWindow: "1 minute" }); // global floor
+  await app.register(rateLimit, {
+    max: config.RATE_LIMIT_MAX, // per client IP — global floor
+    timeWindow: "1 minute",
+    errorResponseBuilder: (_req, ctx) => ({
+      statusCode: 429,
+      error: "rate_limited",
+      message: `Too many requests — try again in ${ctx.after}.`,
+    }),
+  });
   await app.register(multipart, { limits: { fileSize: 15 * 1024 * 1024, files: 1 } });
 
   await app.register(healthRoutes);

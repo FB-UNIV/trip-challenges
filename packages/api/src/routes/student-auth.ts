@@ -28,10 +28,21 @@ export async function studentAuthRoutes(app: FastifyInstance) {
     };
   });
 
-  // Tighter rate limit on redemption — anti brute-force on Access Codes.
+  // Tighter rate limit on redemption — anti brute-force, counted per Access Code (its
+  // student id), not per IP: a whole class joins from one school Wi-Fi address (#67).
   app.post(
     "/redeem",
-    { preHandler: guard({ role: "public" }), config: { rateLimit: { max: config.RATE_LIMIT_AUTH_MAX, timeWindow: "1 minute" } } },
+    {
+      preHandler: guard({ role: "public" }),
+      config: {
+        rateLimit: {
+          max: config.RATE_LIMIT_AUTH_MAX,
+          timeWindow: "1 minute",
+          hook: "preHandler", // after body parsing, so the key can come from the code
+          keyGenerator: (req) => `redeem:${codeOwner(req.body) ?? req.ip}`,
+        },
+      },
+    },
     async (req, reply) => {
       const parsed = RedeemAccessCode.safeParse(req.body);
       if (!parsed.success) {
@@ -109,7 +120,7 @@ export async function studentAuthRoutes(app: FastifyInstance) {
   // stranger who knows the email can't log the Student out without also reading the email.
   app.post(
     "/reissue",
-    { preHandler: guard({ role: "public" }), config: { rateLimit: { max: config.RATE_LIMIT_AUTH_MAX, timeWindow: "1 minute" } } },
+    { preHandler: guard({ role: "public" }), config: { rateLimit: { max: config.RATE_LIMIT_REISSUE_MAX, timeWindow: "1 minute" } } },
     async (req, reply) => {
       const parsed = ReissueAccessCode.safeParse(req.body);
       if (!parsed.success) {
@@ -169,3 +180,11 @@ const DUMMY_HASH =
 
 // silence unused import until /reissue uses it
 void timingSafeEqual;
+
+/** The student id an access code claims ("<studentId>.<secret>"), for per-code limits. */
+function codeOwner(body: unknown): string | undefined {
+  const code = (body as { code?: unknown } | undefined)?.code;
+  if (typeof code !== "string") return undefined;
+  const id = code.split(".", 1)[0];
+  return id ? id.slice(0, 64) : undefined;
+}
