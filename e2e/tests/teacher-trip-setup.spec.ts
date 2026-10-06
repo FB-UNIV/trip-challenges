@@ -56,6 +56,23 @@ test("a teacher creates a trip, manages challenges and settings, and edits lock 
     expect(await teacher.api.trip(tripId)).toMatchObject({ name: `${name} (edited)`, grace_days: 3 });
   });
 
+  await test.step("plan the phase dates that drive auto-advance (#26)", async () => {
+    const settings = admin.card("Settings");
+    await settings.getByLabel("Challenge opens").fill("2030-05-01T09:00");
+    await settings.getByLabel("Voting opens").fill("2030-05-03T18:30");
+    await settings.getByLabel("Voting closes").fill("2030-05-04T12:00");
+    await settings.getByRole("button", { name: "Save settings" }).click();
+    await expect(settings.getByText("Saved.")).toBeVisible();
+    // Paris is UTC+2 in May: local inputs are stored as the right instants.
+    expect(await teacher.api.trip(tripId)).toMatchObject({
+      challenge_opens_at: "2030-05-01T07:00:00.000Z",
+      voting_opens_at: "2030-05-03T16:30:00.000Z",
+      voting_closes_at: "2030-05-04T10:00:00.000Z",
+    });
+    await teacher.page.reload(); // values round-trip back into the form in local time
+    await expect(admin.card("Settings").getByLabel("Voting opens")).toHaveValue("2030-05-03T18:30");
+  });
+
   await test.step("after the challenge starts: no deleting challenges, team size locked", async () => {
     await admin.advanceTo("challenge");
     await expect(admin.challengeRow("Gelato group selfie").getByRole("button", { name: "Delete" })).toHaveCount(0);
