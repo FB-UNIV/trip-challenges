@@ -46,4 +46,6 @@ linter configured. `scripts/e2e.mjs` is a live-stack smoke test — see its head
 
 - The API fails fast on missing/invalid env vars (`src/env-schema.ts`); `.env.example` lists them.
 - Never log or persist student PII outside the per-trip encrypted scope (ADR 0001).
+- Every route declares `{ preHandler: guard({ role, trip, phases }) }` (`src/auth/guard.ts`);
+  `test/guard.test.ts` fails on a route without one. Read the result with `tripOf/teacherOf/studentOf`.
 - More detail: `docs/development.md`, `docs/deployment.md`, `docs/data-model.md`.
