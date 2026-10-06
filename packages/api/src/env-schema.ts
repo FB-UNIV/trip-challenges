@@ -59,6 +59,12 @@ export const Env = z.object({
   SMTP_USER: z.string().optional(),
   SMTP_PASSWORD: z.string().optional(),
   SMTP_FROM: z.string().default("Trip Challenges <no-reply@example.org>"),
+
+  // Operations (#24). ALERT_EMAIL also receives "erasure failed" alerts (the Trip's
+  // teachers always do). HEARTBEAT_URL is pinged after every healthy scheduler tick —
+  // point it at a dead-man's-switch monitor (e.g. healthchecks.io) so silence alerts.
+  ALERT_EMAIL: z.string().email().optional(),
+  HEARTBEAT_URL: z.string().url().optional(),
 });
 
 export type Config = z.infer<typeof Env>;

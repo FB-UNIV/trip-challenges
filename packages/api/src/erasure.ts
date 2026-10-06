@@ -3,7 +3,8 @@
 import { pool, tx } from "./db.js";
 import { deleteTripBlobs } from "./storage/s3.js";
 import { destroyTripKey } from "./crypto/vault.js";
-import { sendErasureWarning } from "./email/mailer.js";
+import { config } from "./config.js";
+import { sendErasureWarning, sendErasureFailedAlert } from "./email/mailer.js";
 import { pickBracket } from "./lib/erasureWarning.js";
 
 export async function eraseTrip(tripId: string): Promise<void> {
@@ -123,4 +124,30 @@ async function teacherEmailsForTrip(tripId: string): Promise<string[]> {
     [tripId],
   );
   return rows.map((r) => r.email);
+}
+
+const ALERT_EVERY_MS = 60 * 60_000;
+const lastAlert = new Map<string, number>(); // tripId -> last alert time (per process)
+
+/**
+ * Tell the Trip's teachers (and ALERT_EMAIL, if set) that its erasure failed (#24).
+ * At most once an hour per trip per process; the scheduler retries every tick meanwhile.
+ * The detail is our own error text (ids, HTTP status), never student PII.
+ */
+export async function alertErasureFailure(tripId: string, error: unknown, now = Date.now()): Promise<void> {
+  const last = lastAlert.get(tripId);
+  if (last !== undefined && now - last < ALERT_EVERY_MS) return;
+  lastAlert.set(tripId, now);
+
+  const { rows } = await pool.query<{ name: string }>(`SELECT name FROM trip WHERE id = $1`, [tripId]);
+  const detail = String((error as Error)?.message ?? error).slice(0, 300);
+  const to = new Set(await teacherEmailsForTrip(tripId));
+  if (config.ALERT_EMAIL) to.add(config.ALERT_EMAIL);
+  for (const addr of to) {
+    try {
+      await sendErasureFailedAlert(addr, rows[0]?.name ?? "a trip", tripId, detail);
+    } catch (e) {
+      console.error(`[erasure] alert mail failed for trip ${tripId}`, e);
+    }
+  }
 }

@@ -11,7 +11,7 @@ import { pool } from "../../src/db.js";
 import { sealBlob } from "../../src/crypto/envelope.js";
 import { resetDb } from "./fake-pg.js";
 import { createTripKey, encrypt, hmac, resetVault } from "./fake-vault.js";
-import { objects, putBlob, blobKey } from "./fake-s3.js";
+import { objects, putBlob, blobKey, s3faults } from "./fake-s3.js";
 import { resetMailer } from "./fake-mailer.js";
 
 export { pool };
@@ -23,6 +23,7 @@ export async function resetAll(): Promise<void> {
   await resetDb();
   resetVault();
   objects.clear();
+  s3faults.deleteFailures = 0;
   resetMailer();
 }
 

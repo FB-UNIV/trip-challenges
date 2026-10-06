@@ -57,4 +57,14 @@ describe("mailer", () => {
     expect(warn!.subject).toBe("Data for Rome will be erased");
     expect(warn!.text).toContain("2030-01-02T03:04:05.000Z");
   });
+
+  it("formats the erasure-failure alert", async () => {
+    const m = await loadMailer({ SMTP_HOST: "smtp.test" });
+    await m.sendErasureFailedAlert("ops@school.test", "Rome", "trip-uuid", "vault 503 sealed");
+    const mail = transport.sendMail.mock.calls[0]![0] as { subject: string; text: string };
+    expect(mail.subject).toBe("ACTION NEEDED: erasure failed for Rome");
+    expect(mail.text).toContain("trip-uuid");
+    expect(mail.text).toContain("vault 503 sealed");
+    expect(mail.text).toContain("retried automatically");
+  });
 });

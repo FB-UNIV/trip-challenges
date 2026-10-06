@@ -204,6 +204,11 @@ curl -sk https://<PUBLIC_HOST>/api/healthz          # via the edge/proxy
 - **Backups & erasure:** back up Postgres + object store together; back up Vault storage
   **separately and tightly** — this separation is what makes crypto-erasure real. Full rules
   in [hardening §2](./production-hardening.md#2-backups-and-the-erasure-guarantee).
+- **Erasure monitoring:** a failed erasure is retried every minute and emails the trip's
+  teachers plus `ALERT_EMAIL` (at most hourly per trip). Set `HEARTBEAT_URL` to a
+  dead-man's-switch check (e.g. healthchecks.io, ~5 min grace): it is pinged only after a
+  tick in which every due erasure succeeded, so a stopped scheduler *or* a stuck erasure
+  both raise an alert.
 - **Break-glass erase:** teacher "Erase now", or destroy a trip's Vault key by hand — see
   [hardening §6](./production-hardening.md#6-break-glass-erase-on-demand).
 
