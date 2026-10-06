@@ -9,6 +9,8 @@ import {
   type ReactNode,
 } from "react";
 
+import { HttpError } from "./api.js";
+
 const cx = (...parts: (string | false | undefined)[]) => parts.filter(Boolean).join(" ");
 
 // ---------- Card ----------
@@ -38,6 +40,18 @@ export function Field({
       <span>{label}</span>
       <input {...rest} className={className} />
     </label>
+  );
+}
+
+// ---------- ErrorCard ----------
+/** A failed load: the API's reason (e.g. "Too many requests — try again in 1 minute.") + retry. */
+export function ErrorCard({ error, onRetry }: { error: unknown; onRetry: () => void }) {
+  const reason = error instanceof HttpError ? error.reason : "Something went wrong.";
+  return (
+    <Card>
+      <p className="err" style={{ marginTop: 0 }}>{reason}</p>
+      <Button variant="ghost" onClick={onRetry}>Try again</Button>
+    </Card>
   );
 }
 

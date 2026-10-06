@@ -40,11 +40,16 @@ export const Env = z.object({
 
   SESSION_SECRET: z.string().min(32),
 
-  // Requests per minute per client IP: global floor, and the access-code routes
-  // (redeem/reissue, anti brute-force). Raise only for test rigs where every browser
-  // shares one IP (e2e behind the dev proxy) — never in production.
-  RATE_LIMIT_MAX: z.coerce.number().int().positive().default(100),
+  // Which peers may set X-Forwarded-For (proxy-addr syntax: keywords, IPs, CIDRs). The API
+  // is only reachable through the edge proxy on the internal network, so private ranges by
+  // default; without this every client looks like the proxy and shares one bucket (#67).
+  TRUST_PROXY: z.string().default("loopback,linklocal,uniquelocal"),
+  // Requests per minute: per client IP for everything (a voting phone makes ~4 per duel),
+  // per ACCESS CODE for redemption (anti brute-force; a whole class shares one school IP),
+  // and per client IP for reissue (sends email).
+  RATE_LIMIT_MAX: z.coerce.number().int().positive().default(600),
   RATE_LIMIT_AUTH_MAX: z.coerce.number().int().positive().default(5),
+  RATE_LIMIT_REISSUE_MAX: z.coerce.number().int().positive().default(20),
 
   // Antivirus (ClamAV clamd). Off by default so dev needs no AV service; enable in prod.
   AV_SCAN_ENABLED: z

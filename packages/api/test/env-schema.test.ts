@@ -41,10 +41,12 @@ describe("env schema", () => {
     expect(Env.safeParse({ ...base, PUBLIC_BASE_URL: "not-a-url" }).success).toBe(false);
   });
 
-  it("defaults rate limits to 100/min global and 5/min on access-code routes", () => {
+  it("defaults: 600/min per client, 5/min per access code, 20/min reissue, trusting private proxies (#67)", () => {
     const parsed = Env.parse(base);
-    expect(parsed.RATE_LIMIT_MAX).toBe(100);
+    expect(parsed.RATE_LIMIT_MAX).toBe(600);
     expect(parsed.RATE_LIMIT_AUTH_MAX).toBe(5);
+    expect(parsed.RATE_LIMIT_REISSUE_MAX).toBe(20);
+    expect(parsed.TRUST_PROXY).toBe("loopback,linklocal,uniquelocal");
   });
   it("lets rate limits be raised from the env (e2e runs every browser through one IP)", () => {
     const parsed = Env.parse({ ...base, RATE_LIMIT_MAX: "10000", RATE_LIMIT_AUTH_MAX: "500" });

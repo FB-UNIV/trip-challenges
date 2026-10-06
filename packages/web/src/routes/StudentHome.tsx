@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { Link } from "react-router-dom";
 import { api, HttpError } from "../api.js";
-import { Button, Card, Field, PhasePill, PhaseTrail, useAsync } from "../ui.js";
+import { Button, Card, ErrorCard, Field, PhasePill, PhaseTrail, useAsync } from "../ui.js";
 
 export function StudentHome() {
   const { data: me, error, loading, reload } = useAsync(() => api.me(), []);
@@ -40,7 +40,7 @@ export function StudentHome() {
     );
   }
 
-  if (!me) return <p className="err">Something went wrong.</p>;
+  if (error || !me) return <ErrorCard error={error} onRetry={reload} />;
   const teamName = me.teamId ? teams.data?.teams.find((t) => t.id === me.teamId)?.name : null;
 
   return (

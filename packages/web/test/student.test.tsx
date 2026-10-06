@@ -95,3 +95,42 @@ describe("student home", () => {
     else expect(screen.getByRole("heading", { name: "No team yet" })).toBeInTheDocument();
   });
 });
+
+describe("when the API is busy or failing (#67)", () => {
+  it("home says the service is busy and retries, instead of a dead end", async () => {
+    let calls = 0;
+    server.use(
+      http.get("/api/student/me", () => {
+        calls += 1;
+        return calls === 1
+          ? HttpResponse.json({ statusCode: 429, error: "rate_limited", message: "Too many requests — try again in 1 minute." }, { status: 429 })
+          : HttpResponse.json(ME);
+      }),
+      teams(),
+    );
+    const { user } = renderAt("/");
+    expect(await screen.findByText(/Too many requests — try again in 1 minute\./)).toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "Try again" }));
+    expect(await screen.findByText("Rome 2030")).toBeInTheDocument();
+  });
+
+  it("home shows the server's reason for other failures", async () => {
+    server.use(
+      http.get("/api/student/me", () => HttpResponse.json({ error: "database_unavailable", message: "The database is unavailable." }, { status: 503 })),
+      teams(),
+    );
+    renderAt("/");
+    expect(await screen.findByText(/The database is unavailable\./)).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Try again" })).toBeInTheDocument();
+  });
+
+  it("the team page never claims teams are locked when it just couldn't load", async () => {
+    server.use(
+      http.get("/api/student/me", () => HttpResponse.json({ error: "rate_limited", message: "Too many requests — try again in 1 minute." }, { status: 429 })),
+      teams(),
+    );
+    renderAt("/team");
+    expect(await screen.findByText(/Too many requests/)).toBeInTheDocument();
+    expect(screen.queryByText("Teams are locked")).not.toBeInTheDocument();
+  });
+});
