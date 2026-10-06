@@ -75,17 +75,32 @@ async function processItem(it: { id: string; trip_id: string; email_enc: Buffer;
     const hash = await argon2.hash(secret);
 
     // Reuse the already-encrypted email ciphertext for the Student row.
-    const ins = await pool.query(
+    const ins = await pool.query<{ id: string }>(
       `INSERT INTO student (id, trip_id, email_enc, email_lookup, access_code_hash)
        VALUES ($1, $2, $3, $4, $5)
-       ON CONFLICT (trip_id, email_lookup) DO NOTHING`,
+       ON CONFLICT (trip_id, email_lookup) DO NOTHING
+       RETURNING id`,
       [studentId, it.trip_id, it.email_enc, lookup, hash],
     );
-    if (ins.rowCount) {
+    let recipient = ins.rows[0]?.id;
+    if (!recipient) {
+      // Already imported. If that student's code never went out (an earlier attempt's
+      // mail failed), mint a fresh one and send it now (#18). If it did go out, this is
+      // just a duplicate roster line: don't mail again.
+      const { rows } = await pool.query<{ id: string }>(
+        `UPDATE student SET access_code_hash = $3, access_code_state = 'unredeemed'
+          WHERE trip_id = $1 AND email_lookup = $2 AND access_code_sent_at IS NULL
+          RETURNING id`,
+        [it.trip_id, lookup, hash],
+      );
+      recipient = rows[0]?.id;
+    }
+    if (recipient) {
       const { rows: tr } = await pool.query<{ name: string }>(`SELECT name FROM trip WHERE id = $1`, [it.trip_id]);
-      const joinUrl = `${config.PUBLIC_BASE_URL}/join?code=${encodeURIComponent(`${studentId}.${secret}`)}`;
-      await sendAccessCode(email, tr[0]?.name ?? "the trip", joinUrl);
-    } // else: duplicate email already imported — mark done, don't re-send.
+      const joinUrl = `${config.PUBLIC_BASE_URL}/join?code=${encodeURIComponent(`${recipient}.${secret}`)}`;
+      await sendAccessCode(email, tr[0]?.name ?? "the trip", joinUrl); // throws → retried below
+      await pool.query(`UPDATE student SET access_code_sent_at = now() WHERE id = $1`, [recipient]);
+    }
     await pool.query(`UPDATE roster_import_item SET status = 'done', processed_at = now() WHERE id = $1`, [it.id]);
   } catch (e: any) {
     const attempts = it.attempts + 1;
