@@ -1,5 +1,5 @@
 // Co-teacher invite acceptance, the projected reveal ceremony, and the API client itself.
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, vi } from "vitest";
 import { fireEvent, screen } from "@testing-library/react";
 import { http, HttpResponse } from "msw";
 import { server } from "./server.js";
@@ -32,6 +32,28 @@ describe("accept invite (/teacher/accept?token=…)", () => {
     expect(await screen.findByText("Rome 2030")).toBeInTheDocument();
     expect(screen.getByText("co@school.test")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Sign in & accept" })).toBeEnabled();
+  });
+
+  it.each([
+    [200, null],
+    [403, "This invite was sent to a different email address. Sign in with that account."],
+  ])("accepts on the button once signed in elsewhere (API answered %i)", async (status, message) => {
+    let calls = 0;
+    server.use(
+      preview(INVITE),
+      http.post("/api/invites/accept", () => {
+        calls += 1;
+        if (calls === 1) return HttpResponse.json({}, { status: 401 }); // the automatic attempt
+        return status === 200
+          ? HttpResponse.json({ ok: true, tripId: "t1" })
+          : HttpResponse.json({ error: "wrong_account" }, { status });
+      }),
+      http.get("/api/trips/t1", () => HttpResponse.json({}, { status: 404 })),
+    );
+    const { user, location } = renderAt(url);
+    await user.click(await screen.findByRole("button", { name: "Sign in & accept" }));
+    if (message) expect(await screen.findByText(message)).toBeInTheDocument();
+    else await vi.waitFor(() => expect(location()).toBe("/teacher/trips/t1"));
   });
 
   it.each([

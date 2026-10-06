@@ -128,14 +128,15 @@ work. To exercise the **real** OIDC flow instead, point `OIDC_*` at a dev Pocket
 ## 8. Checks
 
 ```bash
-npm test           # Vitest + API coverage thresholds — no infrastructure required
+npm test           # Vitest (api, shared, web) + coverage thresholds — no infrastructure required
 npm run typecheck  # tsc across all workspaces
 npm run build      # api → dist, web → static bundle + service worker
 ```
 
 For end-to-end work against live services, keep the dev compose up and drive the API with
 `curl` (see the `verify`/E2E scripts pattern). Tests themselves need no infra: API tests run
-the real schema in PGlite (in-process Postgres) with in-memory Vault/S3/SMTP fakes.
+the real schema in PGlite (in-process Postgres) with in-memory Vault/S3/SMTP fakes; web tests
+mount the real routes in jsdom (React Testing Library) against an MSW-mocked API.
 
 ## 9. Layout
 
@@ -152,6 +153,7 @@ packages/
     db/migrations/  numbered SQL, applied by the API at boot (src/migrate.ts)
     test/           Vitest unit tests
   web/      React PWA (Vite) — student + teacher UI, inline styles + index.css
+    test/           Vitest + RTL + MSW (render.tsx mounts src/routes.tsx)
 docs/       adr/ · data-model.md · deployment.md · development.md · production-hardening.md
 traefik/    dynamic.yml (edge file-provider config)
 ```

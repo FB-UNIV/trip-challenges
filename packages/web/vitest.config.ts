@@ -14,7 +14,7 @@ export default defineConfig({
       exclude: ["src/main.tsx"],
       reporter: ["text-summary", "json-summary"],
       // Enforced by `npm test` (and so CI). Raise these as gaps close; don't lower them.
-      thresholds: { statements: 0, lines: 0, functions: 0, branches: 0 },
+      thresholds: { statements: 98, lines: 98, functions: 90, branches: 90 },
     },
   },
 });

@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { useParams } from "react-router-dom";
-import { api, type ChallengeSummary } from "../../api.js";
+import { api, HttpError, type ChallengeSummary } from "../../api.js";
 import { Button, Card, Field, PhasePill, PhaseTrail, Pill, useAsync, useLightbox } from "../../ui.js";
 
 const NEXT: Record<string, string> = { draft: "challenge", challenge: "voting", voting: "reveal", reveal: "grace" };
@@ -231,7 +231,15 @@ function PhaseControl({ tripId, phase, onChange }: { tripId: string; phase: stri
         <PhasePill phase={phase} dot />
       </div>
       <div className="row" style={{ marginTop: 10, flexWrap: "wrap" }}>
-        {next && <Button onClick={async () => { await api.advance(tripId, next); onChange(); }}>Advance to {next} →</Button>}
+        {next && (
+          <Button
+            onClick={async () => {
+              // Refused = the trip already moved on (a co-teacher, or its planned date): either way, catch up.
+              try { await api.advance(tripId, next); } catch { /* the reload shows where it is now */ }
+              onChange();
+            }}
+          >Advance to {next} →</Button>
+        )}
         <Button
           variant="danger"
           onClick={async () => {
@@ -248,6 +256,7 @@ function PhaseControl({ tripId, phase, onChange }: { tripId: string; phase: stri
 function Roster({ tripId }: { tripId: string }) {
   const [text, setText] = useState("");
   const [msg, setMsg] = useState("");
+  const [err, setErr] = useState("");
   const [status, setStatus] = useState<{ pending: number; done: number; failed: number; students: number } | null>(null);
   const timer = useRef<ReturnType<typeof setInterval>>();
 
@@ -284,14 +293,20 @@ function Roster({ tripId }: { tripId: string }) {
           onClick={async () => {
             const emails = text.split(/[\s,;]+/).map((s) => s.trim()).filter(Boolean);
             if (!emails.length) return;
-            const r = await api.importRoster(tripId, emails);
-            setMsg(`Queued ${r.queued} of ${r.requested}. Sending access codes in the background…`);
-            setText("");
-            startPolling();
+            setMsg(""); setErr("");
+            try {
+              const r = await api.importRoster(tripId, emails);
+              setMsg(`Queued ${r.queued} of ${r.requested}. Sending access codes in the background…`);
+              setText("");
+              startPolling();
+            } catch (e) {
+              setErr(`Could not import${e instanceof HttpError ? `: ${e.reason}` : "."}`);
+            }
           }}
         >Import + email codes</Button>
       </div>
       {msg && <p className="ok tiny">{msg}</p>}
+      {err && <p className="err tiny">{err}</p>}
       {status && (status.pending > 0 || status.done > 0 || status.failed > 0) && (
         <p className="muted tiny">
           {status.students} students · {status.pending} queued
