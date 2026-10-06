@@ -40,4 +40,18 @@ describe("env schema", () => {
   it("requires PUBLIC_BASE_URL to be a URL", () => {
     expect(Env.safeParse({ ...base, PUBLIC_BASE_URL: "not-a-url" }).success).toBe(false);
   });
+
+  it("defaults rate limits to 100/min global and 5/min on access-code routes", () => {
+    const parsed = Env.parse(base);
+    expect(parsed.RATE_LIMIT_MAX).toBe(100);
+    expect(parsed.RATE_LIMIT_AUTH_MAX).toBe(5);
+  });
+  it("lets rate limits be raised from the env (e2e runs every browser through one IP)", () => {
+    const parsed = Env.parse({ ...base, RATE_LIMIT_MAX: "10000", RATE_LIMIT_AUTH_MAX: "500" });
+    expect(parsed.RATE_LIMIT_MAX).toBe(10000);
+    expect(parsed.RATE_LIMIT_AUTH_MAX).toBe(500);
+  });
+  it("rejects a non-positive rate limit", () => {
+    expect(Env.safeParse({ ...base, RATE_LIMIT_AUTH_MAX: "0" }).success).toBe(false);
+  });
 });

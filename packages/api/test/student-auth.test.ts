@@ -80,6 +80,18 @@ describe("POST /api/student/redeem", () => {
     // Single use.
     expect((await redeem(s.code!)).statusCode).toBe(401);
   });
+
+  // Found by e2e: React StrictMode (or a double tap / link prefetch) fires two redeems at
+  // once. Both passed the "unredeemed" check before either marked the code spent, so the
+  // single-use code minted two sessions and the browser kept a cookie for a revoked one.
+  it("redeems a code exactly once under concurrent requests", async () => {
+    const s = await makeStudent(trip, { unredeemedCode: true });
+    const results = await Promise.all([redeem(s.code!), redeem(s.code!), redeem(s.code!)]);
+    expect(results.map((r) => r.statusCode).sort()).toEqual([200, 401, 401]);
+    expect(await count("student_session", "student_id = $1 AND revoked_at IS NULL", [s.id])).toBe(1);
+    const winner = results.find((r) => r.statusCode === 200)!;
+    expect((await me(sessionCookie(winner))).statusCode).toBe(200);
+  });
 });
 
 describe("POST /api/student/reissue (lost device)", () => {
@@ -125,5 +137,22 @@ describe("POST /api/student/reissue (lost device)", () => {
     mailer.fail = true;
     const res = await reissue({ tripId: trip, email: s.email });
     expect(res.json()).toEqual({ ok: true });
+  });
+});
+
+describe("access-code rate limit", () => {
+  it("allows RATE_LIMIT_AUTH_MAX attempts per window, then answers 429", async () => {
+    const Fastify = (await import("fastify")).default;
+    const limited = Fastify();
+    await limited.register((await import("@fastify/cookie")).default, { secret: "x".repeat(32) });
+    await limited.register((await import("@fastify/rate-limit")).default, { max: 1000, timeWindow: "1 minute" });
+    await limited.register(studentAuthRoutes, { prefix: "/api/student" });
+
+    const attempt = () =>
+      limited.inject({ method: "POST", url: "/api/student/redeem", payload: { code: "not-a-real-code" } });
+    // test config sets RATE_LIMIT_AUTH_MAX=3
+    for (let i = 0; i < 3; i++) expect((await attempt()).statusCode).toBe(401);
+    expect((await attempt()).statusCode).toBe(429);
+    await limited.close();
   });
 });

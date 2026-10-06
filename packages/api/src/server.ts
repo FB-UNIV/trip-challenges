@@ -32,7 +32,7 @@ const app = Fastify({
 await app.register(helmet, { contentSecurityPolicy: false }); // CSP handled at edge
 await app.register(cors, { origin: config.PUBLIC_BASE_URL, credentials: true });
 await app.register(cookie, { secret: config.SESSION_SECRET });
-await app.register(rateLimit, { max: 100, timeWindow: "1 minute" }); // global floor
+await app.register(rateLimit, { max: config.RATE_LIMIT_MAX, timeWindow: "1 minute" }); // global floor
 await app.register(multipart, { limits: { fileSize: 15 * 1024 * 1024, files: 1 } });
 
 await app.register(healthRoutes);

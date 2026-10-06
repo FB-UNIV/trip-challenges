@@ -40,6 +40,12 @@ export const Env = z.object({
 
   SESSION_SECRET: z.string().min(32),
 
+  // Requests per minute per client IP: global floor, and the access-code routes
+  // (redeem/reissue, anti brute-force). Raise only for test rigs where every browser
+  // shares one IP (e2e behind the dev proxy) — never in production.
+  RATE_LIMIT_MAX: z.coerce.number().int().positive().default(100),
+  RATE_LIMIT_AUTH_MAX: z.coerce.number().int().positive().default(5),
+
   // Antivirus (ClamAV clamd). Off by default so dev needs no AV service; enable in prod.
   AV_SCAN_ENABLED: z
     .string()
