@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { Link } from "react-router-dom";
 import { api } from "../api.js";
-import { Button, Card, Field, useAsync } from "../ui.js";
+import { Button, Card, ErrorCard, Field, useAsync } from "../ui.js";
 
 export function TeamPage() {
   const me = useAsync(() => api.me(), []);
@@ -10,8 +10,12 @@ export function TeamPage() {
   const [err, setErr] = useState("");
 
   if (me.loading || teams.loading) return <p className="muted">Loading…</p>;
-  const inTeam = !!me.data?.teamId;
-  const locked = me.data?.phase !== "draft";
+  // A failed load is not a phase: never claim "locked" because a request failed (#67).
+  if (me.error || teams.error || !me.data) {
+    return <ErrorCard error={me.error ?? teams.error} onRetry={() => { me.reload(); teams.reload(); }} />;
+  }
+  const inTeam = !!me.data.teamId;
+  const locked = me.data.phase !== "draft";
 
   const act = (fn: () => Promise<unknown>) => async () => {
     setErr("");

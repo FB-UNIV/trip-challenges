@@ -12,6 +12,8 @@ async function req<T>(path: string, init?: RequestInit): Promise<T> {
   return res.status === 204 ? (undefined as T) : ((await res.json()) as T);
 }
 
+const GENERIC = "Something went wrong.";
+
 export class HttpError extends Error {
   constructor(public status: number, message: string) {
     super(message);
@@ -21,9 +23,9 @@ export class HttpError extends Error {
   get reason(): string {
     try {
       const body = JSON.parse(this.message) as { message?: unknown };
-      if (typeof body.message === "string") return body.message;
+      return typeof body.message === "string" && body.message ? body.message : GENERIC;
     } catch { /* not JSON */ }
-    return this.message;
+    return this.message.trim() || GENERIC;
   }
 }
 
