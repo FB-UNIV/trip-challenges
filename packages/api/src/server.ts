@@ -5,6 +5,7 @@ import cookie from "@fastify/cookie";
 import rateLimit from "@fastify/rate-limit";
 import multipart from "@fastify/multipart";
 import { config } from "./config.js";
+import { loggerOptions } from "./lib/logging.js";
 import { ensureBucket } from "./storage/s3.js";
 import { pool } from "./db.js";
 import { migrate } from "./migrate.js";
@@ -23,11 +24,8 @@ import { submissionRoutes } from "./routes/submissions.js";
 import { startErasureScheduler } from "./scheduler.js";
 
 const app = Fastify({
-  logger: {
-    level: config.NODE_ENV === "production" ? "info" : "debug",
-    // Never log student PII — keep logs keyed by opaque ids (Erasure › logs).
-    redact: ["req.headers.authorization", "req.headers.cookie", "*.email", "*.code"],
-  },
+  // Never log student PII or bearer secrets (Erasure › logs, #20): see lib/logging.ts.
+  logger: loggerOptions(config.NODE_ENV),
   bodyLimit: 15 * 1024 * 1024, // 15MB — photo uploads
 });
 
