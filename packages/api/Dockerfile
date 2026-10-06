@@ -19,6 +19,8 @@ WORKDIR /app
 COPY --from=build /app/node_modules ./node_modules
 COPY --from=build /app/packages/shared ./packages/shared
 COPY --from=build /app/packages/api/dist ./packages/api/dist
+# SQL migrations, applied by the API at boot (src/migrate.ts resolves ../db/migrations).
+COPY --from=build /app/packages/api/db/migrations ./packages/api/db/migrations
 COPY --from=build /app/packages/api/package.json ./packages/api/package.json
 USER node
 EXPOSE 3000

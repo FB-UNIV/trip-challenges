@@ -30,12 +30,12 @@ linter configured. `scripts/e2e.mjs` is a live-stack smoke test — see its head
 ## Layout
 
 - `packages/shared` — zod schemas + types; single source of truth for api and web
-- `packages/api` — Fastify, ESM (imports use explicit `.js` extensions); schema in `db/schema.sql`
+- `packages/api` — Fastify, ESM (imports use explicit `.js` extensions); schema in `db/migrations/` (numbered SQL, applied at boot by `src/migrate.ts`; never edit a shipped migration, add the next number)
 - `packages/web` — React 18 + Vite PWA; no tests yet
 
 ## Tests
 
-- API route/domain tests run the real `db/schema.sql` in PGlite (in-process WASM Postgres) and
+- API route/domain tests run the real migrations in PGlite (in-process WASM Postgres) and
   swap Vault, S3 and SMTP for in-memory fakes — see `packages/api/test/support/`. New test files
   copy the `vi.mock(...)` block from an existing one, then use `harness.ts` fixtures.
 - A known, unfixed bug is recorded as `it.fails(...)` with a `// BUG:` comment. When you fix it,

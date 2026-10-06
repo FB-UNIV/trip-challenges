@@ -167,7 +167,7 @@ npm run build      # api → dist, web → static bundle + service worker
 ```
 packages/
   shared/   zod schemas + types (single source of truth for api + web)
-  api/      Fastify service · db/schema.sql · Vault/S3 clients · erasure · test/
+  api/      Fastify service · db/migrations · Vault/S3 clients · erasure · test/
   web/      React PWA (student + teacher)
 docs/       adr/ · data-model.md
 traefik/    dynamic.yml (edge file-provider config)
@@ -182,7 +182,7 @@ coverage thresholds (`packages/api/vitest.config.ts`; ~99% of statements today).
 
 - **shared** — schema defaults/validation (`TripConfig`, `ChallengeInput`, …)
 - **api routes + domain** — every route plugin, the lifecycle/results computation, erasure,
-  the scheduler and the roster worker, run against the real `db/schema.sql` in
+  the scheduler and the roster worker, run against the real `db/migrations` in
   [PGlite](https://pglite.dev) (in-process Postgres) with in-memory Vault, S3 and SMTP fakes
   (`packages/api/test/support/`). The fake Vault refuses to decrypt once a trip's key is
   destroyed, so erasure tests check crypto-erasure, not just row deletion.

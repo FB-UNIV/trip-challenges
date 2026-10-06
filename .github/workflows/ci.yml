@@ -59,5 +59,12 @@ jobs:
           context: .
           file: ${{ matrix.dockerfile }}
           push: false
+          load: true
+          tags: trip-${{ matrix.name }}:ci
           cache-from: type=gha,scope=${{ matrix.name }}
           cache-to: type=gha,mode=max,scope=${{ matrix.name }}
+
+      # The API applies db/migrations at boot; an image without them can't start.
+      - name: Image ships the migrations
+        if: matrix.name == 'api'
+        run: docker run --rm --entrypoint ls trip-api:ci packages/api/db/migrations/0001_baseline.sql
