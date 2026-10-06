@@ -18,7 +18,8 @@ export const config = Env.parse({
   OIDC_CLIENT_SECRET: "secret",
   OIDC_REDIRECT_URI: "http://app.test/api/auth/teacher/callback",
   SESSION_SECRET: "test-session-secret-at-least-32-chars",
-  RATE_LIMIT_AUTH_MAX: "3", // small, so the limit is cheap to hit in tests
+  RATE_LIMIT_MAX: "8", // small, so the limits are cheap to hit in tests
+  RATE_LIMIT_AUTH_MAX: "3",
   ALERT_EMAIL: "ops@school.test",
   HEARTBEAT_URL: "http://heartbeat.test/ping",
 });
