@@ -1,5 +1,17 @@
 # Changelog
 
+## [0.2.0](https://github.com/FB-UNIV/trip-challenges/compare/v0.1.0...v0.2.0) (2026-10-06)
+
+
+### Features
+
+* auto-advance trip phases at the planned dates ([#45](https://github.com/FB-UNIV/trip-challenges/issues/45)) ([3298fec](https://github.com/FB-UNIV/trip-challenges/commit/3298fec7a853a0087b1ecd6d74c923be2f0572ef))
+
+
+### Bug Fixes
+
+* **web:** add PWA tests and fix five silent failures they found ([#48](https://github.com/FB-UNIV/trip-challenges/issues/48)) ([1fadd5b](https://github.com/FB-UNIV/trip-challenges/commit/1fadd5b5c0d49e73658393235b822922b2635d3f))
+
 ## 0.1.0 (2026-10-06)
 
 
