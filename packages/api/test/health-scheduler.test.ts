@@ -58,4 +58,50 @@ describe("startErasureScheduler", () => {
     await vi.waitFor(() => expect(err).toHaveBeenCalledWith(`[erasure] failed for trip ${due}`, expect.any(Error)), { timeout: 10_000 });
     await vi.waitFor(() => expect(hasKey(due)).toBe(false), { timeout: 10_000 }); // finished on a later tick
   });
+
+  // #19: a DB blip used to escape `void tick()` as an unhandled rejection, which kills
+  // the Node process (and every replica hits the same blip).
+  describe("survives a database outage during a tick (#19)", () => {
+    let unhandled: unknown[];
+    const onUnhandled = (e: unknown) => unhandled.push(e);
+    beforeEach(() => {
+      unhandled = [];
+      process.on("unhandledRejection", onUnhandled);
+    });
+    afterEach(() => {
+      process.off("unhandledRejection", onUnhandled);
+    });
+
+    async function expectRecovers(due: string, err: ReturnType<typeof vi.spyOn>) {
+      await vi.waitFor(() => expect(err).toHaveBeenCalledWith("[scheduler] tick failed", expect.any(Error)), { timeout: 10_000 });
+      await vi.waitFor(() => expect(hasKey(due)).toBe(false), { timeout: 10_000 }); // a later tick still does the work
+      expect(unhandled).toEqual([]);
+    }
+
+    it("when the pool can't hand out a connection", async () => {
+      const due = await makeTrip(await makeTeacher(), { phase: "challenge", hardEraseAt: new Date(Date.now() - 1000) });
+      const err = vi.spyOn(console, "error").mockImplementation(() => {});
+      vi.spyOn(pool, "connect").mockRejectedValueOnce(new Error("connect ECONNREFUSED"));
+
+      timer = startErasureScheduler(20);
+      await expectRecovers(due, err);
+    });
+
+    it("when finding due trips fails (and the advisory lock is still released)", async () => {
+      const due = await makeTrip(await makeTeacher(), { phase: "challenge", hardEraseAt: new Date(Date.now() - 1000) });
+      const err = vi.spyOn(console, "error").mockImplementation(() => {});
+      const realQuery = pool.query.bind(pool);
+      let failed = false;
+      vi.spyOn(pool, "query").mockImplementation((async (sql: string, params?: unknown[]) => {
+        if (!failed && sql.includes("FROM trip") && sql.includes("hard_erase_at <=")) {
+          failed = true;
+          throw new Error("terminating connection due to administrator command");
+        }
+        return realQuery(sql, params as any);
+      }) as any);
+
+      timer = startErasureScheduler(20);
+      await expectRecovers(due, err);
+    });
+  });
 });
