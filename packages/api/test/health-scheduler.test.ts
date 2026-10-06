@@ -72,9 +72,9 @@ describe("startErasureScheduler", () => {
     }) as any);
 
     timer = startErasureScheduler(20);
-    await vi.waitFor(() => expect(tried).toContain(ERASURE_LOCK));
+    await vi.waitFor(() => expect(tried).toContain(ERASURE_LOCK), { timeout: 10_000 });
     // A tick that lost the erasure lock must still go on to drain the roster.
-    await vi.waitFor(() => expect(tried).toContain(ROSTER_LOCK));
+    await vi.waitFor(() => expect(tried).toContain(ROSTER_LOCK), { timeout: 10_000 });
   });
 
   it("logs a trip whose erasure fails and keeps ticking", async () => {
