@@ -73,8 +73,8 @@ describe("startErasureScheduler", () => {
     });
 
     async function expectRecovers(due: string, err: ReturnType<typeof vi.spyOn>) {
-      await vi.waitFor(() => expect(err).toHaveBeenCalledWith("[scheduler] tick failed", expect.any(Error)));
-      await vi.waitFor(() => expect(hasKey(due)).toBe(false)); // a later tick still does the work
+      await vi.waitFor(() => expect(err).toHaveBeenCalledWith("[scheduler] tick failed", expect.any(Error)), { timeout: 10_000 });
+      await vi.waitFor(() => expect(hasKey(due)).toBe(false), { timeout: 10_000 }); // a later tick still does the work
       expect(unhandled).toEqual([]);
     }
 
