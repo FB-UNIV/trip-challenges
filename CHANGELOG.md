@@ -1,5 +1,17 @@
 # Changelog
 
+## [0.3.0](https://github.com/FB-UNIV/trip-challenges/compare/v0.2.0...v0.3.0) (2026-10-06)
+
+
+### Features
+
+* **api:** seed staging with demo trips (draft, voting, reveal) ([#66](https://github.com/FB-UNIV/trip-challenges/issues/66)) ([8f51857](https://github.com/FB-UNIV/trip-challenges/commit/8f518573e25c97912a4cafc1a18cdb987e729424))
+
+
+### Bug Fixes
+
+* rate-limit per client behind the proxy; explain failures instead of 'Something went wrong' ([#70](https://github.com/FB-UNIV/trip-challenges/issues/70)) ([43571f4](https://github.com/FB-UNIV/trip-challenges/commit/43571f4e81cdb417088734e0e8ecfb554db43153))
+
 ## [0.2.0](https://github.com/FB-UNIV/trip-challenges/compare/v0.1.0...v0.2.0) (2026-10-06)
 
 
