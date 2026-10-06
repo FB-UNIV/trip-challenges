@@ -58,6 +58,8 @@ export type TripOpts = {
   name?: string;
   maxTeamSize?: number;
   pointsTable?: { placement: number; points: number }[];
+  challengeOpensAt?: Date | null;
+  votingOpensAt?: Date | null;
   votingClosesAt?: Date | null;
   graceDays?: number;
   hardEraseAt?: Date;
@@ -66,8 +68,9 @@ export type TripOpts = {
 export async function makeTrip(ownerId: string, o: TripOpts = {}): Promise<string> {
   const { rows } = await pool.query<{ id: string }>(
     `INSERT INTO trip (name, owner_teacher_id, max_team_size, points_table, phase,
-                       voting_closes_at, grace_days, trip_end_date, hard_erase_at, vault_key_name)
-     VALUES ($1,$2,$3,$4,$5,$6,$7,'2030-01-01',$8,'pending') RETURNING id`,
+                       voting_closes_at, grace_days, trip_end_date, hard_erase_at, vault_key_name,
+                       challenge_opens_at, voting_opens_at)
+     VALUES ($1,$2,$3,$4,$5,$6,$7,'2030-01-01',$8,'pending',$9,$10) RETURNING id`,
     [
       o.name ?? "Rome 2030",
       ownerId,
@@ -77,6 +80,8 @@ export async function makeTrip(ownerId: string, o: TripOpts = {}): Promise<strin
       o.votingClosesAt ?? null,
       o.graceDays ?? 7,
       o.hardEraseAt ?? new Date("2030-02-01T00:00:00Z"),
+      o.challengeOpensAt ?? null,
+      o.votingOpensAt ?? null,
     ],
   );
   const id = rows[0]!.id;

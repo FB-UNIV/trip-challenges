@@ -6,7 +6,7 @@ vi.mock("../src/crypto/vault.js", () => import("./support/fake-vault.js"));
 vi.mock("../src/storage/s3.js", () => import("./support/fake-s3.js"));
 vi.mock("../src/email/mailer.js", () => import("./support/fake-mailer.js"));
 
-import { advanceTrip, computeResults } from "../src/lifecycle.js";
+import { advanceTrip, computeResults, autoAdvanceDue } from "../src/lifecycle.js";
 import {
   pool, resetAll, makeTeacher, makeTrip, makeStudent, makeTeam, makeChallenge,
   makeSubmission, makeNomination, setStats,
@@ -143,5 +143,54 @@ describe("computeResults (via advance voting -> reveal)", () => {
     await seed(trip, ch, "A", 0.5);
     await computeResults(trip);
     expect((await results(trip)).some((r) => r.is_grand_champion)).toBe(false);
+  });
+});
+
+describe("autoAdvanceDue (#26: auto-advance up to voting; the ceremony stays manual)", () => {
+  const now = new Date("2030-03-01T12:00:00Z");
+  const past = new Date(now.getTime() - 60_000);
+  const future = new Date(now.getTime() + 60_000);
+  const phaseOf = async (id: string) =>
+    (await pool.query<{ phase: string }>(`SELECT phase FROM trip WHERE id = $1`, [id])).rows[0]!.phase;
+
+  it("opens the challenge period at challenge_opens_at", async () => {
+    const trip = await makeTrip(owner, { phase: "draft", challengeOpensAt: past, votingOpensAt: future });
+    await autoAdvanceDue(now);
+    expect(await phaseOf(trip)).toBe("challenge");
+  });
+
+  it("opens voting at voting_opens_at, auto-nominating like a manual advance", async () => {
+    const trip = await makeTrip(owner, { phase: "challenge", votingOpensAt: past });
+    const ch = await makeChallenge(trip);
+    const s = await makeStudent(trip);
+    const team = await makeTeam(trip, "A", [s.id]);
+    await makeSubmission(trip, ch, team, s.id);
+
+    await autoAdvanceDue(now);
+    expect(await phaseOf(trip)).toBe("voting");
+    expect((await pool.query(`SELECT auto_nominated FROM nomination WHERE trip_id = $1`, [trip])).rows).toEqual([{ auto_nominated: true }]);
+  });
+
+  it("catches up both steps in one pass when both dates have passed", async () => {
+    const trip = await makeTrip(owner, { phase: "draft", challengeOpensAt: past, votingOpensAt: past });
+    await autoAdvanceDue(now);
+    expect(await phaseOf(trip)).toBe("voting");
+  });
+
+  it("never starts the reveal: voting stays put after voting_closes_at", async () => {
+    const trip = await makeTrip(owner, { phase: "voting", votingClosesAt: past });
+    await autoAdvanceDue(now);
+    expect(await phaseOf(trip)).toBe("voting");
+  });
+
+  it("leaves trips alone when dates are in the future or unset, and audits auto transitions", async () => {
+    const later = await makeTrip(owner, { phase: "draft", challengeOpensAt: future });
+    const unset = await makeTrip(owner, { phase: "challenge" });
+    const due = await makeTrip(owner, { phase: "draft", challengeOpensAt: past });
+    await autoAdvanceDue(now);
+    expect(await phaseOf(later)).toBe("draft");
+    expect(await phaseOf(unset)).toBe("challenge");
+    const { rows } = await pool.query(`SELECT action, teacher_id FROM audit_log WHERE trip_id = $1`, [due]);
+    expect(rows).toEqual([{ action: "phase_challenge", teacher_id: null }]);
   });
 });

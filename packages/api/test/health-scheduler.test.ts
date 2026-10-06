@@ -79,6 +79,15 @@ describe("startErasureScheduler", () => {
     await vi.waitFor(() => expect(tried).toContain(ROSTER_LOCK), { timeout: 10_000 });
   });
 
+  it("auto-advances trips whose planned dates have passed (#26)", async () => {
+    const trip = await makeTrip(await makeTeacher(), { phase: "draft", challengeOpensAt: new Date(Date.now() - 1000) });
+    timer = startErasureScheduler(20);
+    await vi.waitFor(async () => {
+      const { rows } = await pool.query<{ phase: string }>(`SELECT phase FROM trip WHERE id = $1`, [trip]);
+      expect(rows[0]!.phase).toBe("challenge");
+    }, { timeout: 10_000 });
+  });
+
   it("logs a trip whose erasure fails and keeps ticking", async () => {
     const due = await makeTrip(await makeTeacher(), { phase: "challenge", hardEraseAt: new Date(Date.now() - 1000) });
     const err = vi.spyOn(console, "error").mockImplementation(() => {});
