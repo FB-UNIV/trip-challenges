@@ -87,6 +87,9 @@ export class VotePage {
 
   async pick(submissionId: string) {
     await expect(this.page.getByRole("heading", { name: "Which is better?" })).toBeVisible();
+    // In dev, React StrictMode runs the page's load effect twice, so a second pair can
+    // re-render the sides (possibly swapped) right as we click. Wait until it settles.
+    await this.page.waitForLoadState("networkidle");
     await this.option(submissionId).click();
   }
 
