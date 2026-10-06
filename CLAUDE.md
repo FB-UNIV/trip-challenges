@@ -8,7 +8,7 @@ PWA for photo-challenge school trips. Handles **minors' data under strict erasur
 ```bash
 npm install                 # all workspaces
 npm run typecheck           # tsc across workspaces
-npm test                    # Vitest (api + shared), no infra needed; api enforces coverage thresholds
+npm test                    # Vitest (api, shared, web), no infra needed; api + web enforce coverage thresholds
 npm run build               # api → dist, web → static bundle + service worker
 npm run dev:api             # builds @trip/shared, then Fastify on :3000 (tsx watch)
 npm run dev:web             # builds @trip/shared, then Vite on :5173 (proxies /api → :3000)
@@ -31,7 +31,8 @@ linter configured. `scripts/e2e.mjs` is a live-stack smoke test — see its head
 
 - `packages/shared` — zod schemas + types; single source of truth for api and web
 - `packages/api` — Fastify, ESM (imports use explicit `.js` extensions); schema in `db/migrations/` (numbered SQL, applied at boot by `src/migrate.ts`; never edit a shipped migration, add the next number)
-- `packages/web` — React 18 + Vite PWA; no tests yet
+- `packages/web` — React 18 + Vite PWA; tests mount the real routes (`test/render.tsx`) against MSW —
+  declare every endpoint a screen hits with `server.use(...)`, unhandled requests fail the test
 
 ## Tests
 
@@ -40,7 +41,7 @@ linter configured. `scripts/e2e.mjs` is a live-stack smoke test — see its head
   copy the `vi.mock(...)` block from an existing one, then use `harness.ts` fixtures.
 - A known, unfixed bug is recorded as `it.fails(...)` with a `// BUG:` comment. When you fix it,
   the test starts "unexpectedly passing" — flip it to `it(...)`.
-- Coverage thresholds live in `packages/api/vitest.config.ts`; raise them, don't lower them.
+- Coverage thresholds live in `packages/{api,web}/vitest.config.ts`; raise them, don't lower them.
 
 ## Notes
 

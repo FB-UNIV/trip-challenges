@@ -16,6 +16,15 @@ export class HttpError extends Error {
   constructor(public status: number, message: string) {
     super(message);
   }
+
+  /** The API's human-readable `message` (bodies are `{ error, message }`), else the raw text. */
+  get reason(): string {
+    try {
+      const body = JSON.parse(this.message) as { message?: unknown };
+      if (typeof body.message === "string") return body.message;
+    } catch { /* not JSON */ }
+    return this.message;
+  }
 }
 
 export type Me = { studentId: string; tripId: string; tripName: string; phase: string; teamId: string | null };

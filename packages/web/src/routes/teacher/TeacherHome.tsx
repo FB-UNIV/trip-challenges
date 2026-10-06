@@ -9,6 +9,7 @@ export function TeacherHome() {
   const [name, setName] = useState("");
   const [endDate, setEndDate] = useState("");
   const [maxTeamSize, setMaxTeamSize] = useState("4");
+  const [err, setErr] = useState("");
 
   if (me.loading) return <p className="muted">Loading…</p>;
 
@@ -50,11 +51,17 @@ export function TeacherHome() {
         <Button
           disabled={!name.trim() || !endDate}
           onClick={async () => {
-            await api.createTrip({ name: name.trim(), tripEndDate: endDate, maxTeamSize: Number(maxTeamSize) });
-            setName(""); setEndDate("");
-            trips.reload();
+            setErr("");
+            try {
+              await api.createTrip({ name: name.trim(), tripEndDate: endDate, maxTeamSize: Number(maxTeamSize) });
+              setName(""); setEndDate("");
+              trips.reload();
+            } catch (e) {
+              setErr(`Could not create the trip${e instanceof HttpError ? `: ${e.reason}` : "."}`);
+            }
           }}
         >Create trip</Button>
+        {err && <p className="err tiny" style={{ marginBottom: 0 }}>{err}</p>}
       </Card>
     </div>
   );
