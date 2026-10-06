@@ -14,24 +14,27 @@ export function startErasureScheduler(intervalMs = 60_000) {
         "SELECT pg_try_advisory_lock($1) AS locked",
         [LOCK_KEY],
       );
-      if (!rows[0]?.locked) return; // another replica holds the lock
-      try {
-        const due = await findTripsDueForErasure();
-        for (const id of due) {
-          try {
-            await eraseTrip(id);
-          } catch (e) {
-            console.error(`[erasure] failed for trip ${id}`, e);
-          }
-        }
-        // Escalating warnings for erasures still ahead (deduped in erasure_warning).
+      // Another replica holds the erasure lock: skip erasure only. The roster drain
+      // below has its own lock and must still run here (#37).
+      if (rows[0]?.locked) {
         try {
-          await warnUpcomingErasures();
-        } catch (e) {
-          console.error("[erasure] warning pass failed", e);
+          const due = await findTripsDueForErasure();
+          for (const id of due) {
+            try {
+              await eraseTrip(id);
+            } catch (e) {
+              console.error(`[erasure] failed for trip ${id}`, e);
+            }
+          }
+          // Escalating warnings for erasures still ahead (deduped in erasure_warning).
+          try {
+            await warnUpcomingErasures();
+          } catch (e) {
+            console.error("[erasure] warning pass failed", e);
+          }
+        } finally {
+          await client.query("SELECT pg_advisory_unlock($1)", [LOCK_KEY]);
         }
-      } finally {
-        await client.query("SELECT pg_advisory_unlock($1)", [LOCK_KEY]);
       }
     } finally {
       client.release();
