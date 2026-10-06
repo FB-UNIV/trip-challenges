@@ -11,7 +11,7 @@ COPY packages/web packages/web
 RUN npm run build --workspace @trip/shared
 RUN npm run build --workspace @trip/web
 
-FROM nginx:1.27-alpine AS runtime
+FROM nginx:1.31-alpine AS runtime
 COPY packages/web/nginx.conf /etc/nginx/conf.d/default.conf
 COPY --from=build /app/packages/web/dist /usr/share/nginx/html
 EXPOSE 80
