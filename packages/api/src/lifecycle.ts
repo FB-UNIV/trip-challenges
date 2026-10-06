@@ -1,7 +1,7 @@
 // Trip phase transitions + results computation.
 // draft -> challenge -> voting -> reveal -> grace -> erased (ADR/CONTEXT: Lifecycle).
 import type { PoolClient } from "pg";
-import { tx } from "./db.js";
+import { pool, tx } from "./db.js";
 import { decrypt } from "./crypto/vault.js";
 
 const NEXT: Record<string, string> = {
@@ -30,6 +30,36 @@ export async function advanceTrip(tripId: string, to: string): Promise<void> {
       [tripId, `phase_${to}`],
     );
   });
+}
+
+// Automatic transitions at the planned dates (#26, owner decision): only up to voting.
+// voting_closes_at just closes voting (duels check it); the reveal ceremony is always a
+// teacher's click, so voting -> reveal is never automatic.
+const AUTO: [from: string, to: string, column: string][] = [
+  ["draft", "challenge", "challenge_opens_at"],
+  ["challenge", "voting", "voting_opens_at"],
+];
+
+/** Advance every trip whose planned date has passed. Returns "tripId:phase" per step. */
+export async function autoAdvanceDue(now = new Date()): Promise<string[]> {
+  const done: string[] = [];
+  // In order, so a trip with both dates past catches up draft -> challenge -> voting.
+  for (const [from, to, column] of AUTO) {
+    const { rows } = await pool.query<{ id: string }>(
+      `SELECT id FROM trip WHERE phase = $1 AND ${column} IS NOT NULL AND ${column} <= $2`,
+      [from, now],
+    );
+    for (const { id } of rows) {
+      try {
+        await advanceTrip(id, to); // same locked transition as the teacher's button
+        done.push(`${id}:${to}`);
+      } catch (e: any) {
+        // A teacher advanced it meanwhile: fine. Anything else: log, retry next tick.
+        if (!e?.illegal) console.error(`[lifecycle] auto-advance ${id} -> ${to} failed`, e);
+      }
+    }
+  }
+  return done;
 }
 
 // For every (team, challenge) with submissions but no active nomination, nominate the

@@ -126,7 +126,11 @@ async function challengePhase(
   lock = "",
 ): Promise<string | undefined> {
   const { rows } = await db.query<{ phase: string }>(
-    `SELECT t.phase FROM challenge c JOIN trip t ON t.id = c.trip_id
+    // Past its planned close time (#26), a 'voting' trip no longer takes votes, even
+    // though the phase stays 'voting' until the teacher starts the reveal ceremony.
+    `SELECT CASE WHEN t.phase = 'voting' AND t.voting_closes_at <= now() THEN 'voting_closed'
+                 ELSE t.phase::text END AS phase
+       FROM challenge c JOIN trip t ON t.id = c.trip_id
       WHERE c.id = $1 AND c.trip_id = $2 ${lock}`,
     [challengeId, tripId],
   );
