@@ -111,9 +111,13 @@ describe("startErasureScheduler", () => {
     it("when the pool can't hand out a connection", async () => {
       const due = await makeTrip(await makeTeacher(), { phase: "challenge", hardEraseAt: new Date(Date.now() - 1000) });
       const err = vi.spyOn(console, "error").mockImplementation(() => {});
-      vi.spyOn(pool, "connect").mockRejectedValueOnce(new Error("connect ECONNREFUSED"));
+      // Postgres is down until the failed tick has been observed, then comes back. (A
+      // single rejection could be consumed by the roster drain's own connect instead.)
+      const down = vi.spyOn(pool, "connect").mockRejectedValue(new Error("connect ECONNREFUSED"));
 
       timer = startErasureScheduler(20);
+      await vi.waitFor(() => expect(err).toHaveBeenCalledWith("[scheduler] tick failed", expect.any(Error)), { timeout: 10_000 });
+      down.mockRestore();
       await expectRecovers(due, err);
     });
 
