@@ -22,6 +22,11 @@ export async function duelRoutes(app: FastifyInstance) {
     const challengeId = (req.query as any)?.challengeId as string | undefined;
     if (!challengeId) return reply.code(400).send({ error: "bad_request", message: "challengeId" });
 
+    // Only this voter's trip (#16), and only during the Voting Period (#17).
+    const phase = await challengePhase(pool, challengeId, ctx.tripId);
+    if (!phase) return reply.code(404).send({ error: "not_found", message: "challenge" });
+    if (phase !== "voting") return { pair: null, reason: "closed" };
+
     // Eligible = approved+active nominations for this challenge, not the voter's team,
     // and not already exhausted against this voter. Least-compared-first.
     const { rows } = await pool.query<Cand>(
@@ -87,6 +92,12 @@ export async function duelRoutes(app: FastifyInstance) {
 
     try {
       await tx(async (c) => {
+        // Re-check trip + phase at cast time, holding the trip row so a concurrent phase
+        // change can't land between the check and the vote (#16, #17).
+        const phase = await challengePhase(c, pair.challengeId, ctx.tripId, "FOR SHARE OF t");
+        if (!phase) throw Object.assign(new Error("not found"), { httpStatus: 404, error: "not_found" });
+        if (phase !== "voting") throw Object.assign(new Error("closed"), { httpStatus: 409, error: "closed" });
+
         await c.query(
           `INSERT INTO duel (trip_id, challenge_id, voter_student_id,
                              a_nomination_id, b_nomination_id, winner_nomination_id,
@@ -98,12 +109,28 @@ export async function duelRoutes(app: FastifyInstance) {
         await bumpStats(c, ctx.tripId, loser, false);
       });
     } catch (e: any) {
+      if (e?.httpStatus) return reply.code(e.httpStatus).send({ error: e.error, message: e.message });
       // unique violation = repeat pair for this voter
       if (e?.code === "23505") return reply.code(409).send({ error: "duplicate", message: "already voted this pair" });
       throw e;
     }
     return { ok: true };
   });
+}
+
+/** The trip phase for a challenge, but only if it belongs to `tripId`. */
+async function challengePhase(
+  db: Pick<PoolClient, "query">,
+  challengeId: string,
+  tripId: string,
+  lock = "",
+): Promise<string | undefined> {
+  const { rows } = await db.query<{ phase: string }>(
+    `SELECT t.phase FROM challenge c JOIN trip t ON t.id = c.trip_id
+      WHERE c.id = $1 AND c.trip_id = $2 ${lock}`,
+    [challengeId, tripId],
+  );
+  return rows[0]?.phase;
 }
 
 type Cand = { id: string; submission_id: string; comparisons: number };

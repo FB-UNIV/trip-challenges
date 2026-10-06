@@ -9,7 +9,7 @@ export function VotePage() {
   const { challengeId } = useParams();
   const [pair, setPair] = useState<DuelPair | null>(null);
   const [done, setDone] = useState(false);
-  const [reason, setReason] = useState<"not_enough" | "exhausted" | undefined>();
+  const [reason, setReason] = useState<"not_enough" | "exhausted" | "closed" | undefined>();
   const [busy, setBusy] = useState(false);
   const [judged, setJudged] = useState(0);
 
@@ -38,7 +38,11 @@ export function VotePage() {
   if (done) {
     return (
       <Card>
-        {reason === "not_enough" ? (
+        {reason === "closed" ? (
+          <p style={{ margin: 0 }}>
+            Voting isn't open right now. Duels run during the voting period only. <Link to="/">Back home</Link>
+          </p>
+        ) : reason === "not_enough" ? (
           <p style={{ margin: 0 }}>
             Nothing to compare here yet. A duel needs <b>two approved photos from other teams</b>,
             so pairwise voting needs <b>3 or more teams</b> and the teacher to approve their
