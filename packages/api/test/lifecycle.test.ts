@@ -68,6 +68,29 @@ describe("advanceTrip", () => {
   });
 });
 
+describe("phase transitions are atomic (#26)", () => {
+  async function votingTripWithResults() {
+    const trip = await makeTrip(owner, { phase: "voting" });
+    const ch = await makeChallenge(trip, { title: "C" });
+    for (const [team, w] of [["A", 0.9], ["B", 0.5], ["C", 0.1]] as const) {
+      const s = await makeStudent(trip);
+      const teamId = await makeTeam(trip, team, [s.id]);
+      await setStats(trip, await makeNomination(trip, ch, teamId, await makeSubmission(trip, ch, teamId, s.id)), w);
+    }
+    return trip;
+  }
+
+  it("a failure while computing results leaves the trip in voting with no partial results", async () => {
+    const trip = await votingTripWithResults();
+    const vault = await import("./support/fake-vault.js");
+    vault.resetVault(); // team names can't be decrypted -> computeResults throws midway
+
+    await expect(advanceTrip(trip, "reveal")).rejects.toThrow();
+    expect((await pool.query(`SELECT phase FROM trip WHERE id = $1`, [trip])).rows[0]).toEqual({ phase: "voting" });
+    expect((await pool.query(`SELECT count(*)::int AS n FROM result WHERE trip_id = $1`, [trip])).rows[0]).toEqual({ n: 0 });
+  });
+});
+
 describe("computeResults (via advance voting -> reveal)", () => {
   async function seed(tripId: string, challengeId: string, team: string, wilson: number, state: "approved" | "pending" = "approved") {
     const s = await makeStudent(tripId);
