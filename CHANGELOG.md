@@ -1,5 +1,17 @@
 # Changelog
 
+## [0.4.0](https://github.com/FB-UNIV/trip-challenges/compare/v0.3.0...v0.4.0) (2026-10-07)
+
+
+### Features
+
+* **api:** per-student challenge progress for the checklist and vote list ([#73](https://github.com/FB-UNIV/trip-challenges/issues/73)) ([3773053](https://github.com/FB-UNIV/trip-challenges/commit/3773053dc0069cfcdfd6069172d36290767e7eb4))
+* **web:** bottom tab bar for students with to-do badges ([#78](https://github.com/FB-UNIV/trip-challenges/issues/78)) ([aaa1ef2](https://github.com/FB-UNIV/trip-challenges/commit/aaa1ef25b60ac60c99fc59565f477cb2348bdf61))
+* **web:** challenge checklist for students (/challenges) ([#76](https://github.com/FB-UNIV/trip-challenges/issues/76)) ([db3de17](https://github.com/FB-UNIV/trip-challenges/commit/db3de1791d368c802c52d710a9c3628e7f840215))
+* **web:** student UI kit — progress, checklist, stepper, bottom tab bar ([#72](https://github.com/FB-UNIV/trip-challenges/issues/72)) ([e01731d](https://github.com/FB-UNIV/trip-challenges/commit/e01731d933e7879e0682053ac8b571ca000e0ff9))
+* **web:** team page shows next steps and a challenge preview ([#77](https://github.com/FB-UNIV/trip-challenges/issues/77)) ([fcf5226](https://github.com/FB-UNIV/trip-challenges/commit/fcf52261038c681d8bfb6a57133cb89c06748213))
+* **web:** vote list with progress, done challenges and a next-challenge jump ([#75](https://github.com/FB-UNIV/trip-challenges/issues/75)) ([0c78d92](https://github.com/FB-UNIV/trip-challenges/commit/0c78d9239749436d9fa94160a4b0bca0dd60756a))
+
 ## [0.3.0](https://github.com/FB-UNIV/trip-challenges/compare/v0.2.0...v0.3.0) (2026-10-06)
 
 
