@@ -89,6 +89,11 @@ describe("TabBar", () => {
     expect(within(nav).getByRole("link", { name: /Home/ })).not.toHaveAttribute("aria-current");
   });
 
+  it("can also light up for other paths (a scanned challenge counts as Challenges)", () => {
+    at("/c/abc", <TabBar tabs={[{ to: "/challenges", label: "Challenges", icon: "📸", also: ["/c"] }]} />);
+    expect(screen.getByRole("link", { name: "Challenges" })).toHaveAttribute("aria-current", "page");
+  });
+
   it("matches Home only exactly", () => {
     at("/", <TabBar tabs={tabs} />);
     expect(screen.getByRole("link", { name: /Home/ })).toHaveAttribute("aria-current", "page");
