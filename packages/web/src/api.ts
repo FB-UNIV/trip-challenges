@@ -1,5 +1,5 @@
 // API client. Cookies (student_session / teacher_session) ride along automatically.
-import type { DuelPair, CastDuel } from "@trip/shared";
+import type { DuelPair, CastDuel, StudentChallengeList } from "@trip/shared";
 
 async function req<T>(path: string, init?: RequestInit): Promise<T> {
   const res = await fetch(path, {
@@ -63,8 +63,7 @@ export const api = {
     if (!res.ok) throw new HttpError(res.status, await res.text().catch(() => res.statusText));
     return (await res.json()) as { id: string };
   },
-  myChallenges: () =>
-    req<{ challenges: { id: string; title: string; instructions: string }[] }>("/api/challenges/for-student"),
+  myChallenges: () => req<StudentChallengeList>("/api/challenges/for-student"),
   listSubmissions: (challengeId: string) =>
     req<{ submissions: { id: string; created_at: string; nominated: boolean }[] }>(
       `/api/submissions?challengeId=${challengeId}`,

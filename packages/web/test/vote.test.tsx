@@ -19,6 +19,8 @@ const ch = (id: string, title: string, voted: number, total: number, status: Sta
 });
 const meIs = (me: object) => http.get("/api/student/me", () => HttpResponse.json(me));
 const listIs = (challenges: object[]) => http.get("/api/challenges/for-student", () => HttpResponse.json({ challenges }));
+// The loading Skeleton is a status region too, so find the celebration by its own title.
+const statusWith = async (title: string) => (await screen.findByText(title)).closest("[role=status]") as HTMLElement;
 const titlesInOrder = (container: HTMLElement) =>
   [...container.querySelectorAll(".check-row b")].map((b) => b.textContent);
 
@@ -48,7 +50,7 @@ describe("vote home", () => {
   it("celebrates once every challenge is voted", async () => {
     server.use(meIs(ME), listIs([ch("c1", "Statue selfie", 1, 1, "done"), ch("c2", "Gelato", 3, 3, "done")]));
     renderAt("/vote");
-    expect(await screen.findByRole("status")).toHaveTextContent("All voted!");
+    expect(await statusWith("All voted!")).toBeInTheDocument();
     expect(screen.queryByRole("link", { name: /Gelato/ })).not.toBeInTheDocument();
   });
 
@@ -111,8 +113,7 @@ describe("duel screen", () => {
     expect(screen.getByRole("progressbar", { name: "Duels voted" })).toHaveAttribute("aria-valuenow", "1");
     await user.click(screen.getAllByRole("button", { name: "Pick this photo" })[1]!);
 
-    const done = await screen.findByRole("status");
-    expect(done).toHaveTextContent("Challenge done!");
+    const done = await statusWith("Challenge done!");
     expect(within(done).getByRole("link", { name: /Next challenge/ })).toHaveAttribute("href", "/vote/ch2");
     expect(casts).toEqual([
       { pairToken: "token1", winnerNominationId: "a1" },
@@ -126,8 +127,7 @@ describe("duel screen", () => {
       http.get("/api/duels/next", () => HttpResponse.json({ pair: null, reason: "exhausted" })),
     );
     renderAt("/vote/ch1");
-    const done = await screen.findByRole("status");
-    expect(done).toHaveTextContent("All voted!");
+    const done = await statusWith("All voted!");
     expect(within(done).getByRole("link", { name: /Back to challenges/ })).toHaveAttribute("href", "/vote");
   });
 

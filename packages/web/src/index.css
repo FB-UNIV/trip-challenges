@@ -214,6 +214,7 @@ nav.tabs { display: flex; gap: 4px; }
 .duel-head { text-align: center; margin: 6px 0 14px; }
 .duel-head h2 { font-size: 22px; font-weight: 850; }
 .duel-head .prog { font: 600 12px var(--mono); color: var(--muted); margin-top: 4px; }
+.duel-head .progress { max-width: 240px; margin: 8px auto 0; }
 .duel { position: relative; display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
 .duel .pick { border: none; padding: 0; background: none; cursor: pointer; border-radius: 14px; }
 .duel .pick img { width: 100%; aspect-ratio: 3/4; object-fit: cover; border-radius: 14px; box-shadow: var(--shadow-1); transition: transform .12s ease, box-shadow .12s ease; }
