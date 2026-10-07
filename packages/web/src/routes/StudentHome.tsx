@@ -77,8 +77,10 @@ function NextAction({ phase, inTeam }: { phase: string; inTeam: boolean }) {
   if (phase === "challenge") {
     return (
       <Card>
-        <Action icon="📷" title="Scan a challenge" body={inTeam ? "Find a printed QR, snap your photo, then nominate your best shot." : "Join a team first, then scan a challenge QR to upload."} />
-        {!inTeam && <Link to="/team"><Button size="block" style={{ marginTop: 12 }}>Join a team</Button></Link>}
+        <Action icon="📸" title="Snap the challenges" body={inTeam ? "Snap a photo for each one, then enter your best shot." : "Join a team first."} />
+        {inTeam
+          ? <Link to="/challenges"><Button size="block" style={{ marginTop: 12 }}>See your challenges</Button></Link>
+          : <Link to="/team"><Button size="block" style={{ marginTop: 12 }}>Join a team</Button></Link>}
       </Card>
     );
   }

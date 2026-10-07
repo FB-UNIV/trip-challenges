@@ -82,8 +82,8 @@ describe("student home", () => {
 
   it.each([
     ["draft", null, "Form or join your team", "Go to teams"],
-    ["challenge", null, "Scan a challenge", "Join a team"],
-    ["challenge", "team1", "Scan a challenge", null],
+    ["challenge", null, "Snap the challenges", "Join a team"],
+    ["challenge", "team1", "Snap the challenges", "See your challenges"],
     ["voting", "team1", "Vote on the duels", "Start voting"],
     ["reveal", "team1", "Results are in", null],
   ])("in %s (team %s) the next step is “%s”", async (phase, teamId, title, button) => {
