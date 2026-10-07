@@ -93,7 +93,8 @@ export class VotePage {
     await this.option(submissionId).click();
   }
 
+  /** This challenge has no pairs left: "Challenge done!" (more to vote) or "All voted!" (last one). */
   async expectAllJudged() {
-    await expect(this.page.getByText("you've judged them all")).toBeVisible();
+    await expect(this.page.getByRole("heading", { name: /^(Challenge done!|All voted!)$/ })).toBeVisible();
   }
 }

@@ -56,7 +56,7 @@ test("duels are only served during the voting period (#17)", async ({ browser })
 
   // The vote screen says so instead of offering a pair.
   await voter!.page.goto(`/vote/${challenge.id}`);
-  await expect(voter!.page.getByText("Voting isn't open right now.")).toBeVisible();
+  await expect(voter!.page.getByText("Voting is closed")).toBeVisible();
   await expect(voter!.page.locator("button.pick")).toHaveCount(0);
 
   await closeAll(teacher, ...contenders);
