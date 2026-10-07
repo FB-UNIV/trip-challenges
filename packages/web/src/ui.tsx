@@ -235,12 +235,14 @@ export function Stepper({ steps }: { steps: Step[] }) {
   );
 }
 
-export type Tab = { to: string; label: string; icon: string; badge?: number; disabled?: boolean };
+/** `also`: other path prefixes that light this tab up (e.g. a scanned challenge for Challenges). */
+export type Tab = { to: string; label: string; icon: string; badge?: number; disabled?: boolean; also?: string[] };
 
 /** Bottom tab bar (thumb reach). "/" matches exactly; other tabs also match nested paths. */
 export function TabBar({ tabs }: { tabs: Tab[] }) {
   const { pathname } = useLocation();
-  const isActive = (to: string) => (to === "/" ? pathname === "/" : pathname === to || pathname.startsWith(to + "/"));
+  const under = (p: string) => pathname === p || pathname.startsWith(p + "/");
+  const isActive = (t: Tab) => (t.to === "/" ? pathname === "/" : [t.to, ...(t.also ?? [])].some(under));
   return (
     <nav className="tabbar" aria-label="Main">
       {tabs.map((t) => {
@@ -254,7 +256,7 @@ export function TabBar({ tabs }: { tabs: Tab[] }) {
           </>
         );
         if (t.disabled) return <span key={t.to} className="tab" aria-disabled="true">{inner}</span>;
-        const active = isActive(t.to);
+        const active = isActive(t);
         return (
           <Link
             key={t.to} to={t.to} className={cx("tab", active && "active")}

@@ -1,6 +1,7 @@
 import "@testing-library/jest-dom/vitest";
 import { File as NodeFile } from "node:buffer";
-import { afterAll, afterEach, beforeAll, vi } from "vitest";
+import { afterAll, afterEach, beforeAll, beforeEach, vi } from "vitest";
+import { http, HttpResponse } from "msw";
 import { cleanup } from "@testing-library/react";
 import { server } from "./server.js";
 
@@ -33,6 +34,15 @@ beforeAll(() => {
   server.listen({ onUnhandledRequest: "error" });
   mswFetch = globalThis.fetch;
   globalThis.fetch = bridge(mswFetch);
+});
+// App shell: on student pages the tab bar asks who's signed in and for their challenge
+// progress. Default to "signed out" so screens that don't care needn't declare it; a test's
+// own server.use(...) takes precedence.
+beforeEach(() => {
+  server.use(
+    http.get("/api/student/me", () => HttpResponse.json({ error: "unauthorized" }, { status: 401 })),
+    http.get("/api/challenges/for-student", () => HttpResponse.json({ challenges: [] })),
+  );
 });
 afterEach(() => {
   cleanup();
