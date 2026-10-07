@@ -92,8 +92,9 @@ describe("challenge checklist", () => {
       fail ? HttpResponse.json({ error: "boom" }, { status: 500 }) : HttpResponse.json({ challenges: THREE })));
     const { user } = renderAt("/challenges");
     expect(screen.getByRole("status", { name: "Loading" })).toBeInTheDocument();
+    const retry = await screen.findByRole("button", { name: "Try again" });
     fail = false;
-    await user.click(await screen.findByRole("button", { name: "Try again" }));
+    await user.click(retry);
     expect(await screen.findByRole("link", { name: /Pyramid/ })).toBeInTheDocument();
   });
 });
