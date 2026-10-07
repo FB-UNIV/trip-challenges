@@ -1,21 +1,26 @@
 import { useState } from "react";
 import { Link } from "react-router-dom";
-import { api } from "../api.js";
-import { Button, Card, ErrorCard, Field, useAsync } from "../ui.js";
+import { api, HttpError, type TeamView } from "../api.js";
+import {
+  Button, Card, CheckRow, EmptyState, ErrorCard, Field, Skeleton, Stepper, useAsync, type Step,
+} from "../ui.js";
 
 export function TeamPage() {
   const me = useAsync(() => api.me(), []);
   const teams = useAsync(() => api.listTeams(), []);
+  // Preview only: the team screen works without it.
+  const challenges = useAsync(() => api.myChallenges().catch(() => null), []);
   const [name, setName] = useState("");
   const [err, setErr] = useState("");
 
-  if (me.loading || teams.loading) return <p className="muted">Loading…</p>;
+  if (me.loading || teams.loading) return <Card><Skeleton lines={4} /></Card>;
   // A failed load is not a phase: never claim "locked" because a request failed (#67).
   if (me.error || teams.error || !me.data) {
     return <ErrorCard error={me.error ?? teams.error} onRetry={() => { me.reload(); teams.reload(); }} />;
   }
-  const inTeam = !!me.data.teamId;
-  const locked = me.data.phase !== "draft";
+  const { phase, teamId } = me.data;
+  const locked = phase !== "draft";
+  const myTeam = teamId ? teams.data?.teams.find((t) => t.id === teamId) : undefined;
 
   const act = (fn: () => Promise<unknown>) => async () => {
     setErr("");
@@ -23,56 +28,104 @@ export function TeamPage() {
       await fn();
       me.reload();
       teams.reload();
-    } catch (e: any) {
-      setErr(e?.message ?? "Failed");
+    } catch (e) {
+      setErr(e instanceof HttpError ? e.reason : "Something went wrong.");
     }
   };
+
+  if (teamId) {
+    const preview = challenges.data?.challenges ?? [];
+    return (
+      <div className="stack">
+        <TeamHero team={myTeam} />
+        <Card>
+          <Stepper steps={stepsFor(phase)} />
+          <NextLink phase={phase} />
+        </Card>
+        {!locked && preview.length > 0 && (
+          <Card>
+            <h3>Coming up</h3>
+            {preview.map((c) => <CheckRow key={c.id} state="todo" title={c.title} />)}
+          </Card>
+        )}
+        {!locked && (
+          <div className="center">
+            <Button variant="ghost" onClick={act(() => api.leaveTeam())}>Leave team</Button>
+            {err && <p className="err tiny">{err}</p>}
+          </div>
+        )}
+      </div>
+    );
+  }
 
   if (locked) {
     return (
       <Card>
-        <h2>Teams are locked</h2>
-        <p className="muted" style={{ marginBottom: 0 }}>
-          The challenge period has started, so team membership is fixed. <Link to="/">Back home</Link>
-        </p>
+        <EmptyState icon="🔒" title="Teams are locked">
+          {phase === "voting"
+            ? <Link to="/vote" className="btn">Go vote →</Link>
+            : <span className="muted tiny">You can still vote when voting opens.</span>}
+        </EmptyState>
       </Card>
     );
   }
 
+  const list = teams.data?.teams ?? [];
   return (
     <div className="stack">
       <Card hero>
-        <h2>Your team</h2>
-        {inTeam ? (
-          <>
-            <p className="muted tiny" style={{ margin: "6px 0 12px" }}>You're all set. You can still leave to switch teams until the challenge starts.</p>
-            <Button variant="ghost" onClick={act(() => api.leaveTeam())}>Leave team</Button>
-          </>
-        ) : (
-          <>
-            <p className="muted tiny" style={{ margin: "6px 0 4px" }}>Create your own, or join one below.</p>
-            <Field label="New team name" value={name} onChange={(e) => setName(e.target.value)} />
-            <Button disabled={!name.trim()} onClick={act(() => api.createTeam(name.trim()))}>Create team</Button>
-          </>
-        )}
+        <h2>Pick your team</h2>
+        <Field label="New team name" value={name} onChange={(e) => setName(e.target.value)} />
+        <Button size="block" disabled={!name.trim()} onClick={act(() => api.createTeam(name.trim()))}>Create team</Button>
         {err && <p className="err tiny" style={{ marginBottom: 0 }}>{err}</p>}
       </Card>
-
-      {!inTeam && (
-        <Card>
-          <h3>Join a team</h3>
-          {teams.data?.teams.length === 0 && <p className="muted">No teams yet — create the first one.</p>}
-          {teams.data?.teams.map((t) => (
-            <div key={t.id} className="list-row">
-              <div className="grow">
-                <b>{t.name}</b>
-                <div className="d">{t.members} {t.members === 1 ? "member" : "members"}</div>
-              </div>
-              <Button size="mini" onClick={act(() => api.joinTeam(t.id))}>Join</Button>
+      <Card>
+        <h3>Or join one</h3>
+        {list.length === 0 && <EmptyState icon="🧑‍🤝‍🧑" title="No teams yet" />}
+        {list.map((t) => (
+          <div key={t.id} className="list-row">
+            <div className="grow">
+              <b>{t.name}</b>
+              <div className="d">{members(t.members)}</div>
             </div>
-          ))}
-        </Card>
-      )}
+            <Button onClick={act(() => api.joinTeam(t.id))}>Join</Button>
+          </div>
+        ))}
+      </Card>
     </div>
   );
+}
+
+const members = (n: number) => `${n} ${n === 1 ? "member" : "members"}`;
+
+function TeamHero({ team }: { team?: TeamView }) {
+  return (
+    <Card hero>
+      <div className="row">
+        <span className="crest">🦊</span>
+        <div>
+          <h2>{team?.name ?? "Your team"}</h2>
+          {team && <div className="muted tiny">{members(team.members)}</div>}
+        </div>
+      </div>
+    </Card>
+  );
+}
+
+/** The road ahead from the student's point of view; the current step glows. */
+function stepsFor(phase: string): Step[] {
+  const labels = phase === "draft"
+    ? ["Team joined", "Wait for the start", "Snap the challenges", "Vote for the best"]
+    : ["Team joined", "Snap the challenges", "Vote for the best", "Winners revealed"];
+  const current = phase === "draft" || phase === "challenge" ? 1 : phase === "voting" ? 2 : 3;
+  return labels.map((label, i) => ({
+    label,
+    state: i < current ? "done" : i === current ? "current" : "upcoming",
+  }));
+}
+
+function NextLink({ phase }: { phase: string }) {
+  if (phase === "challenge") return <Link to="/challenges" className="btn btn-block" style={{ marginTop: 12 }}>See your challenges →</Link>;
+  if (phase === "voting") return <Link to="/vote" className="btn btn-block" style={{ marginTop: 12 }}>Go vote →</Link>;
+  return null;
 }

@@ -32,7 +32,12 @@ export class TeamPage {
   async create(name: string) {
     await this.page.getByLabel("New team name").fill(name);
     await this.page.getByRole("button", { name: "Create team" }).click();
-    await expect(this.page.getByText("You're all set.")).toBeVisible();
+    await this.expectInTeam();
+  }
+
+  /** The in-team view: my team's next steps. */
+  async expectInTeam() {
+    await expect(this.page.getByRole("list", { name: "Next steps" })).toBeVisible();
   }
 
   row(name: string): Locator {
