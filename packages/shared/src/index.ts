@@ -151,6 +151,30 @@ export const CastDuel = z.object({
 });
 export type CastDuel = z.infer<typeof CastDuel>;
 
+// ---- Student challenge list (checklist + vote list) ----
+// Progress is only ever the calling student's own: their Team's photos, their own Duels.
+// `total` = pairs this voter can be shown: n·(n−1)/2 over approved Nominations of other Teams.
+export const VoteProgress = z.object({
+  voted: z.number().int().nonnegative(),
+  total: z.number().int().nonnegative(),
+  status: z.enum(["todo", "in_progress", "done", "not_enough"]),
+});
+export type VoteProgress = z.infer<typeof VoteProgress>;
+
+export const StudentChallenge = z.object({
+  id: Uuid,
+  title: z.string(),
+  instructions: z.string(),
+  qrSlug: z.string(),
+  photos: z.number().int().nonnegative(), // my Team's live (not removed) Submissions
+  nominated: z.boolean(), // my Team has an active Nomination
+  vote: VoteProgress.nullable(), // null unless the Voting Period is open
+});
+export type StudentChallenge = z.infer<typeof StudentChallenge>;
+
+export const StudentChallengeList = z.object({ challenges: z.array(StudentChallenge) });
+export type StudentChallengeList = z.infer<typeof StudentChallengeList>;
+
 // ---- Results (survive Erasure; non-PII) ----
 export const ResultRow = z.object({
   challengeTitle: z.string(),
