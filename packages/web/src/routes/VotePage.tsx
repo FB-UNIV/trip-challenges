@@ -3,18 +3,25 @@ import { useCallback, useEffect, useState } from "react";
 import { Link, useParams } from "react-router-dom";
 import type { DuelPair } from "@trip/shared";
 import { api } from "../api.js";
-import { Card } from "../ui.js";
+import { Card, Celebrate, EmptyState, Progress, Skeleton, useAsync } from "../ui.js";
+import { byVotingOrder, canVote } from "./vote-progress.js";
 
 export function VotePage() {
   const { challengeId } = useParams();
+  // Keyed so "Next challenge" starts the following challenge from a clean slate.
+  return <Duels key={challengeId} challengeId={challengeId!} />;
+}
+
+function Duels({ challengeId }: { challengeId: string }) {
   const [pair, setPair] = useState<DuelPair | null>(null);
   const [done, setDone] = useState(false);
   const [reason, setReason] = useState<"not_enough" | "exhausted" | "closed" | undefined>();
   const [busy, setBusy] = useState(false);
   const [judged, setJudged] = useState(0);
+  // Progress is a nice-to-have: voting works without it.
+  const list = useAsync(() => api.myChallenges().catch(() => null), []);
 
   const load = useCallback(async () => {
-    if (!challengeId) return;
     const next = await api.nextDuel(challengeId);
     if (!next.pair) { setReason(next.reason); setDone(true); }
     else { setPair(next.pair); setDone(false); }
@@ -39,27 +46,38 @@ export function VotePage() {
     }
   }
 
+  const challenges = list.data?.challenges ?? [];
   if (done) {
+    if (reason === "closed") {
+      return <Card><EmptyState icon="🔒" title="Voting is closed"><Link to="/">Back home</Link></EmptyState></Card>;
+    }
+    if (reason === "not_enough") {
+      return (
+        <Card>
+          <EmptyState icon="🖼️" title="Waiting for more photos"><Link to="/vote">Back to challenges</Link></EmptyState>
+        </Card>
+      );
+    }
+    const next = byVotingOrder(challenges).find((c) => c.id !== challengeId && canVote(c));
     return (
       <Card>
-        {reason === "closed" ? (
-          <p style={{ margin: 0 }}>
-            Voting isn't open right now. Duels run during the voting period only. <Link to="/">Back home</Link>
-          </p>
-        ) : reason === "not_enough" ? (
-          <p style={{ margin: 0 }}>
-            Nothing to compare here yet. A duel needs <b>two approved photos from other teams</b>,
-            so pairwise voting needs <b>3 or more teams</b> and the teacher to approve their
-            nominations. Once that's set up, come back to vote. <Link to="/vote">Back</Link>
-          </p>
+        {next ? (
+          <Celebrate icon="✅" title="Challenge done!">
+            <Link to={`/vote/${next.id}`} className="btn btn-block" style={{ marginTop: 8 }}>Next challenge → {next.title}</Link>
+          </Celebrate>
         ) : (
-          <p style={{ margin: 0 }}>No more pairs here — you've judged them all. Thanks! <Link to="/vote">Back to challenges</Link></p>
+          <Celebrate icon="🎉" title="All voted!">
+            <Link to="/vote" className="btn btn-ghost" style={{ marginTop: 8 }}>Back to challenges</Link>
+          </Celebrate>
         )}
       </Card>
     );
   }
-  if (!pair) return <p className="muted">Loading…</p>;
+  if (!pair) return <Card><Skeleton lines={3} /></Card>;
 
+  const vote = challenges.find((c) => c.id === challengeId)?.vote;
+  const total = vote?.total ?? 0;
+  const voted = Math.min((vote?.voted ?? 0) + judged, total);
   const side = (nominationId: string, submissionId: string) => (
     <button className="pick" onClick={() => pick(nominationId)} disabled={busy} aria-label="Pick this photo">
       <img src={api.photoUrl(submissionId)} alt="option" />
@@ -70,7 +88,12 @@ export function VotePage() {
     <div>
       <div className="duel-head">
         <h2>Which is better?</h2>
-        <div className="prog">You've judged {judged}</div>
+        {total > 0 && (
+          <>
+            <div className="prog">{voted} / {total}</div>
+            <Progress value={voted} max={total} label="Duels voted" tone="sky" />
+          </>
+        )}
       </div>
       <div className="duel">
         {side(pair.aNominationId, pair.aSubmissionId)}
