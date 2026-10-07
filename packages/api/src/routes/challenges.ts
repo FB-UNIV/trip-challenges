@@ -4,7 +4,7 @@ import type { FastifyInstance } from "fastify";
 import { randomBytes } from "node:crypto";
 import QRCode from "qrcode";
 import { z } from "zod";
-import { ChallengeInput, ChallengePatch } from "@trip/shared";
+import { ChallengeInput, ChallengePatch, type StudentChallengeList, type VoteProgress } from "@trip/shared";
 import { config } from "../config.js";
 import { pool } from "../db.js";
 import { guard, tripFrom, studentOf, tripOf, type Phase } from "../auth/guard.js";
@@ -75,14 +75,48 @@ export async function challengeRoutes(app: FastifyInstance) {
     return { challenges: rows };
   });
 
-  // Student: list challenges in my Trip (for the voting screen).
-  app.get("/for-student", { preHandler: guard({ role: "student" }) }, async (req) => {
+  // Student: my Trip's challenges with *my* progress (checklist + vote list). Only the
+  // caller's own Team's photos and own Duels are counted, never other Teams' activity.
+  app.get("/for-student", { preHandler: guard({ role: "student" }) }, async (req): Promise<StudentChallengeList> => {
     const ctx = studentOf(req);
-    const { rows } = await pool.query(
-      `SELECT id, title, instructions FROM challenge WHERE trip_id = $1`,
-      [ctx.tripId],
+    const trip = tripOf(req);
+    // Eligible = what /api/duels/next may pair for this voter: approved, active, not my Team's.
+    // A duel only counts while both its Nominations are still eligible.
+    const { rows } = await pool.query<{
+      id: string; title: string; instructions: string; qr_slug: string;
+      photos: number; nominated: boolean; eligible: number; voted: number;
+    }>(
+      `WITH eligible AS (
+         SELECT id, challenge_id FROM nomination
+          WHERE trip_id = $1 AND active AND state = 'approved' AND team_id IS DISTINCT FROM $2::uuid
+       )
+       SELECT c.id, c.title, c.instructions, c.qr_slug,
+              (SELECT count(*)::int FROM submission s
+                WHERE s.challenge_id = c.id AND s.team_id = $2 AND s.removed_by_teacher_id IS NULL) AS photos,
+              EXISTS (SELECT 1 FROM nomination n
+                       WHERE n.challenge_id = c.id AND n.team_id = $2 AND n.active) AS nominated,
+              (SELECT count(*)::int FROM eligible e WHERE e.challenge_id = c.id) AS eligible,
+              (SELECT count(*)::int FROM duel d
+                WHERE d.challenge_id = c.id AND d.voter_student_id = $3
+                  AND d.low_nomination_id IN (SELECT id FROM eligible)
+                  AND d.high_nomination_id IN (SELECT id FROM eligible)) AS voted
+         FROM challenge c
+        WHERE c.trip_id = $1
+        ORDER BY c.title, c.id`,
+      [ctx.tripId, ctx.teamId, ctx.studentId],
     );
-    return { challenges: rows };
+    const votingOpen = trip.phase === "voting" && !trip.votingClosed;
+    return {
+      challenges: rows.map((r) => ({
+        id: r.id,
+        title: r.title,
+        instructions: r.instructions,
+        qrSlug: r.qr_slug,
+        photos: r.photos,
+        nominated: r.nominated,
+        vote: votingOpen ? voteProgress(r.eligible, r.voted) : null,
+      })),
+    };
   });
 
   // Public: resolve a scanned slug to basic Challenge info (shown before login).
@@ -109,4 +143,12 @@ export async function challengeRoutes(app: FastifyInstance) {
     reply.header("content-type", "image/png");
     return reply.send(png);
   });
+}
+
+/** Pairs a voter can be shown among `eligible` Nominations, and how far through them they are. */
+export function voteProgress(eligible: number, voted: number): VoteProgress {
+  const total = (eligible * (eligible - 1)) / 2;
+  if (total === 0) return { voted: 0, total: 0, status: "not_enough" };
+  const status = voted >= total ? "done" : voted > 0 ? "in_progress" : "todo";
+  return { voted: Math.min(voted, total), total, status };
 }
