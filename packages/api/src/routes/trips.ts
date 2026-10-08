@@ -100,6 +100,49 @@ export async function tripRoutes(app: FastifyInstance) {
     return { ok: true, phase: to };
   });
 
+  // What's ready and what's missing, for the teacher's overview. Counts only (ADR 0001).
+  // eraseAt mirrors findTripsDueForErasure(): the grace window only counts once in grace.
+  app.get("/:id/progress", { preHandler: member }, async (req) => {
+    const id = tripOf(req).id;
+    const { rows: [t] } = await pool.query<{
+      phase: string; hard_erase_at: Date; grace_ends_at: Date | null;
+      students: number; teams: number; without_team: number;
+    }>(
+      `SELECT phase, hard_erase_at,
+              voting_closes_at + (grace_days || ' days')::interval AS grace_ends_at,
+              (SELECT count(*)::int FROM student s WHERE s.trip_id = t.id) AS students,
+              (SELECT count(DISTINCT m.team_id)::int FROM team_member m WHERE m.trip_id = t.id) AS teams,
+              (SELECT count(*)::int FROM student s WHERE s.trip_id = t.id
+                  AND NOT EXISTS (SELECT 1 FROM team_member m WHERE m.student_id = s.id)) AS without_team
+         FROM trip t WHERE t.id = $1`,
+      [id],
+    );
+    const { rows: challenges } = await pool.query(
+      `SELECT c.id, c.title,
+              (SELECT count(DISTINCT s.team_id)::int FROM submission s
+                WHERE s.challenge_id = c.id AND s.removed_by_teacher_id IS NULL) AS "teamsWithPhotos",
+              count(n.id) FILTER (WHERE n.state = 'pending')::int AS pending,
+              count(n.id) FILTER (WHERE n.state = 'approved')::int AS approved,
+              count(n.id) FILTER (WHERE n.state = 'rejected')::int AS rejected
+         FROM challenge c
+         LEFT JOIN nomination n ON n.challenge_id = c.id AND n.active
+        WHERE c.trip_id = $1
+        GROUP BY c.id
+        ORDER BY c.title, c.id`,
+      [id],
+    );
+    const graceEndsAt = t!.grace_ends_at;
+    const eraseAt = t!.phase === "grace" && graceEndsAt && graceEndsAt < t!.hard_erase_at ? graceEndsAt : t!.hard_erase_at;
+    return {
+      students: t!.students,
+      teams: t!.teams,
+      studentsWithoutTeam: t!.without_team,
+      challenges,
+      eraseAt: eraseAt.toISOString(),
+      graceEndsAt: graceEndsAt?.toISOString() ?? null,
+    };
+  });
+
   // Fire Erasure early (teacher). Irreversible.
   app.post("/:id/erase", { preHandler: member }, async (req, reply) => {
     const id = tripOf(req).id;

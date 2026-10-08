@@ -175,6 +175,27 @@ export type StudentChallenge = z.infer<typeof StudentChallenge>;
 export const StudentChallengeList = z.object({ challenges: z.array(StudentChallenge) });
 export type StudentChallengeList = z.infer<typeof StudentChallengeList>;
 
+// ---- Teacher: trip progress (counts only, no student data) ----
+export const ChallengeProgress = z.object({
+  id: Uuid,
+  title: z.string(),
+  teamsWithPhotos: z.number().int().nonnegative(), // Teams with ≥1 live (not removed) Submission
+  pending: z.number().int().nonnegative(), // active Nominations by moderation state
+  approved: z.number().int().nonnegative(),
+  rejected: z.number().int().nonnegative(),
+});
+export type ChallengeProgress = z.infer<typeof ChallengeProgress>;
+
+export const TripProgress = z.object({
+  students: z.number().int().nonnegative(),
+  teams: z.number().int().nonnegative(), // Teams with at least one member
+  studentsWithoutTeam: z.number().int().nonnegative(),
+  challenges: z.array(ChallengeProgress),
+  eraseAt: z.string(), // when Erasure will fire as things stand (ISO instant)
+  graceEndsAt: z.string().nullable(), // voting close + grace days; null without a close date
+});
+export type TripProgress = z.infer<typeof TripProgress>;
+
 // ---- Results (survive Erasure; non-PII) ----
 export const ResultRow = z.object({
   challengeTitle: z.string(),
