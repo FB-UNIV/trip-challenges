@@ -1,15 +1,15 @@
 import type { StudentChallenge } from "@trip/shared";
-import { api } from "../api.js";
+import { useMe, useMyChallenges } from "../query.js";
 import {
-  Card, Celebrate, CheckRow, EmptyState, ErrorCard, PhaseTrail, Progress, ProgressRing, Skeleton, useAsync,
+  Card, Celebrate, CheckRow, EmptyState, ErrorCard, PhaseTrail, Progress, ProgressRing, Skeleton,
 } from "../ui.js";
 import { byVotingOrder } from "./vote-progress.js";
 
 const BEFORE_VOTING = ["draft", "challenge"];
 
 export function VoteHome() {
-  const me = useAsync(() => api.me().catch(() => null), []);
-  const list = useAsync(() => api.myChallenges(), []);
+  const me = useMe();
+  const list = useMyChallenges();
 
   if (me.loading || list.loading) return <Card><Skeleton lines={4} /></Card>;
   const phase = me.data?.phase;

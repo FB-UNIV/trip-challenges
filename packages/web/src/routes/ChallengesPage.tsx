@@ -2,9 +2,9 @@
 // page as the challenge's printed QR code.
 import { Link } from "react-router-dom";
 import type { StudentChallenge } from "@trip/shared";
-import { api } from "../api.js";
+import { useMe, useMyChallenges } from "../query.js";
 import {
-  Card, Celebrate, CheckRow, EmptyState, ErrorCard, PhaseTrail, Progress, Skeleton, useAsync, type CheckState,
+  Card, Celebrate, CheckRow, EmptyState, ErrorCard, PhaseTrail, Progress, Skeleton, type CheckState,
 } from "../ui.js";
 
 const stateOf = (c: StudentChallenge): CheckState => (c.nominated ? "done" : c.photos > 0 ? "doing" : "todo");
@@ -17,8 +17,8 @@ const META: Record<CheckState, (c: StudentChallenge) => string> = {
 };
 
 export function ChallengesPage() {
-  const me = useAsync(() => api.me(), []);
-  const list = useAsync(() => api.myChallenges(), []);
+  const me = useMe();
+  const list = useMyChallenges();
 
   if (me.loading || list.loading) return <Card><Skeleton lines={4} /></Card>;
   if (me.error || list.error || !me.data || !list.data) {

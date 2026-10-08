@@ -1,12 +1,14 @@
 import { useRef, useState } from "react";
 import { Link, useParams } from "react-router-dom";
 import { api, HttpError } from "../api.js";
-import { Button, Card, Field, PhasePill, useAsync } from "../ui.js";
+import { qk, useLoad, useMe, useRefresh } from "../query.js";
+import { Button, Card, Field, PhasePill } from "../ui.js";
 
 export function ChallengePage() {
   const { qrSlug } = useParams();
-  const challenge = useAsync(() => api.resolveChallenge(qrSlug!), [qrSlug]);
-  const me = useAsync(() => api.me().catch(() => null), []);
+  const challenge = useLoad(qk.challengeBySlug(qrSlug!), () => api.resolveChallenge(qrSlug!));
+  const me = useMe(); // signed out = no data: the code form below
+  const refresh = useRefresh();
   const [code, setCode] = useState("");
   const [err, setErr] = useState("");
 
@@ -31,7 +33,7 @@ export function ChallengePage() {
           <Field label="Access code" className="input-mono" placeholder="FOX-7Q2K" value={code} onChange={(e) => setCode(e.target.value)} />
           <Button
             onClick={async () => {
-              try { await api.redeemCode(code.trim()); me.reload(); } catch { setErr("Invalid code."); }
+              try { await api.redeemCode(code.trim()); await refresh(qk.student); } catch { setErr("Invalid code."); }
             }}
           >Continue</Button>
           {err && <p className="err tiny" style={{ marginBottom: 0 }}>{err}</p>}
@@ -48,7 +50,10 @@ export function ChallengePage() {
 }
 
 function UploadAndNominate({ challengeId }: { challengeId: string }) {
-  const subs = useAsync(() => api.listSubmissions(challengeId), [challengeId]);
+  // Live: teammates upload to the same challenge from their own phones.
+  const subs = useLoad(qk.submissions(challengeId), () => api.listSubmissions(challengeId), { live: true });
+  const refresh = useRefresh();
+  const changed = () => refresh(qk.submissions(challengeId), qk.myChallenges); // the photos here, the checklist, the badge
   const fileRef = useRef<HTMLInputElement>(null);
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState("");
@@ -68,7 +73,7 @@ function UploadAndNominate({ challengeId }: { challengeId: string }) {
               const f = fileRef.current?.files?.[0];
               if (!f) return;
               setBusy(true); setErr("");
-              try { await api.uploadSubmission(challengeId, f); if (fileRef.current) fileRef.current.value = ""; subs.reload(); }
+              try { await api.uploadSubmission(challengeId, f); if (fileRef.current) fileRef.current.value = ""; await changed(); }
               catch (e) { setErr(e instanceof HttpError ? e.reason : "Upload failed"); }
               finally { setBusy(false); }
             }}
@@ -92,7 +97,7 @@ function UploadAndNominate({ challengeId }: { challengeId: string }) {
                 variant={s.nominated ? "gold" : "ghost"} size="mini"
                 onClick={async () => {
                   setErr("");
-                  try { await api.nominate(challengeId, s.id); subs.reload(); }
+                  try { await api.nominate(challengeId, s.id); await changed(); }
                   catch (e) { setErr(e instanceof HttpError ? e.reason : "Nomination failed"); }
                 }}
               >{s.nominated ? "Nominated ✓" : "Nominate"}</Button>

@@ -3,7 +3,8 @@ import { useCallback, useEffect, useState } from "react";
 import { Link, useParams } from "react-router-dom";
 import type { DuelPair } from "@trip/shared";
 import { api } from "../api.js";
-import { Card, Celebrate, EmptyState, Progress, Skeleton, useAsync } from "../ui.js";
+import { qk, useMyChallenges, useRefresh } from "../query.js";
+import { Card, Celebrate, EmptyState, Progress, Skeleton } from "../ui.js";
 import { byVotingOrder, canVote } from "./vote-progress.js";
 
 export function VotePage() {
@@ -19,7 +20,8 @@ function Duels({ challengeId }: { challengeId: string }) {
   const [busy, setBusy] = useState(false);
   const [judged, setJudged] = useState(0);
   // Progress is a nice-to-have: voting works without it.
-  const list = useAsync(() => api.myChallenges().catch(() => null), []);
+  const list = useMyChallenges();
+  const refresh = useRefresh();
 
   const load = useCallback(async () => {
     const next = await api.nextDuel(challengeId);
@@ -40,6 +42,7 @@ function Duels({ challengeId }: { challengeId: string }) {
         // Refused (voting just closed, pair already cast…): the next load says what's going on.
       }
       setPair(null);
+      void refresh(qk.myChallenges); // progress here, the Vote badge, the vote list
       await load();
     } finally {
       setBusy(false);

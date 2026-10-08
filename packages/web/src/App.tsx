@@ -1,7 +1,8 @@
 import { Outlet, Link, useLocation } from "react-router-dom";
 import type { StudentChallenge } from "@trip/shared";
-import { api, type Me } from "./api.js";
-import { ConfirmProvider, LightboxProvider, TabBar, useAsync, type Tab } from "./ui.js";
+import type { Me } from "./api.js";
+import { useMe, useMyChallenges } from "./query.js";
+import { ConfirmProvider, LightboxProvider, TabBar, type Tab } from "./ui.js";
 import { canVote } from "./routes/vote-progress.js";
 
 // Student screens get the bottom tab bar; teacher screens and /join never do.
@@ -34,18 +35,13 @@ export function App() {
   );
 }
 
-/** Who's signed in (and their progress, for badges) — re-checked on every student screen. */
+/** Who's signed in (and their progress, for badges) — shared with the page, kept fresh. */
 function useStudentShell(pathname: string) {
   const onStudentPage = STUDENT_PAGE.test(pathname);
-  const { data } = useAsync(async () => {
-    if (!onStudentPage) return null;
-    const me = await api.me().catch(() => null);
-    if (!me) return null;
-    // Badges are a nice-to-have: the tab bar works without them.
-    const list = await api.myChallenges().catch(() => null);
-    return { me, challenges: list?.challenges ?? [] };
-  }, [pathname]);
-  return onStudentPage ? data : null;
+  const me = useMe({ enabled: onStudentPage });
+  // Badges are a nice-to-have: the tab bar works without them.
+  const list = useMyChallenges({ enabled: onStudentPage && !!me.data });
+  return onStudentPage && me.data ? { me: me.data, challenges: list.data?.challenges ?? [] } : null;
 }
 
 function studentTabs(me: Me, challenges: StudentChallenge[]): Tab[] {
