@@ -1,5 +1,19 @@
 # Changelog
 
+## [0.6.0](https://github.com/FB-UNIV/trip-challenges/compare/v0.5.0...v0.6.0) (2026-10-08)
+
+
+### Features
+
+* **api:** teacher student list — Joined/Invited/Undelivered, resend a code, fix an undelivered address ([#100](https://github.com/FB-UNIV/trip-challenges/issues/100)) ([edd3556](https://github.com/FB-UNIV/trip-challenges/commit/edd3556685f7d39b87c96df8332e26487f09c017))
+* **api:** teacher teams — list with activity, rename and review names before the reveal ([#99](https://github.com/FB-UNIV/trip-challenges/issues/99)) ([b54a527](https://github.com/FB-UNIV/trip-challenges/commit/b54a527e9442d65c63676449ba5fa9ec1717d1f8))
+* **web:** Students page — who joined, undelivered codes, teams and the names to check ([#101](https://github.com/FB-UNIV/trip-challenges/issues/101)) ([4f4049b](https://github.com/FB-UNIV/trip-challenges/commit/4f4049bb01ad27c3abbc288c81902893f083b1b0))
+
+
+### Bug Fixes
+
+* **api:** unreviewed team names never survive erasure ([#98](https://github.com/FB-UNIV/trip-challenges/issues/98)) ([ff5ae3c](https://github.com/FB-UNIV/trip-challenges/commit/ff5ae3cea4e81c176305af73a259234961d6c7e1))
+
 ## [0.5.0](https://github.com/FB-UNIV/trip-challenges/compare/v0.4.0...v0.5.0) (2026-10-08)
 
 
