@@ -8,6 +8,7 @@ import rateLimit from "@fastify/rate-limit";
 import multipart from "@fastify/multipart";
 import { config } from "./config.js";
 import { loggerOptions } from "./lib/logging.js";
+import { installErrorHandling, requestIdOptions } from "./lib/errors.js";
 import { healthRoutes } from "./routes/health.js";
 import { studentAuthRoutes } from "./routes/student-auth.js";
 import { duelRoutes } from "./routes/duels.js";
@@ -28,7 +29,9 @@ export async function buildServer(): Promise<FastifyInstance> {
     // Never log student PII or bearer secrets (Erasure › logs, #20): see lib/logging.ts.
     logger: loggerOptions(config.NODE_ENV),
     bodyLimit: 15 * 1024 * 1024, // 15MB — photo uploads
+    ...requestIdOptions, // honour the proxy's X-Request-Id (#69)
   });
+  installErrorHandling(app); // { error, message, requestId } everywhere; before any route
 
   await app.register(helmet, { contentSecurityPolicy: false }); // CSP handled at edge
   await app.register(cors, { origin: config.PUBLIC_BASE_URL, credentials: true });

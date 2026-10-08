@@ -83,6 +83,13 @@ describe("vault transit client", () => {
     await expect(vault.encrypt("t1", Buffer.from("x"))).rejects.toThrow("vault transit/encrypt/trip-t1 -> 403 permission denied");
   });
 
+  it("tags failures as keystore errors, unreachable Vault included (#69)", async () => {
+    reply = () => new Response("Vault is sealed", { status: 503 });
+    await expect(vault.encrypt("t1", Buffer.from("x"))).rejects.toMatchObject({ dependency: "keystore", status: 503 });
+    reply = () => { throw new TypeError("fetch failed"); };
+    await expect(vault.encrypt("t1", Buffer.from("x"))).rejects.toMatchObject({ dependency: "keystore" });
+  });
+
   it("enables the transit engine idempotently", async () => {
     reply = () => new Response(null, { status: 204 });
     await vault.ensureTransitEngine();

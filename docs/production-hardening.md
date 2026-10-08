@@ -190,6 +190,30 @@ Enforced in code and tests (`packages/api/src/lib/logging.ts`, `test/logging.tes
 - with `NODE_ENV=production` and no `SMTP_HOST`, the mailer **refuses** to send instead of
   falling back to printing the mail (which would log access codes).
 
+### Errors and request ids (#69)
+
+Every API error answers `{ error, message, requestId }`; the same id is in the `X-Request-Id`
+response header and on every log line as `reqId`. The API reuses the edge's `X-Request-Id`
+when it is short and plain (`[A-Za-z0-9._:-]`, at most 64 characters), otherwise it generates
+a UUID. To enable it in Traefik, add the request-id plugin or a header middleware; without
+one, ids start at the API.
+
+**Tracing a user report:** the app shows "Reference: <id>". Search the API logs for
+`"reqId":"<id>"`. The 5xx line has `route` (the pattern, e.g. `/api/trips/:id/erase`, never
+the URL), `status`, `dependency` and `errorCode`.
+
+| Response | Meaning | Look at |
+|---|---|---|
+| 503 `storage_unavailable` | S3/MinIO failed (network, `AccessDenied`, `NoSuchBucket`…) | `errorCode`, bucket policy, MinIO health |
+| 503 `keystore_unavailable` | Vault unreachable, sealed, or refused the token (403) | `vault status`, token TTL/policy (§1) |
+| 503 `database_unavailable` | Postgres refused or dropped the connection | Postgres health, connection limit |
+| 500 `internal_error` | A bug: the client sees no detail | the log line's `err.stack` |
+
+5xx are logged at `error`. 403 and 429 are logged at `warn` (probing, or a class hammering
+the API). Other client errors are only in the normal request log. Error logs carry the error's
+name, message, code and stack, but **not** the driver's raw error object: Postgres puts row
+values in `detail`.
+
 Because the app never logs PII, erasure has no log-scrubbing step: there is nothing app-side
 to scrub. The one residual that erasure *cannot* reach is your
 **external SMTP relay's delivery logs**: relays typically record recipient addresses, and the

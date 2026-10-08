@@ -11,9 +11,12 @@ vi.mock("@aws-sdk/client-s3", () => {
   const cmd = (name: string) => class { readonly cmd = name; constructor(public input: any) {} };
   return {
     S3Client: class {
+      mw: ((next: any) => (args: any) => Promise<any>)[] = [];
+      middlewareStack = { add: (m: any) => this.mw.push(m) };
       async send(c: { cmd: string; input: any }) {
         s3.sent.push({ cmd: c.cmd, input: c.input });
-        return s3.handler(c.cmd, c.input);
+        const run = this.mw.reduceRight((next, m) => m(next), async () => s3.handler(c.cmd, c.input));
+        return run({ input: c.input });
       }
     },
     HeadBucketCommand: cmd("HeadBucket"),
@@ -123,5 +126,12 @@ describe("objects", () => {
     s3.handler = () => { throw err("AccessDenied", 403); };
     await expect(deleteTripBlobs("t")).rejects.toThrow(/AccessDenied/);
     expect(cmds()).toEqual(["ListObjectsV2"]);
+  });
+});
+
+describe("errors", () => {
+  it("are tagged as storage failures, network ones included (#69)", async () => {
+    s3.handler = () => { throw Object.assign(new Error("connect ECONNREFUSED"), { code: "ECONNREFUSED" }); };
+    await expect(getBlob("t/s")).rejects.toMatchObject({ dependency: "storage", code: "ECONNREFUSED" });
   });
 });

@@ -3,9 +3,11 @@
 // encrypted under it. Erasure = deleteKey() -> every ciphertext (incl. backups)
 // is permanently unreadable.
 import { config } from "../config.js";
+import { tagDependency } from "../lib/errors.js";
 
 const base = `${config.VAULT_ADDR}/v1/${config.VAULT_TRANSIT_MOUNT}`;
 
+// Errors are tagged "keystore" so the API answers 503 keystore_unavailable on an outage (#69).
 async function vault(path: string, body?: unknown, method = "POST") {
   const res = await fetch(`${config.VAULT_ADDR}/v1/${path}`, {
     method,
@@ -14,9 +16,12 @@ async function vault(path: string, body?: unknown, method = "POST") {
       "content-type": "application/json",
     },
     body: body ? JSON.stringify(body) : undefined,
-  });
+  }).catch((e: unknown) => { throw tagDependency(e, "keystore"); });
   if (!res.ok) {
-    throw Object.assign(new Error(`vault ${path} -> ${res.status} ${await res.text()}`), { status: res.status });
+    throw tagDependency(
+      Object.assign(new Error(`vault ${path} -> ${res.status} ${await res.text()}`), { status: res.status }),
+      "keystore",
+    );
   }
   return res.status === 204 ? {} : ((await res.json()) as any);
 }
