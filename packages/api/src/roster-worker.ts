@@ -14,6 +14,14 @@ const BATCH = 25;
 const MAX_ATTEMPTS = 5;
 const DRAIN_BUDGET_MS = 25_000; // cap one drain so a huge roster can't hog the runner
 
+/** A fresh single-use Access Code: the secret to mail, and the hash to store. */
+export async function newAccessCode(): Promise<{ secret: string; hash: string }> {
+  const secret = randomBytes(16).toString("base64url"); // 128-bit
+  return { secret, hash: await argon2.hash(secret) };
+}
+export const joinUrlFor = (studentId: string, secret: string) =>
+  `${config.PUBLIC_BASE_URL}/join?code=${encodeURIComponent(`${studentId}.${secret}`)}`;
+
 /** Encrypt + queue emails for background processing. Returns how many were queued. */
 export async function enqueueRoster(tripId: string, emails: string[]): Promise<number> {
   let queued = 0;
@@ -71,8 +79,7 @@ async function processItem(it: { id: string; trip_id: string; email_enc: Buffer;
     const email = (await decrypt(it.trip_id, it.email_enc.toString("utf8"))).toString("utf8");
     const lookup = await hmac(it.trip_id, Buffer.from(email, "utf8"));
     const studentId = randomUUID();
-    const secret = randomBytes(16).toString("base64url"); // 128-bit
-    const hash = await argon2.hash(secret);
+    const { secret, hash } = await newAccessCode();
 
     // Reuse the already-encrypted email ciphertext for the Student row.
     const ins = await pool.query<{ id: string }>(
@@ -97,8 +104,7 @@ async function processItem(it: { id: string; trip_id: string; email_enc: Buffer;
     }
     if (recipient) {
       const { rows: tr } = await pool.query<{ name: string }>(`SELECT name FROM trip WHERE id = $1`, [it.trip_id]);
-      const joinUrl = `${config.PUBLIC_BASE_URL}/join?code=${encodeURIComponent(`${recipient}.${secret}`)}`;
-      await sendAccessCode(email, tr[0]?.name ?? "the trip", joinUrl); // throws → retried below
+      await sendAccessCode(email, tr[0]?.name ?? "the trip", joinUrlFor(recipient, secret)); // throws → retried below
       await pool.query(`UPDATE student SET access_code_sent_at = now() WHERE id = $1`, [recipient]);
     }
     await pool.query(`UPDATE roster_import_item SET status = 'done', processed_at = now() WHERE id = $1`, [it.id]);

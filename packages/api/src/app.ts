@@ -18,6 +18,7 @@ import { tripInviteRoutes, inviteRoutes } from "./routes/invites.js";
 import { challengeRoutes } from "./routes/challenges.js";
 import { teamRoutes } from "./routes/teams.js";
 import { tripTeamRoutes } from "./routes/trip-teams.js";
+import { tripStudentRoutes } from "./routes/trip-students.js";
 import { nominationRoutes } from "./routes/nominations.js";
 import { submissionRoutes } from "./routes/submissions.js";
 
@@ -47,6 +48,7 @@ export async function buildServer(): Promise<FastifyInstance> {
   await app.register(teacherAuthRoutes, { prefix: "/api/auth/teacher" });
   await app.register(tripRoutes, { prefix: "/api/trips" });
   await app.register(tripTeamRoutes, { prefix: "/api/trips" });
+  await app.register(tripStudentRoutes, { prefix: "/api/trips" });
   await app.register(rosterRoutes, { prefix: "/api/trips" });
   await app.register(tripInviteRoutes, { prefix: "/api/trips" });
   await app.register(inviteRoutes, { prefix: "/api/invites" });
