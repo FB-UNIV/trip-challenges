@@ -63,6 +63,25 @@ export function useTripRefresh(tripId: string) {
   return () => refresh(qk.trip(tripId), qk.trips);
 }
 
+/**
+ * Optimistic update: apply `change` to the cached data at `key` now, run `action`, and put the
+ * old data back if it fails (the error still propagates, for the screen to explain).
+ */
+export function useOptimistic() {
+  const qc = useQueryClient();
+  return async <T>(key: QueryKey, change: (old: T) => T, action: () => Promise<unknown>) => {
+    await qc.cancelQueries({ queryKey: key }); // an in-flight refetch must not overwrite the change
+    const before = qc.getQueryData<T>(key);
+    if (before !== undefined) qc.setQueryData<T>(key, change(before));
+    try {
+      await action();
+    } catch (e) {
+      qc.setQueryData(key, before);
+      throw e;
+    }
+  };
+}
+
 // ---------- student ----------
 export const useMe = (opts: { enabled?: boolean } = {}) => useLoad(qk.me, api.me, { live: true, ...opts });
 export const useMyChallenges = (opts: { enabled?: boolean } = {}) =>

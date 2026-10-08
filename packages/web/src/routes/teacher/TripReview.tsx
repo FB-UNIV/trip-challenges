@@ -1,7 +1,8 @@
 // Review: nominations waiting for a decision, grouped by challenge, then the approved ones.
 // Any photo can be removed at any time — the child-safety backstop (CONTEXT: Moderation).
-import { api, type NominationRow } from "../../api.js";
-import { qk, useLoad } from "../../query.js";
+import { useState } from "react";
+import { api, HttpError, type NominationRow } from "../../api.js";
+import { qk, useLoad, useOptimistic } from "../../query.js";
 import { Button, EmptyState, Notice, Pill, useAction, useConfirm, useLightbox } from "../../ui.js";
 import { useTrip } from "./TripLayout.js";
 
@@ -15,6 +16,9 @@ export function TripReview() {
   );
   const titleOf = (id: string) => challenges.data?.challenges.find((c) => c.id === id)?.title ?? "Challenge";
   const changed = () => void reloadPending(); // the whole trip: queue, approved list, badge, overview
+  // Kept here, not in each photo: an undone decision brings the photo back as a new element.
+  const [errors, setErrors] = useState<Record<string, string>>({});
+  const setError = (id: string, message: string) => setErrors((e) => ({ ...e, [id]: message }));
   const votable = approved.data?.nominations ?? [];
 
   return (
@@ -26,7 +30,7 @@ export function TripReview() {
         </div>
         {pending.length === 0
           ? <EmptyState icon="✅" title="Nothing to review" />
-          : <Groups noms={pending} titleOf={titleOf} decide onChange={changed} />}
+          : <Groups noms={pending} titleOf={titleOf} decide onChange={changed} errors={errors} setError={setError} />}
         <p className="muted tiny mb-0">
           Only approved nominations become votable. You can remove <b>any</b> photo, anytime.
         </p>
@@ -35,16 +39,18 @@ export function TripReview() {
       {votable.length > 0 && (
         <section className="card" aria-labelledby="review-approved">
           <h3 id="review-approved">Approved — votable</h3>
-          <Groups noms={votable} titleOf={titleOf} onChange={changed} />
+          <Groups noms={votable} titleOf={titleOf} onChange={changed} errors={errors} setError={setError} />
         </section>
       )}
     </>
   );
 }
 
+type Errors = { errors: Record<string, string>; setError: (id: string, message: string) => void };
+
 function Groups({
-  noms, titleOf, decide, onChange,
-}: { noms: NominationRow[]; titleOf: (id: string) => string; decide?: boolean; onChange: () => void }) {
+  noms, titleOf, decide, onChange, errors, setError,
+}: { noms: NominationRow[]; titleOf: (id: string) => string; decide?: boolean; onChange: () => void } & Errors) {
   const byChallenge = new Map<string, NominationRow[]>();
   for (const n of noms) byChallenge.set(n.challenge_id, [...(byChallenge.get(n.challenge_id) ?? []), n]);
   return (
@@ -56,7 +62,9 @@ function Groups({
           <div key={challengeId} role="group" aria-labelledby={headingId}>
             <h4 id={headingId} className="review-h">{title}</h4>
             <div className="review-grid">
-              {list.map((n) => <Nomination key={n.id} n={n} title={title} decide={decide} onChange={onChange} />)}
+              {list.map((n) => (
+                <Nomination key={n.id} n={n} title={title} decide={decide} onChange={onChange} error={errors[n.id]} setError={setError} />
+              ))}
             </div>
           </div>
         );
@@ -67,12 +75,26 @@ function Groups({
 
 /** One photo: enlarge, approve/reject (when deciding), or remove for good. */
 function Nomination({
-  n, title, decide, onChange,
-}: { n: NominationRow; title: string; decide?: boolean; onChange: () => void }) {
+  n, title, decide, onChange, error, setError,
+}: { n: NominationRow; title: string; decide?: boolean; onChange: () => void; error?: string; setError: Errors["setError"] }) {
+  const { tripId } = useTrip();
   const openLightbox = useLightbox();
   const confirm = useConfirm();
-  const approve = useAction(async () => { await api.moderate(n.id, "approve"); onChange(); }, "Could not approve.");
-  const reject = useAction(async () => { await api.moderate(n.id, "reject"); onChange(); }, "Could not reject.");
+  const optimistic = useOptimistic();
+  // Optimistic: the photo leaves the queue (and the badge) at once; back with the reason if refused.
+  const decideAs = (decision: "approve" | "reject") => async () => {
+    setError(n.id, "");
+    try {
+      await optimistic<{ nominations: NominationRow[] }>(
+        qk.tripPart(tripId, "nominations", "pending"),
+        (old) => ({ nominations: old.nominations.filter((x) => x.id !== n.id) }),
+        () => api.moderate(n.id, decision),
+      );
+      onChange();
+    } catch (e) {
+      setError(n.id, e instanceof HttpError ? e.reason : `Could not ${decision}.`);
+    }
+  };
   const remove = useAction(async () => {
     const ok = await confirm({
       title: "Remove this photo?",
@@ -83,7 +105,7 @@ function Nomination({
     await api.removeSubmission(n.submission_id);
     onChange();
   }, "Could not remove the photo.");
-  const busy = approve.busy || reject.busy || remove.busy;
+  const busy = remove.busy;
   const src = api.photoUrl(n.submission_id);
 
   return (
@@ -96,12 +118,12 @@ function Nomination({
       </button>
       {decide && (
         <div className="review-acts">
-          <Button variant="good" busy={approve.busy} disabled={busy} onClick={approve.run}>Approve</Button>
-          <Button variant="crit" busy={reject.busy} disabled={busy} onClick={reject.run}>Reject</Button>
+          <Button variant="good" disabled={busy} onClick={decideAs("approve")}>Approve</Button>
+          <Button variant="crit" disabled={busy} onClick={decideAs("reject")}>Reject</Button>
         </div>
       )}
       <Button variant="neutral" size="mini" busy={remove.busy} disabled={busy} onClick={remove.run}>Remove photo…</Button>
-      <Notice tone="err">{approve.error || reject.error || remove.error}</Notice>
+      <Notice tone="err">{error || remove.error}</Notice>
     </div>
   );
 }
