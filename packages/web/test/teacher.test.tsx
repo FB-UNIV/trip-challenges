@@ -1,7 +1,7 @@
 // Teacher UI: sign-in gate, trip list/creation, and the trip admin screen.
 import { describe, it, expect, vi, afterEach } from "vitest";
 import { act, screen, waitFor, within } from "@testing-library/react";
-import { http, HttpResponse } from "msw";
+import { delay, http, HttpResponse } from "msw";
 import { server } from "./server.js";
 import { renderAt } from "./render.js";
 import { LIVE_MS } from "../src/query.js";
@@ -266,14 +266,18 @@ describe("trip admin", () => {
     afterEach(() => { vi.useRealTimers(); });
 
     it("switching sections shows what's cached at once, then refreshes it", async () => {
-      adminApi();
+      const api = adminApi();
       const { user } = renderAt("/teacher/trips/t1/overview");
       const tile = (k: string) => [...document.querySelectorAll(".tile")].find((t) => t.querySelector(".k")?.textContent === k);
       await waitFor(() => expect(tile("Students")).toHaveTextContent("3"));
+      await screen.findByRole("heading", { name: "Getting ready" });
       await user.click(within(nav()).getByRole("link", { name: "Challenges" }));
       await screen.findByText("Gelato selfie");
+      // From now on the server is slow: only a cache can show the overview right away.
+      server.use(http.get("/api/trips/t1/progress", async () => { await delay(400); return HttpResponse.json(api.progress); }));
       await user.click(within(nav()).getByRole("link", { name: "Overview" }));
-      expect(tile("Students")).toHaveTextContent("3"); // no skeleton, no wait
+      expect(screen.getByRole("heading", { name: "Getting ready" })).toBeInTheDocument(); // no skeleton, no wait
+      expect(tile("Students")).toHaveTextContent("3");
     });
 
     it("an open screen picks up what changed elsewhere: a new nomination, a scheduled phase change", async () => {
