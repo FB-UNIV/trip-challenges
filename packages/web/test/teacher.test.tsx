@@ -118,6 +118,8 @@ function adminApi(over: Partial<Trip> = {}) {
     advanceRefusal: null as string | null,
     rosterRefusal: false,
     moderationRefusal: null as string | null,
+    revokeRefusal: false,
+    crownRefusal: false,
   };
   const ok = (call: string, body: object = { ok: true }) => { s.calls.push(call); return HttpResponse.json(body); };
   server.use(
@@ -192,12 +194,14 @@ function adminApi(over: Partial<Trip> = {}) {
       return HttpResponse.json({ invited: email }, { status: 201 });
     }),
     http.delete("/api/trips/t1/invites/:inviteId", ({ params }) => {
+      if (s.revokeRefusal) return HttpResponse.json({ error: "forbidden", message: "Only the trip owner can revoke invites." }, { status: 403 });
       s.invites = s.invites.filter((i) => i.id !== params.inviteId);
       return ok(`revoke ${params.inviteId}`);
     }),
     http.get("/api/trips/t1/results", () => HttpResponse.json({ results: s.results })),
     http.post("/api/trips/t1/grand-champion", async ({ request }) => {
       const { resultId } = (await request.json()) as { resultId: string };
+      if (s.crownRefusal) return HttpResponse.json({ error: "closed", message: "The ceremony is over." }, { status: 409 });
       s.results = s.results.filter((r: any) => !r.is_grand_champion || r.id === resultId);
       return ok(`crown ${resultId}`);
     }),
@@ -416,7 +420,31 @@ describe("trip admin", () => {
       const { user } = renderAt("/teacher/trips/t1/students");
       await user.type(await screen.findByLabelText(/Student emails/), "not-an-email");
       await user.click(screen.getByRole("button", { name: "Import + email codes" }));
-      expect(await screen.findByText(/Could not import/)).toBeInTheDocument();
+      expect(await screen.findByRole("alert")).toHaveTextContent("invalid email");
+      expect(screen.getByLabelText(/Student emails/)).toHaveValue("not-an-email");
+    });
+
+    it("can't import an empty list", async () => {
+      adminApi();
+      renderAt("/teacher/trips/t1/students");
+      expect(await screen.findByRole("button", { name: "Import + email codes" })).toBeDisabled();
+    });
+
+    it("shows how far the access codes have gone out", async () => {
+      const api = adminApi();
+      api.roster = { pending: 1, done: 2, failed: 0, students: 3 };
+      renderAt("/teacher/trips/t1/students");
+      const bar = await screen.findByRole("progressbar", { name: "Codes emailed" });
+      expect(bar).toHaveAttribute("aria-valuenow", "2");
+      expect(bar).toHaveAttribute("aria-valuemax", "3");
+      expect(screen.getByText(/2 of 3 codes emailed — sending/)).toBeInTheDocument();
+    });
+
+    it("flags emails that couldn't be sent", async () => {
+      const api = adminApi();
+      api.roster = { pending: 0, done: 2, failed: 1, students: 3 };
+      renderAt("/teacher/trips/t1/students");
+      expect(await screen.findByText(/1 email failed/)).toBeInTheDocument();
     });
   });
 
@@ -610,6 +638,15 @@ describe("trip admin", () => {
       await waitFor(() => expect(screen.queryByText("pending@school.test")).not.toBeInTheDocument());
       expect(api.calls).toEqual(["revoke inv1"]);
     });
+
+    it("explains a refused revoke and keeps the invite", async () => {
+      const api = adminApi();
+      api.revokeRefusal = true;
+      const { user } = renderAt("/teacher/trips/t1/settings");
+      await user.click(await screen.findByRole("button", { name: "Revoke" }));
+      expect(await screen.findByRole("alert")).toHaveTextContent("Only the trip owner can revoke invites.");
+      expect(screen.getByText("pending@school.test")).toBeInTheDocument();
+    });
   });
 
   describe("results", () => {
@@ -638,6 +675,21 @@ describe("trip admin", () => {
 
       await user.click(screen.getByRole("button", { name: "🏆 Launch ceremony" }));
       expect(open).toHaveBeenCalledWith("/ceremony/t1", "_blank", "noopener");
+    });
+
+    it("explains a crown that was refused", async () => {
+      const api = adminApi({ phase: "reveal" });
+      api.results = [...results];
+      api.crownRefusal = true;
+      const { user } = renderAt("/teacher/trips/t1/results");
+      await user.click((await screen.findAllByRole("button", { name: "Crown this team" }))[0]!);
+      expect(await screen.findByRole("alert")).toHaveTextContent("The ceremony is over.");
+    });
+
+    it("says when there are no results", async () => {
+      adminApi({ phase: "grace" });
+      renderAt("/teacher/trips/t1/results");
+      expect(await screen.findByText("No results")).toBeInTheDocument();
     });
   });
 });

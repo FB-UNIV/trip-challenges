@@ -16,7 +16,10 @@ test("the teacher imports a roster and each student joins from their emailed lin
   await admin.goto(tripId);
   await admin.importRoster(emails);
   // The roster card polls the background worker until every code is emailed.
-  await expect(admin.card("Roster").getByText("2 students · 0 queued · 2 emailed")).toBeVisible({ timeout: 30_000 });
+  const sent = admin.card("Roster").getByRole("progressbar", { name: "Codes emailed" });
+  await expect(sent).toHaveAttribute("aria-valuenow", "2", { timeout: 30_000 });
+  await expect(sent).toHaveAttribute("aria-valuemax", "2");
+  await expect(admin.card("Roster").getByText("2 of 2 codes emailed", { exact: true })).toBeVisible();
 
   const mail = await waitForMail(emails[0]!, { subject: ACCESS_CODE_SUBJECT });
   expect(mail.subject).toBe(`Your access code for ${name}`);
