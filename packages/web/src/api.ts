@@ -1,5 +1,5 @@
 // API client. Cookies (student_session / teacher_session) ride along automatically.
-import type { DuelPair, CastDuel, StudentChallengeList, TripProgress } from "@trip/shared";
+import type { DuelPair, CastDuel, RosterList, StudentChallengeList, TripProgress, TripTeamList } from "@trip/shared";
 
 async function req<T>(path: string, init?: RequestInit): Promise<T> {
   const res = await fetch(path, {
@@ -99,6 +99,18 @@ export const api = {
       body: JSON.stringify({ emails }),
     }),
   tripProgress: (id: string) => req<TripProgress>(`/api/trips/${id}/progress`),
+  tripStudents: (id: string) => req<RosterList>(`/api/trips/${id}/students`),
+  resendCode: (id: string, studentId: string) =>
+    req<{ ok: true }>(`/api/trips/${id}/students/${studentId}/resend`, { method: "POST", body: "{}" }),
+  fixAddress: (id: string, studentId: string, email: string) =>
+    req<{ ok: true }>(`/api/trips/${id}/students/${studentId}`, { method: "PATCH", body: JSON.stringify({ email }) }),
+  retryRosterItem: (id: string, itemId: string, email: string) =>
+    req<{ ok: true }>(`/api/trips/${id}/roster/items/${itemId}/retry`, { method: "POST", body: JSON.stringify({ email }) }),
+  tripTeams: (id: string) => req<TripTeamList>(`/api/trips/${id}/teams`),
+  renameTeam: (id: string, teamId: string, name: string) =>
+    req<{ ok: true }>(`/api/trips/${id}/teams/${teamId}`, { method: "PATCH", body: JSON.stringify({ name }) }),
+  reviewTeam: (id: string, teamId: string) =>
+    req<{ ok: true }>(`/api/trips/${id}/teams/${teamId}/review`, { method: "POST", body: "{}" }),
   rosterStatus: (id: string) =>
     req<{ pending: number; done: number; failed: number; students: number }>(
       `/api/trips/${id}/roster/status`,

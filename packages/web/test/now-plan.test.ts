@@ -92,6 +92,7 @@ describe("challenge", () => {
       ["Tower", "doing", "1 of 4 teams entered"],
       ["Bridge", "todo", "0 of 4 teams entered"],
       ["Review nominations", "doing", "2 waiting"],
+      ["Check team names", "done", "All checked"],
     ]);
     expect(check(plan, /Review/).to).toBe("review");
     expect(plan.when).toBe("Voting opens in 2 days");
@@ -128,6 +129,40 @@ describe("voting", () => {
   it("says when voting closes", () => {
     const plan = nowPlan(input({ phase: "voting", trip: { challenge_opens_at: null, voting_opens_at: null, voting_closes_at: inDays(1.2) } }));
     expect(plan.when).toBe("Voting closes tomorrow");
+  });
+});
+
+describe("team names and voting participation (#96)", () => {
+  it("asks to check team names from the challenge until the reveal, linking to the teams", () => {
+    for (const phase of ["challenge", "voting"]) {
+      const plan = nowPlan(input({ phase, progress: progress({ teams: 3, teamsUnreviewed: 2 }) }));
+      expect(check(plan, /team names/)).toEqual({ title: "Check team names", state: "doing", meta: "2 not checked", to: "students" });
+    }
+    const allGood = nowPlan(input({ phase: "challenge", progress: progress({ teams: 3, teamsUnreviewed: 0 }) }));
+    expect(check(allGood, /team names/)).toMatchObject({ state: "done", meta: "All checked" });
+    expect(nowPlan(input({ phase: "challenge" })).checks.find((c) => /team names/.test(c.title))).toBeUndefined(); // no teams
+  });
+
+  it("warns, without blocking, that unchecked names show at the ceremony then become labels", () => {
+    const plan = nowPlan(input({ phase: "voting", progress: progress({ teams: 3, teamsUnreviewed: 2 }) }));
+    expect(plan.action!.confirm).toMatch(/2 team names aren't checked: they'll show at the ceremony, then become “Team N” after erasure/);
+    expect(nowPlan(input({ phase: "voting", progress: progress({ teams: 3 }) })).action!.confirm).not.toMatch(/aren't checked/);
+  });
+
+  it("shows how many students have voted — never who", () => {
+    const row = (voters: number) => check(nowPlan(input({ phase: "voting", progress: progress({ students: 22, voters }) })), /voted/);
+    expect(row(14)).toEqual({ title: "Students who voted", state: "doing", meta: "14 of 22" });
+    expect(row(0).state).toBe("todo");
+    expect(row(22).state).toBe("done");
+  });
+
+  it("links roster problems straight to the matching filter", () => {
+    const plan = nowPlan(input({
+      roster: { pending: 0, done: 4, failed: 1, students: 5 },
+      progress: progress({ students: 5, teams: 1, studentsWithoutTeam: 2 }),
+    }));
+    expect(check(plan, /roster/).to).toBe("students?filter=undelivered");
+    expect(check(plan, /teams/).to).toBe("students?filter=no-team");
   });
 });
 

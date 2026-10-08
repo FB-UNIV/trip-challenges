@@ -119,6 +119,17 @@ function adminApi(over: Partial<Trip> = {}) {
     rosterRefusal: false,
     moderationRefusal: null as string | null,
     revokeRefusal: false,
+    resendFails: false,
+    students: [
+      { kind: "student", id: "s1", email: "ana@school.test", status: "joined", newCodeRequested: true, teamId: "team1", lastError: null },
+      { kind: "student", id: "s2", email: "tom@school.test", status: "invited", newCodeRequested: false, teamId: null, lastError: null },
+      { kind: "student", id: "s3", email: "lea@shcool.test", status: "undelivered", newCodeRequested: false, teamId: null, lastError: "EENVELOPE" },
+      { kind: "import", id: "i1", email: "orphan@shcool.test", status: "undelivered", newCodeRequested: false, teamId: null, lastError: "ECONNRESET" },
+    ] as { kind: string; id: string; email: string; status: string; newCodeRequested: boolean; teamId: string | null; lastError: string | null }[],
+    teams: [
+      { id: "team1", name: "Léa & Tom 4B", label: "Team 1", nameReviewed: false, members: ["s1"], photos: 2, challengesEntered: 1,
+        nominations: { pending: 1, approved: 0, rejected: 0 } },
+    ],
     crownRefusal: false,
   };
   const ok = (call: string, body: object = { ok: true }) => { s.calls.push(call); return HttpResponse.json(body); };
@@ -145,6 +156,43 @@ function adminApi(over: Partial<Trip> = {}) {
     http.post("/api/trips/t1/erase", () => ok("erase")),
     http.get("/api/trips/t1/roster/status", () => HttpResponse.json(s.roster)),
     http.get("/api/trips/t1/progress", () => HttpResponse.json(s.progress)),
+    http.get("/api/trips/t1/students", () => {
+      const st = s.students;
+      const counts = {
+        all: st.length,
+        notJoined: st.filter((x) => x.status !== "joined").length,
+        undelivered: st.filter((x) => x.status === "undelivered").length,
+        noTeam: st.filter((x) => x.kind === "student" && !x.teamId).length,
+        sending: st.filter((x) => x.status === "sending").length,
+      };
+      return HttpResponse.json({ students: st, counts });
+    }),
+    http.post("/api/trips/t1/students/:sid/resend", ({ params }) => {
+      if (s.resendFails) return HttpResponse.json({ error: "mail_failed", message: "The email couldn't be sent. Check the address and try again." }, { status: 502 });
+      Object.assign(s.students.find((x) => x.id === params.sid)!, { status: "invited", lastError: null });
+      return ok(`resend ${params.sid}`);
+    }),
+    http.patch("/api/trips/t1/students/:sid", async ({ params, request }) => {
+      const { email } = (await request.json()) as { email: string };
+      Object.assign(s.students.find((x) => x.id === params.sid)!, { email, status: "invited", lastError: null });
+      return ok(`fix ${params.sid} ${email}`);
+    }),
+    http.post("/api/trips/t1/roster/items/:iid/retry", async ({ params, request }) => {
+      const { email } = (await request.json()) as { email?: string };
+      Object.assign(s.students.find((x) => x.id === params.iid)!, { email: email ?? "", status: "sending", lastError: null });
+      s.calls.push(`retry ${params.iid} ${email}`);
+      return HttpResponse.json({ ok: true }, { status: 202 });
+    }),
+    http.get("/api/trips/t1/teams", () => HttpResponse.json({ teams: s.teams, maxTeamSize: s.trip.max_team_size })),
+    http.patch("/api/trips/t1/teams/:tid", async ({ params, request }) => {
+      const { name } = (await request.json()) as { name: string };
+      Object.assign(s.teams.find((x) => x.id === params.tid)!, { name, nameReviewed: true });
+      return ok(`rename ${params.tid} ${name}`);
+    }),
+    http.post("/api/trips/t1/teams/:tid/review", ({ params }) => {
+      s.teams.find((x) => x.id === params.tid)!.nameReviewed = true;
+      return ok(`review ${params.tid}`);
+    }),
     http.post("/api/trips/t1/roster", async ({ request }) => {
       const { emails } = (await request.json()) as { emails: string[] };
       if (s.rosterRefusal) return HttpResponse.json({ error: "bad_request", message: "invalid email" }, { status: 400 });
@@ -396,6 +444,129 @@ describe("trip admin", () => {
   });
 
   describe("students", () => {
+    const list = () => screen.findByRole("list", { name: "Students" });
+    const students = () => screen.getByRole("list", { name: "Students" });
+    const row = (email: string) => within(students()).getByText(email).closest("li") as HTMLElement;
+
+    it("shows each student's status and team, with a hint when they asked for a new code", async () => {
+      adminApi();
+      renderAt("/teacher/trips/t1/students");
+      await list();
+      expect(row("ana@school.test")).toHaveTextContent("Joined");
+      expect(row("ana@school.test")).toHaveTextContent("Léa & Tom 4B");
+      expect(row("ana@school.test")).toHaveTextContent("new code requested");
+      expect(row("tom@school.test")).toHaveTextContent("Invited");
+      expect(row("tom@school.test")).toHaveTextContent("no team");
+      expect(row("lea@shcool.test")).toHaveTextContent("Undelivered");
+    });
+
+    it("filters with chips kept in the URL, and searches by email", async () => {
+      adminApi();
+      const { user, location } = renderAt("/teacher/trips/t1/students");
+      const chips = await screen.findByRole("group", { name: "Filter students" });
+      expect(within(chips).getByRole("button", { name: "All 4" })).toHaveAttribute("aria-pressed", "true");
+      await user.click(within(chips).getByRole("button", { name: "Not joined 3" }));
+      expect(location()).toBe("/teacher/trips/t1/students?filter=not-joined");
+      expect(within(await list()).getAllByRole("listitem")).toHaveLength(3);
+      expect(within(students()).queryByText("ana@school.test")).not.toBeInTheDocument();
+
+      await user.type(screen.getByRole("searchbox", { name: "Search by email" }), "shcool");
+      expect(within(await list()).getAllByRole("listitem")).toHaveLength(2);
+      await user.type(screen.getByRole("searchbox", { name: "Search by email" }), "-nobody");
+      expect(await screen.findByText("No one here")).toBeInTheDocument();
+    });
+
+    it("opens straight on a filter from a link", async () => {
+      adminApi();
+      renderAt("/teacher/trips/t1/students?filter=undelivered");
+      expect(within(await list()).getAllByRole("listitem")).toHaveLength(2);
+      expect(within(screen.getByRole("group", { name: "Filter students" })).getByRole("button", { name: "Undelivered 2" }))
+        .toHaveAttribute("aria-pressed", "true");
+    });
+
+    it("resends a code to a student who hasn't joined, and says why it failed when it does", async () => {
+      const api = adminApi();
+      const { user } = renderAt("/teacher/trips/t1/students");
+      await list();
+      expect(within(row("ana@school.test")).queryByRole("button", { name: "Resend code" })).not.toBeInTheDocument();
+      await user.click(within(row("tom@school.test")).getByRole("button", { name: "Resend code" }));
+      expect(await within(row("tom@school.test")).findByRole("status")).toHaveTextContent("Code sent");
+      expect(api.calls).toContain("resend s2");
+
+      api.resendFails = true;
+      await user.click(within(row("lea@shcool.test")).getByRole("button", { name: "Resend code" }));
+      expect(await within(row("lea@shcool.test")).findByRole("alert")).toHaveTextContent("couldn't be sent");
+    });
+
+    it("fixes an undelivered address and sends the code to the new one", async () => {
+      const api = adminApi();
+      const { user } = renderAt("/teacher/trips/t1/students");
+      await list();
+      await user.click(within(row("lea@shcool.test")).getByRole("button", { name: "Fix address" }));
+      const field = screen.getByLabelText("Correct address for lea@shcool.test");
+      expect(field).toHaveValue("lea@shcool.test");
+      await user.clear(field);
+      await user.type(field, "lea@school.test");
+      await user.click(screen.getByRole("button", { name: "Save & send" }));
+      expect(await within(students()).findByText("lea@school.test")).toBeInTheDocument();
+      expect(row("lea@school.test")).toHaveTextContent("Invited");
+      expect(api.calls).toContain("fix s3 lea@school.test");
+    });
+
+    it("retries an address that never became a student, corrected", async () => {
+      const api = adminApi();
+      const { user } = renderAt("/teacher/trips/t1/students");
+      await list();
+      await user.click(within(row("orphan@shcool.test")).getByRole("button", { name: "Fix address" }));
+      const field = screen.getByLabelText("Correct address for orphan@shcool.test");
+      await user.clear(field);
+      await user.type(field, "orphan@school.test");
+      await user.click(screen.getByRole("button", { name: "Save & send" }));
+      expect(await within(students()).findByText("orphan@school.test")).toBeInTheDocument();
+      expect(row("orphan@school.test")).toHaveTextContent("Sending");
+      expect(api.calls).toContain("retry i1 orphan@school.test");
+    });
+
+    describe("teams", () => {
+      const team = () => screen.findByRole("article", { name: /Léa & Tom 4B|Les Renards/ });
+
+      it("shows members, size and activity, and why names need a look", async () => {
+        adminApi();
+        renderAt("/teacher/trips/t1/students");
+        const t = await team();
+        expect(t).toHaveTextContent("ana@school.test");
+        expect(t).toHaveTextContent("1/4");
+        expect(t).toHaveTextContent("2 photos");
+        expect(t).toHaveTextContent("Not checked");
+        expect(card("Teams")).toHaveTextContent("become “Team 1”");
+      });
+
+      it("marks a name OK, or renames it (which also counts as checked)", async () => {
+        const api = adminApi();
+        const { user } = renderAt("/teacher/trips/t1/students");
+        await user.click(within(await team()).getByRole("button", { name: "Name OK" }));
+        expect(await within(await team()).findByText("Checked")).toBeInTheDocument();
+        expect(api.calls).toContain("review team1");
+
+        await user.click(within(await team()).getByRole("button", { name: "Rename" }));
+        const field = screen.getByLabelText("New name for Léa & Tom 4B");
+        await user.clear(field);
+        await user.type(field, "Les Renards");
+        await user.click(screen.getByRole("button", { name: "Save name" }));
+        expect(await screen.findByRole("article", { name: "Les Renards" })).toBeInTheDocument();
+        expect(api.calls).toContain("rename team1 Les Renards");
+      });
+
+      it("names are final from the reveal on", async () => {
+        adminApi({ phase: "reveal" });
+        renderAt("/teacher/trips/t1/students");
+        const t = await team();
+        expect(within(t).queryByRole("button", { name: "Rename" })).not.toBeInTheDocument();
+        expect(within(t).queryByRole("button", { name: "Name OK" })).not.toBeInTheDocument();
+        expect(card("Teams")).toHaveTextContent("Names are final");
+      });
+    });
+
     it("imports pasted emails and reports progress", async () => {
       const api = adminApi();
       const { user } = renderAt("/teacher/trips/t1/students");
