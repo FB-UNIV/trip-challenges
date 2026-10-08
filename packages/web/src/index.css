@@ -386,6 +386,21 @@ a.check-row:focus-visible { outline: 2px solid var(--accent); outline-offset: 2p
 .card-danger { border-color: color-mix(in srgb, var(--crit) 35%, var(--line)); }
 .card-danger h3 { color: var(--crit-ink); }
 
+/* ---------- teacher home: trip cards, edge-coloured by phase ---------- */
+.trip-cards { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: var(--s-3); }
+.trip-card { --stop: var(--muted); display: flex; flex-direction: column; gap: var(--s-1); padding: var(--s-4); min-height: 76px;
+  background: var(--surface); border: 1px solid var(--line); border-left: 4px solid var(--stop); border-radius: var(--radius);
+  box-shadow: var(--shadow-1); color: inherit; text-decoration: none; transition: box-shadow .14s ease, transform .06s ease; }
+.trip-card:hover { text-decoration: none; box-shadow: var(--shadow-2); }
+.trip-card:active { transform: translateY(1px); }
+.trip-card:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.trip-card .d { font-size: 12.5px; color: var(--muted); }
+.trip-card-top { display: flex; align-items: center; gap: var(--s-2); justify-content: space-between; }
+.trip-card-top b { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.trip-card.p-draft { --stop: var(--lilac); } .trip-card.p-challenge { --stop: var(--coral); }
+.trip-card.p-voting { --stop: var(--sky); } .trip-card.p-reveal, .trip-card.p-grace { --stop: var(--gold); }
+.trip-card.p-erased { opacity: .75; }
+
 /* ---------- teacher kit (notice, confirm, copy field, section nav) ---------- */
 .mt-0 { margin-top: 0; } .mt-2 { margin-top: var(--s-2); } .mt-3 { margin-top: var(--s-3); } .mt-4 { margin-top: var(--s-4); }
 .mb-0 { margin-bottom: 0; }

@@ -1,17 +1,15 @@
+// Teacher home: sign-in gate, the teacher's trips as cards (past ones apart), new trip on demand.
 import { useState } from "react";
 import { Link } from "react-router-dom";
-import { api, HttpError } from "../../api.js";
-import { Button, Card, Field, PhasePill, useAsync } from "../../ui.js";
+import { api, HttpError, type TripSummary } from "../../api.js";
+import { Button, Card, EmptyState, Field, Notice, PhasePill, Skeleton, useAction, useAsync } from "../../ui.js";
 
 export function TeacherHome() {
   const me = useAsync(() => api.teacherMe(), []);
-  const trips = useAsync(() => api.listTrips().catch(() => ({ trips: [] })), []);
-  const [name, setName] = useState("");
-  const [endDate, setEndDate] = useState("");
-  const [maxTeamSize, setMaxTeamSize] = useState("4");
-  const [err, setErr] = useState("");
+  const trips = useAsync(() => api.listTrips().catch(() => ({ trips: [] as TripSummary[] })), []);
+  const [creating, setCreating] = useState(false);
 
-  if (me.loading) return <p className="muted">Loading…</p>;
+  if (me.loading) return <Skeleton />;
 
   if (me.error instanceof HttpError && me.error.status === 401) {
     return (
@@ -25,44 +23,73 @@ export function TeacherHome() {
     );
   }
 
+  const all = trips.data?.trips ?? [];
+  const active = all.filter((t) => t.phase !== "erased");
+  const past = all.filter((t) => t.phase === "erased");
+  const empty = trips.data !== null && all.length === 0;
+
   return (
     <div className="stack">
-      <Card>
-        <h2>Trips</h2>
-        {trips.data?.trips.length === 0 && <p className="muted">No trips yet — create your first one below.</p>}
-        {trips.data?.trips.map((t) => (
-          <Link key={t.id} to={`/teacher/trips/${t.id}`} className="list-row" style={{ textDecoration: "none", color: "inherit" }}>
-            <div className="grow">
-              <b>{t.name}</b>
-              <div className="d">{t.role}</div>
-            </div>
-            <PhasePill phase={t.phase} dot />
-          </Link>
-        ))}
-      </Card>
-
-      <Card hero>
-        <h3>New trip</h3>
-        <Field label="Name" value={name} onChange={(e) => setName(e.target.value)} />
-        <div className="row" style={{ gap: 10 }}>
-          <Field label="Trip end date" type="date" value={endDate} onChange={(e) => setEndDate(e.target.value)} />
-          <Field label="Max team size" type="number" value={maxTeamSize} onChange={(e) => setMaxTeamSize(e.target.value)} />
+      <section className="stack" aria-labelledby="trips-h">
+        <div className="row">
+          <h2 id="trips-h" className="grow">Your trips</h2>
+          {trips.data && !empty && !creating && <Button variant="soft" onClick={() => setCreating(true)}>New trip</Button>}
         </div>
-        <Button
-          disabled={!name.trim() || !endDate}
-          onClick={async () => {
-            setErr("");
-            try {
-              await api.createTrip({ name: name.trim(), tripEndDate: endDate, maxTeamSize: Number(maxTeamSize) });
-              setName(""); setEndDate("");
-              trips.reload();
-            } catch (e) {
-              setErr(`Could not create the trip${e instanceof HttpError ? `: ${e.reason}` : "."}`);
-            }
-          }}
-        >Create trip</Button>
-        {err && <p className="err tiny" style={{ marginBottom: 0 }}>{err}</p>}
-      </Card>
+        {trips.loading && !trips.data ? <Card><Skeleton /></Card>
+          : empty ? <Card><EmptyState icon="🧳" title="No trips yet" /></Card>
+          : <div className="trip-cards">{active.map((t) => <TripCard key={t.id} t={t} />)}</div>}
+      </section>
+
+      {(creating || empty) && (
+        <NewTrip onCreated={() => { setCreating(false); trips.reload(); }} onCancel={empty ? undefined : () => setCreating(false)} />
+      )}
+
+      {past.length > 0 && (
+        <section className="stack" aria-labelledby="past-h">
+          <h3 id="past-h" className="muted">Past trips</h3>
+          <div className="trip-cards">{past.map((t) => <TripCard key={t.id} t={t} />)}</div>
+        </section>
+      )}
     </div>
+  );
+}
+
+const endDate = (d: string) =>
+  new Date(d).toLocaleDateString(undefined, { day: "numeric", month: "short", year: "numeric", timeZone: "UTC" });
+
+function TripCard({ t }: { t: TripSummary }) {
+  return (
+    <Link to={`/teacher/trips/${t.id}`} className={`trip-card p-${t.phase}`}>
+      <span className="trip-card-top">
+        <b>{t.name}</b>
+        <PhasePill phase={t.phase} dot />
+      </span>
+      <span className="d">{t.role === "owner" ? "Owner" : "Co-teacher"} · ends {endDate(t.trip_end_date)}</span>
+    </Link>
+  );
+}
+
+function NewTrip({ onCreated, onCancel }: { onCreated: () => void; onCancel?: () => void }) {
+  const [name, setName] = useState("");
+  const [endDate, setEndDate] = useState("");
+  const [maxTeamSize, setMaxTeamSize] = useState("4");
+  const create = useAction(async () => {
+    await api.createTrip({ name: name.trim(), tripEndDate: endDate, maxTeamSize: Number(maxTeamSize) });
+    onCreated();
+  }, "Could not create the trip.");
+  return (
+    <Card hero>
+      <h3>New trip</h3>
+      <Field label="Name" value={name} onChange={(e) => setName(e.target.value)} />
+      <div className="grid2">
+        <Field label="Trip end date" type="date" value={endDate} onChange={(e) => setEndDate(e.target.value)} />
+        <Field label="Max team size" type="number" min={1} value={maxTeamSize} onChange={(e) => setMaxTeamSize(e.target.value)} />
+      </div>
+      <div className="row">
+        <Button disabled={!name.trim() || !endDate} busy={create.busy} onClick={create.run}>Create trip</Button>
+        {onCancel && <Button variant="neutral" onClick={onCancel}>Cancel</Button>}
+      </div>
+      <Notice tone="err">{create.error}</Notice>
+    </Card>
   );
 }

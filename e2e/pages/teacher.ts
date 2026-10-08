@@ -7,10 +7,15 @@ export class TeacherHomePage {
 
   async goto() {
     await this.page.goto("/teacher");
-    await expect(this.page.getByRole("heading", { name: "Trips" })).toBeVisible();
+    await expect(this.page.getByRole("heading", { name: "Your trips", exact: true })).toBeVisible();
   }
 
   async createTrip(name: string, endDate = "2030-06-01", maxTeamSize = 4) {
+    // The form is open by itself only while the teacher has no trips.
+    const nameField = this.page.getByLabel("Name", { exact: true });
+    const open = this.page.getByRole("button", { name: "New trip" });
+    await expect(nameField.or(open)).toBeVisible(); // the list has loaded either way
+    if (await open.isVisible()) await open.click();
     await this.page.getByLabel("Name", { exact: true }).fill(name);
     await this.page.getByLabel("Trip end date").fill(endDate);
     await this.page.getByLabel("Max team size").fill(String(maxTeamSize));
