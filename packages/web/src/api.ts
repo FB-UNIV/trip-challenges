@@ -1,5 +1,5 @@
 // API client. Cookies (student_session / teacher_session) ride along automatically.
-import type { DuelPair, CastDuel, StudentChallengeList } from "@trip/shared";
+import type { DuelPair, CastDuel, StudentChallengeList, TripProgress } from "@trip/shared";
 
 async function req<T>(path: string, init?: RequestInit): Promise<T> {
   const res = await fetch(path, {
@@ -98,6 +98,7 @@ export const api = {
       method: "POST",
       body: JSON.stringify({ emails }),
     }),
+  tripProgress: (id: string) => req<TripProgress>(`/api/trips/${id}/progress`),
   rosterStatus: (id: string) =>
     req<{ pending: number; done: number; failed: number; students: number }>(
       `/api/trips/${id}/roster/status`,
