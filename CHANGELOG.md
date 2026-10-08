@@ -1,5 +1,19 @@
 # Changelog
 
+## [0.7.0](https://github.com/FB-UNIV/trip-challenges/compare/v0.6.0...v0.7.0) (2026-10-08)
+
+
+### Features
+
+* **web:** instant approve/reject and nominate (optimistic, with rollback) ([#107](https://github.com/FB-UNIV/trip-challenges/issues/107)) ([1ee2b86](https://github.com/FB-UNIV/trip-challenges/commit/1ee2b86231b1fd602b1d68bf8bf3ea64c0f3cfe6))
+* **web:** shared data cache — student screens stay fresh without refreshing ([#105](https://github.com/FB-UNIV/trip-challenges/issues/105)) ([b39c2eb](https://github.com/FB-UNIV/trip-challenges/commit/b39c2ebebf51cc7195e4fa81567a77f34c32a662))
+* **web:** teacher desk on the shared cache — instant section switches, live trip data ([#106](https://github.com/FB-UNIV/trip-challenges/issues/106)) ([078a75c](https://github.com/FB-UNIV/trip-challenges/commit/078a75c92894f96e468f3db780cf76ff4547c530))
+
+
+### Bug Fixes
+
+* **web:** form fields stay inside their cards on phones ([#103](https://github.com/FB-UNIV/trip-challenges/issues/103)) ([b79870a](https://github.com/FB-UNIV/trip-challenges/commit/b79870abfd7c3d1f33741874c363315d12d724a6))
+
 ## [0.6.0](https://github.com/FB-UNIV/trip-challenges/compare/v0.5.0...v0.6.0) (2026-10-08)
 
 
