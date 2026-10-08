@@ -11,7 +11,7 @@ const ch = (o: Partial<TripProgress["challenges"][number]> = {}) => ({
 const input = (o: Partial<PlanInput> = {}): PlanInput => ({
   phase: "draft",
   trip: { challenge_opens_at: null, voting_opens_at: null, voting_closes_at: null },
-  progress: { students: 0, teams: 0, studentsWithoutTeam: 0, challenges: [], eraseAt: inDays(60), graceEndsAt: null },
+  progress: { students: 0, teams: 0, studentsWithoutTeam: 0, teamsUnreviewed: 0, voters: 0, challenges: [], eraseAt: inDays(60), graceEndsAt: null },
   roster: { pending: 0, done: 0, failed: 0, students: 0 },
   now: NOW,
   ...o,

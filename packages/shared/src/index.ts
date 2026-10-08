@@ -191,10 +191,32 @@ export const TripProgress = z.object({
   teams: z.number().int().nonnegative(), // Teams with at least one member
   studentsWithoutTeam: z.number().int().nonnegative(),
   challenges: z.array(ChallengeProgress),
+  teamsUnreviewed: z.number().int().nonnegative(), // Teams with members whose name no Teacher reviewed (ADR 0007)
+  voters: z.number().int().nonnegative(), // distinct Students who judged at least one Duel — never who
   eraseAt: z.string(), // when Erasure will fire as things stand (ISO instant)
   graceEndsAt: z.string().nullable(), // voting close + grace days; null without a close date
 });
 export type TripProgress = z.infer<typeof TripProgress>;
+
+// ---- Teacher: a Trip's Teams (names decrypted for its teachers) ----
+export const TripTeam = z.object({
+  id: Uuid,
+  name: z.string(),
+  label: z.string(), // neutral "Team N" (creation order): what an unreviewed name becomes at Erasure
+  nameReviewed: z.boolean(),
+  members: z.array(Uuid), // Student ids; emails come from the roster
+  photos: z.number().int().nonnegative(), // live (not removed) Submissions
+  challengesEntered: z.number().int().nonnegative(),
+  nominations: z.object({
+    pending: z.number().int().nonnegative(),
+    approved: z.number().int().nonnegative(),
+    rejected: z.number().int().nonnegative(),
+  }),
+});
+export type TripTeam = z.infer<typeof TripTeam>;
+export const TripTeamList = z.object({ teams: z.array(TripTeam), maxTeamSize: z.number().int().positive() });
+export type TripTeamList = z.infer<typeof TripTeamList>;
+export const RenameTeam = z.object({ name: z.string().trim().min(1).max(80) });
 
 // ---- Results (survive Erasure; non-PII) ----
 export const ResultRow = z.object({

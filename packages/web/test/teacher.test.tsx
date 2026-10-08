@@ -110,7 +110,7 @@ function adminApi(over: Partial<Trip> = {}) {
     invites: [{ id: "inv1", email: "pending@school.test", expires_at: "2030-01-08" }],
     results: [] as object[],
     progress: {
-      students: 3, teams: 1, studentsWithoutTeam: 1, eraseAt: "2030-02-01T00:00:00.000Z", graceEndsAt: null,
+      students: 3, teams: 1, studentsWithoutTeam: 1, teamsUnreviewed: 0, voters: 0, eraseAt: "2030-02-01T00:00:00.000Z", graceEndsAt: null,
       challenges: [{ id: "ch1", title: "Gelato selfie", teamsWithPhotos: 0, pending: 1, approved: 0, rejected: 0 }],
     },
     calls: [] as string[],
