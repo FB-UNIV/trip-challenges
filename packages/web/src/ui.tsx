@@ -3,13 +3,14 @@ import {
   useCallback,
   useContext,
   useEffect,
+  useRef,
   useState,
   type ButtonHTMLAttributes,
   type InputHTMLAttributes,
   type ReactNode,
 } from "react";
 
-import { Link, useLocation } from "react-router-dom";
+import { Link, NavLink, useLocation } from "react-router-dom";
 import { HttpError } from "./api.js";
 
 const cx = (...parts: (string | false | undefined)[]) => parts.filter(Boolean).join(" ");
@@ -22,14 +23,20 @@ export function Card({
 }
 
 // ---------- Button ----------
-type Variant = "primary" | "gold" | "soft" | "ghost" | "neutral" | "danger";
+type Variant = "primary" | "gold" | "soft" | "ghost" | "neutral" | "danger" | "good" | "crit";
 type Size = "block" | "lg" | "mini";
+/** `busy`: an action is in flight — disabled and announced, so it can't be sent twice. */
 export function Button({
-  variant = "primary", size, className, ...rest
-}: ButtonHTMLAttributes<HTMLButtonElement> & { variant?: Variant; size?: Size }) {
+  variant = "primary", size, busy, disabled, className, ...rest
+}: ButtonHTMLAttributes<HTMLButtonElement> & { variant?: Variant; size?: Size; busy?: boolean }) {
   const variantClass = variant === "primary" ? "" : `btn-${variant}`;
   const sizeClass = size ? `btn-${size}` : "";
-  return <button {...rest} className={cx("btn", variantClass, sizeClass, className)} />;
+  return (
+    <button
+      {...rest} disabled={disabled || busy} aria-busy={busy || undefined}
+      className={cx("btn", variantClass, sizeClass, className)}
+    />
+  );
 }
 
 // ---------- Field ----------
@@ -296,6 +303,171 @@ export function Skeleton({ lines = 3 }: { lines?: number }) {
     <div className="skeleton" role="status" aria-label="Loading" aria-busy="true">
       {Array.from({ length: lines }, (_, i) => <span key={i} className="sk-line" />)}
     </div>
+  );
+}
+
+// ---------- Teacher kit: act safely, say what happened ----------
+/** One-line outcome of an action: success is announced politely, an error assertively. */
+export function Notice({ tone, children }: { tone: "ok" | "err"; children: ReactNode }) {
+  if (!children) return null;
+  return <p className={cx("notice", `notice-${tone}`)} role={tone === "ok" ? "status" : "alert"}>{children}</p>;
+}
+
+/** Wraps an async action: no double submit, busy flag, the API's reason on failure. */
+export function useAction(fn: () => Promise<unknown>, fallback = "Something went wrong.") {
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState("");
+  const [done, setDone] = useState(false);
+  const inFlight = useRef(false);
+  const latest = useRef(fn);
+  latest.current = fn;
+  const run = useCallback(async () => {
+    if (inFlight.current) return;
+    inFlight.current = true;
+    setBusy(true); setError(""); setDone(false);
+    try {
+      await latest.current();
+      setDone(true);
+    } catch (e) {
+      setError(e instanceof HttpError ? e.reason : fallback);
+    } finally {
+      inFlight.current = false;
+      setBusy(false);
+    }
+  }, [fallback]);
+  return { run, busy, error, done };
+}
+
+/** `typeToConfirm`: for irreversible actions, the confirm button unlocks only once this is typed. */
+export type ConfirmOptions = {
+  title: string; body?: ReactNode; confirmLabel?: string; danger?: boolean; typeToConfirm?: string;
+};
+type Pending = ConfirmOptions & { resolve: (ok: boolean) => void };
+const ConfirmCtx = createContext<(o: ConfirmOptions) => Promise<boolean>>(async () => false);
+/** `await confirm({...})` → true/false; an in-app replacement for window.confirm. */
+export const useConfirm = () => useContext(ConfirmCtx);
+
+export function ConfirmProvider({ children }: { children: ReactNode }) {
+  const [pending, setPending] = useState<Pending | null>(null);
+  const ask = useCallback(
+    (o: ConfirmOptions) => new Promise<boolean>((resolve) => setPending({ ...o, resolve })),
+    [],
+  );
+  return (
+    <ConfirmCtx.Provider value={ask}>
+      {children}
+      {pending && (
+        <ConfirmDialog
+          key={pending.title} {...pending}
+          onClose={(ok) => { pending.resolve(ok); setPending(null); }}
+        />
+      )}
+    </ConfirmCtx.Provider>
+  );
+}
+
+function ConfirmDialog({
+  title, body, confirmLabel = "Confirm", danger, typeToConfirm, onClose,
+}: ConfirmOptions & { onClose: (ok: boolean) => void }) {
+  const [typed, setTyped] = useState("");
+  const firstFocus = useRef<HTMLInputElement & HTMLButtonElement>(null);
+
+  // Focus the safe choice (Cancel) or the confirmation box; give focus back on close.
+  useEffect(() => {
+    const before = document.activeElement as HTMLElement | null;
+    firstFocus.current?.focus();
+    const onKey = (e: KeyboardEvent) => { if (e.key === "Escape") onClose(false); };
+    window.addEventListener("keydown", onKey);
+    return () => { window.removeEventListener("keydown", onKey); before?.focus(); };
+  }, [onClose]);
+
+  const locked = typeToConfirm !== undefined && typed.trim() !== typeToConfirm;
+  return (
+    <div className="confirm-backdrop" onClick={(e) => { if (e.target === e.currentTarget) onClose(false); }}>
+      <div className="confirm" role="alertdialog" aria-modal="true" aria-labelledby="confirm-title" aria-describedby={body ? "confirm-body" : undefined}>
+        <h3 id="confirm-title">{title}</h3>
+        {body && <div id="confirm-body" className="muted">{body}</div>}
+        {typeToConfirm !== undefined && (
+          <label className="field">
+            <span>Type “{typeToConfirm}” to confirm</span>
+            <input ref={firstFocus} value={typed} onChange={(e) => setTyped(e.target.value)} autoComplete="off" />
+          </label>
+        )}
+        <div className="confirm-acts">
+          {/* A plain <button>: Button doesn't forward refs, and Cancel takes the initial focus. */}
+          <button className="btn btn-neutral" ref={typeToConfirm === undefined ? firstFocus : undefined} onClick={() => onClose(false)}>
+            Cancel
+          </button>
+          <Button variant={danger ? "crit" : "primary"} className={danger ? "btn-solid" : undefined} disabled={locked} onClick={() => onClose(true)}>
+            {confirmLabel}
+          </Button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/** A value to hand on (a link, a code): read-only, one tap to copy, falls back to selecting it. */
+export function CopyField({ label, value }: { label: string; value: string }) {
+  const [copied, setCopied] = useState(false);
+  const input = useRef<HTMLInputElement>(null);
+  useEffect(() => {
+    if (!copied) return;
+    const t = setTimeout(() => setCopied(false), 2000);
+    return () => clearTimeout(t);
+  }, [copied]);
+  const copy = async () => {
+    try {
+      await navigator.clipboard.writeText(value);
+      setCopied(true);
+    } catch {
+      input.current?.focus();
+      input.current?.select();
+    }
+  };
+  return (
+    <label className="field">
+      <span>{label}</span>
+      <span className="copy-field">
+        <input ref={input} readOnly value={value} className="input input-code" onFocus={(e) => e.target.select()} />
+        <Button type="button" variant="neutral" onClick={copy}>{copied ? "Copied ✓" : "Copy"}</Button>
+      </span>
+    </label>
+  );
+}
+
+/** `flag`: needs the teacher's attention; `to`: the tile opens where it's dealt with. */
+export type Stat = { label: string; value: ReactNode; flag?: boolean; to?: string };
+export function Stats({ items }: { items: Stat[] }) {
+  return (
+    <div className="tiles">
+      {items.map((s) => {
+        const inner = <><div className="k">{s.label}</div><div className="v">{s.value}</div></>;
+        const className = cx("tile", s.flag && "flag", s.to && "tile-link");
+        return s.to
+          ? <Link key={s.label} to={s.to} className={className}>{inner}</Link>
+          : <div key={s.label} className={className}>{inner}</div>;
+      })}
+    </div>
+  );
+}
+
+/** `end`: match the path exactly (an index section such as Overview). */
+export type Section = { to: string; label: string; badge?: number; end?: boolean };
+/** In-page section switcher (horizontally scrollable on a phone), with pending-count badges. */
+export function SectionNav({ label, items }: { label: string; items: Section[] }) {
+  return (
+    <nav className="secnav" aria-label={label}>
+      {items.map((s) => (
+        <NavLink
+          key={s.to} to={s.to} end={s.end} className="secnav-link"
+          aria-label={s.badge ? `${s.label}, ${s.badge} pending` : undefined}
+        >
+          {s.label}
+          {!!s.badge && <span className="secnav-badge" aria-hidden="true">{s.badge}</span>}
+        </NavLink>
+      ))}
+    </nav>
   );
 }
 
