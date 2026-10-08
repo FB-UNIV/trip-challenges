@@ -12,8 +12,19 @@ export async function eraseTrip(tripId: string): Promise<void> {
   await deleteTripBlobs(tripId);
 
   // 2. Delete all PII-bearing Trip-scoped rows; tombstone the Trip.
-  //    result + audit_log have no FK to trip and survive.
+  //    result + audit_log have no FK to trip and survive — but only reviewed team names do:
+  //    any other name becomes its neutral label (#92, ADR 0007). Results from before labels
+  //    existed are numbered by name; the label is stored so a rerun keeps it.
   await tx(async (c) => {
+    await c.query(
+      `UPDATE result r
+          SET team_name_vetted = COALESCE(r.team_label, x.fallback),
+              team_label = COALESCE(r.team_label, x.fallback)
+         FROM (SELECT id, 'Team ' || dense_rank() OVER (ORDER BY team_name_vetted) AS fallback
+                 FROM result WHERE trip_id = $1 AND NOT team_name_reviewed) x
+        WHERE r.id = x.id`,
+      [tripId],
+    );
     // Children cascade off these, but delete explicitly for clarity/order.
     await c.query(`DELETE FROM duel WHERE trip_id = $1`, [tripId]);
     await c.query(

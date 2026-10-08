@@ -76,6 +76,42 @@ describe("migrate", () => {
     expect(await versions()).toEqual([BASELINE, "0002_b", "0003_c"]);
   });
 
+  it("0003 neutralises team names already kept for erased trips, and leaves other results alone (#92)", async () => {
+    const dir = await dirWith({});
+    dirs.push(dir);
+    await copyFile(join(MIGRATIONS_DIR, "0002_student_access_code_sent_at.sql"), join(dir, "0002_student_access_code_sent_at.sql"));
+    await migrate(poolOf(pg), { dir });
+    const teacher = (await pg.query<{ id: string }>(`INSERT INTO teacher (oidc_subject, email) VALUES ('s','t@x') RETURNING id`)).rows[0]!.id;
+    const trip = async (phase: string) => (await pg.query<{ id: string }>(
+      `INSERT INTO trip (name, owner_teacher_id, phase, trip_end_date, hard_erase_at, vault_key_name)
+       VALUES ('T', $1, $2, '2030-01-01', '2030-02-01', 'k') RETURNING id`, [teacher, phase],
+    )).rows[0]!.id;
+    const [erased, live] = [await trip("erased"), await trip("grace")];
+    const gone = "00000000-0000-0000-0000-000000000001"; // trip row already deleted
+    for (const [t, name, champ] of [[erased, "Zed", false], [erased, "Alpha", false], [erased, "Zed", true], [live, "Léa", false], [gone, "Tom 4B", false]] as const) {
+      await pg.query(
+        `INSERT INTO result (trip_id, challenge_title, placement, team_name_vetted, points, is_grand_champion) VALUES ($1,'C',1,$2,5,$3)`,
+        [t, name, champ],
+      );
+    }
+
+    await copyFile(join(MIGRATIONS_DIR, "0003_team_name_review.sql"), join(dir, "0003_team_name_review.sql"));
+    expect(await migrate(poolOf(pg), { dir })).toEqual(["0003_team_name_review"]);
+
+    const names = async (t: string) =>
+      (await pg.query<{ team_name_vetted: string }>(
+        `SELECT team_name_vetted FROM result WHERE trip_id = $1 ORDER BY is_grand_champion, team_name_vetted`, [t],
+      )).rows.map((r) => r.team_name_vetted);
+    expect(await names(erased)).toEqual(["Team 1", "Team 2", "Team 2"]);
+    expect(await names(gone)).toEqual(["Team 1"]);
+    expect(await names(live)).toEqual(["Léa"]); // still under review; erasure will decide
+    const cols = await pg.query(
+      `SELECT table_name, column_name FROM information_schema.columns
+        WHERE (table_name, column_name) IN (('team','name_reviewed'),('result','team_label'),('result','team_name_reviewed'))`,
+    );
+    expect(cols.rows).toHaveLength(3);
+  });
+
   it("adopts a database created from the old schema.sql without re-running the baseline", async () => {
     // Production today: tables exist (docker-entrypoint-initdb ran schema.sql), no history.
     await pg.exec(await readFile(join(MIGRATIONS_DIR, `${BASELINE}.sql`), "utf8"));

@@ -127,6 +127,32 @@ describe("computeResults (via advance voting -> reveal)", () => {
     ]);
   });
 
+  it("records each team's neutral label (trip-wide creation order) and whether its name was reviewed (#92)", async () => {
+    const trip = await makeTrip(owner, { phase: "voting" });
+    const ch = await makeChallenge(trip, { title: "Gelato" });
+    const foxes = await seed(trip, ch, "Léa & Tom 4B", 0.8);
+    const idle = await makeTeam(trip, "Idle"); // no entry, but still counts in the numbering
+    const owls = await seed(trip, ch, "Les Owls", 0.5);
+    const order = [foxes.teamId, idle, owls.teamId];
+    for (const [i, id] of order.entries()) {
+      await pool.query(`UPDATE team SET created_at = $2 WHERE id = $1`, [id, new Date(Date.UTC(2030, 0, 1, 0, i))]);
+    }
+    await pool.query(`UPDATE team SET name_reviewed = true WHERE id = $1`, [owls.teamId]);
+
+    await advanceTrip(trip, "reveal");
+
+    const { rows } = await pool.query(
+      `SELECT challenge_title, team_name_vetted, team_label, team_name_reviewed
+         FROM result WHERE trip_id = $1 ORDER BY is_grand_champion, placement`,
+      [trip],
+    );
+    expect(rows).toEqual([
+      { challenge_title: "Gelato", team_name_vetted: "Léa & Tom 4B", team_label: "Team 1", team_name_reviewed: false },
+      { challenge_title: "Gelato", team_name_vetted: "Les Owls", team_label: "Team 3", team_name_reviewed: true },
+      { challenge_title: "Grand Champion", team_name_vetted: "Léa & Tom 4B", team_label: "Team 1", team_name_reviewed: false },
+    ]);
+  });
+
   it("treats an unvoted challenge as an all-way tie for 1st", async () => {
     const trip = await makeTrip(owner, { phase: "voting" });
     const ch = await makeChallenge(trip, { title: "Quiet" });

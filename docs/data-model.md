@@ -92,8 +92,9 @@ Single-use code -> one active session; re-issue revokes the old (Access Code ter
 |---|---|---|
 | id | uuid pk | |
 | trip_id | uuid fk | |
-| name 🔒 | bytea | Vault-encrypted (may contain real names -> treat as PII). Vetted copy lands in `result` at reveal so the winner name can survive while the live value is erased. |
-| created_at | timestamptz | |
+| name 🔒 | bytea | Vault-encrypted (may contain real names -> treat as PII). Copied into `result` at reveal; it survives Erasure only if reviewed (see `result`). |
+| name_reviewed | bool | a Teacher reviewed the name (renaming counts). Only reviewed names survive Erasure (ADR-0007). |
+| created_at | timestamptz | also sets the neutral label order ("Team N") |
 
 ### team_member — exclusive membership (one Team per Student per Trip)
 | column | type | notes |
@@ -178,9 +179,11 @@ Ranking per Challenge = order by `wilson_score` desc (ADR-0002).
 | trip_id | uuid | kept as opaque id |
 | challenge_title | text | copied at reveal |
 | placement | int | 1..N |
-| team_name_vetted | text | teacher-reviewed, non-identifying; copied from `team.name` at reveal |
+| team_name_vetted | text | copied from `team.name` at reveal; at Erasure, replaced by `team_label` unless `team_name_reviewed` |
 | points | numeric | placement points × challenge multiplier |
 | is_grand_champion | bool | |
+| team_label | text | neutral "Team N" (trip-wide team creation order), recorded at reveal |
+| team_name_reviewed | bool | copy of `team.name_reviewed` at reveal |
 
 Populated during the teacher-paced ceremony; contains **no image, no student identity**.
 
@@ -211,11 +214,11 @@ Also Trip-scoped but not raw-PII: `access_code_hash` (a hash), `email_lookup` (a
 
 ## Erasure procedure (maps to ADR-0001)
 1. Delete MinIO objects for the Trip (best-effort hard delete of live blobs).
-2. Delete all Trip-scoped rows (student, team, submission, nomination, duel, stats, sessions, invites) — cascade by `trip_id`.
+2. Replace every unreviewed team name in `result` with its neutral label (ADR-0007), then delete all Trip-scoped rows (student, team, submission, nomination, duel, stats, sessions, invites) — cascade by `trip_id`.
 3. Scrub email-delivery + app logs of any Trip identifiers/PII; rotate.
 4. **Destroy the Vault transit key `trip-<tripId>`** — the decisive step: any residual copy in DB/MinIO backups is now permanently unreadable.
 5. Set `trip.phase = erased`, write `audit_log(action=erasure_fired)`.
-6. `result` and `audit_log` remain.
+6. `result` (reviewed team names or neutral labels only) and `audit_log` remain.
 
 ## State machine (trip.phase)
 ```

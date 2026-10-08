@@ -109,14 +109,16 @@ test("a full trip: roster → teams → photos → moderation → duels → cere
     await anon.dispose();
   });
 
-  await test.step("erasure: students are signed out and photos are gone; results survive", async () => {
+  await test.step("erasure: students are signed out and photos are gone; results survive without unreviewed names", async () => {
     await admin.eraseNow();
     const home = new StudentHomePage(kids.Foxes.page);
     await home.goto();
     await home.expectSignedOut();
     expect((await teacher.api.r.get(`/api/submissions/${kids.Foxes.submissionId}/photo`)).status()).toBe(404);
     const results = await teacher.api.results(tripId);
-    expect(results.filter((r) => r.is_grand_champion).map((r) => r.team_name_vetted)).toEqual(["Foxes"]);
+    // Nobody reviewed "Foxes", so only its neutral label survives (#92): Foxes was created first.
+    expect(results.filter((r) => r.is_grand_champion).map((r) => r.team_name_vetted)).toEqual(["Team 1"]);
+    expect(results.map((r) => r.team_name_vetted)).not.toContain("Foxes");
   });
 
   await closeAll(teacher, ...Object.values(kids));
