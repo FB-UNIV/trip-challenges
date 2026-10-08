@@ -78,6 +78,10 @@ function adminApi(over: Partial<Trip> = {}) {
     teachers: [{ id: "tch1", email: "owner@school.test", display_name: "Owner", role: "owner" }],
     invites: [{ id: "inv1", email: "pending@school.test", expires_at: "2030-01-08" }],
     results: [] as object[],
+    progress: {
+      students: 3, teams: 1, studentsWithoutTeam: 1, eraseAt: "2030-02-01T00:00:00.000Z", graceEndsAt: null,
+      challenges: [{ id: "ch1", title: "Gelato selfie", teamsWithPhotos: 0, pending: 1, approved: 0, rejected: 0 }],
+    },
     calls: [] as string[],
     patches: [] as unknown[],
     advanceRefusal: null as string | null,
@@ -106,6 +110,7 @@ function adminApi(over: Partial<Trip> = {}) {
     }),
     http.post("/api/trips/t1/erase", () => ok("erase")),
     http.get("/api/trips/t1/roster/status", () => HttpResponse.json(s.roster)),
+    http.get("/api/trips/t1/progress", () => HttpResponse.json(s.progress)),
     http.post("/api/trips/t1/roster", async ({ request }) => {
       const { emails } = (await request.json()) as { emails: string[] };
       if (s.rosterRefusal) return HttpResponse.json({ error: "bad_request", message: "invalid email" }, { status: 400 });
@@ -204,7 +209,7 @@ describe("trip admin", () => {
       const { user, location } = renderAt("/teacher/trips/t1/overview");
       const tile = (k: string) => [...document.querySelectorAll(".tile")].find((t) => t.querySelector(".k")?.textContent === k)!;
       await waitFor(() => expect(tile("Students")).toHaveTextContent("3"));
-      expect(tile("Codes emailed")).toHaveTextContent("3");
+      expect(tile("Teams")).toHaveTextContent("1");
       expect(tile("Challenges")).toHaveTextContent("1");
       await waitFor(() => expect(tile("To review")).toHaveTextContent("1"));
       expect(tile("To review")).toHaveClass("flag");
@@ -212,29 +217,69 @@ describe("trip admin", () => {
       expect(location()).toBe("/teacher/trips/t1/review");
     });
 
+    it("lists what's ready and what's missing, each linking to where it's done", async () => {
+      adminApi();
+      renderAt("/teacher/trips/t1/overview");
+      const now = await waitFor(() => card("Getting ready"));
+      expect(await within(now).findByRole("link", { name: /Import the roster/ })).toHaveAttribute("href", "/teacher/trips/t1/students");
+      expect(within(now).getByRole("link", { name: /Add challenges/ })).toHaveTextContent("1 challenge");
+      expect(within(now).getByRole("link", { name: /Students form teams/ })).toHaveTextContent("1 without a team");
+      expect(within(now).getByRole("link", { name: /Plan the dates/ })).toHaveAttribute("href", "/teacher/trips/t1/settings");
+    });
+
+    it("warns when student data is about to be erased", async () => {
+      const api = adminApi({ phase: "voting" });
+      api.progress.eraseAt = new Date(Date.now() + 2.5 * 86_400_000).toISOString();
+      renderAt("/teacher/trips/t1/overview");
+      expect(await screen.findByText("Student data will be erased in 2 days.")).toBeInTheDocument();
+    });
+
     it("keeps erasure away from the everyday controls", async () => {
       adminApi();
       renderAt("/teacher/trips/t1/overview");
-      await screen.findByRole("heading", { name: "Lifecycle" });
+      await screen.findByRole("heading", { name: "Getting ready" });
       expect(screen.queryByRole("button", { name: /Erase/ })).not.toBeInTheDocument();
     });
   });
 
   describe("lifecycle", () => {
-    it("advances to the next phase", async () => {
+    it("moves the trip on after confirming what that does", async () => {
       const api = adminApi();
       const { user } = renderAt("/teacher/trips/t1/overview");
-      await user.click(await screen.findByRole("button", { name: "Advance to challenge →" }));
-      expect(await screen.findByRole("button", { name: "Advance to voting →" })).toBeInTheDocument();
+      await user.click(await screen.findByRole("button", { name: "Start the challenge →" }));
+      const dialog = screen.getByRole("alertdialog", { name: "Start the challenge?" });
+      expect(dialog).toHaveTextContent("1 student has no team yet");
+      await user.click(within(dialog).getByRole("button", { name: "Start the challenge" }));
+      expect(await screen.findByRole("heading", { name: "Challenge under way" })).toBeInTheDocument();
+      expect(screen.getByRole("button", { name: "Open voting →" })).toBeInTheDocument();
       expect(api.calls).toContain("advance challenge");
+    });
+
+    it("does nothing when the teacher cancels", async () => {
+      const api = adminApi();
+      const { user } = renderAt("/teacher/trips/t1/overview");
+      await user.click(await screen.findByRole("button", { name: "Start the challenge →" }));
+      await user.click(within(screen.getByRole("alertdialog")).getByRole("button", { name: "Cancel" }));
+      expect(api.calls).not.toContain("advance challenge");
+      expect(screen.getByRole("heading", { name: "Getting ready" })).toBeInTheDocument();
     });
 
     it("catches up when the trip already moved on (another teacher, or the planned date)", async () => {
       const api = adminApi();
       api.advanceRefusal = "challenge";
       const { user } = renderAt("/teacher/trips/t1/overview");
-      await user.click(await screen.findByRole("button", { name: "Advance to challenge →" }));
-      expect(await screen.findByRole("button", { name: "Advance to voting →" })).toBeInTheDocument();
+      await user.click(await screen.findByRole("button", { name: "Start the challenge →" }));
+      await user.click(within(screen.getByRole("alertdialog")).getByRole("button", { name: "Start the challenge" }));
+      expect(await screen.findByRole("button", { name: "Open voting →" })).toBeInTheDocument();
+    });
+
+    it("explains an advance that failed for another reason", async () => {
+      adminApi();
+      server.use(http.post("/api/trips/t1/advance", () => HttpResponse.json({ error: "oops", message: "Vault is unreachable." }, { status: 503 })));
+      const { user } = renderAt("/teacher/trips/t1/overview");
+      await user.click(await screen.findByRole("button", { name: "Start the challenge →" }));
+      await user.click(within(screen.getByRole("alertdialog")).getByRole("button", { name: "Start the challenge" }));
+      expect(await screen.findByRole("alert")).toHaveTextContent("Vault is unreachable.");
     });
   });
 
