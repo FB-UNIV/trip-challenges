@@ -40,6 +40,13 @@ export function nowPlan({ phase, trip, progress, roster, pending = 0, now = new 
   const review: PlanCheck[] = pending > 0
     ? [{ title: "Review nominations", state: "doing", meta: `${pending} waiting`, to: "review" }]
     : [];
+  // Team names are only kept after the trip if a teacher checked them (ADR 0007).
+  const unchecked = progress.teamsUnreviewed;
+  const names: PlanCheck[] = progress.teams > 0
+    ? [unchecked > 0
+      ? { title: "Check team names", state: "doing", meta: `${unchecked} not checked`, to: "students" }
+      : { title: "Check team names", state: "done", meta: "All checked", to: "students" }]
+    : [];
   const plan = planFor();
   const untilErasure = new Date(progress.eraseAt).getTime() - now.getTime();
   if (phase !== "grace" && phase !== "erased" && untilErasure <= WARN_BEFORE_ERASURE) {
@@ -68,8 +75,8 @@ export function nowPlan({ phase, trip, progress, roster, pending = 0, now = new 
           title: "Getting ready",
           checks: [
             { title: "Add challenges", state: n > 0 ? "done" : "todo", meta: n > 0 ? plural(n, "challenge") : undefined, to: "challenges" },
-            { ...rosterCheck, to: "students" },
-            { ...teamCheck, to: "students" },
+            { ...rosterCheck, to: roster.failed > 0 ? "students?filter=undelivered" : "students" },
+            { ...teamCheck, to: loose > 0 ? "students?filter=no-team" : "students" },
             trip.challenge_opens_at
               ? { title: "Plan the dates", state: "done", meta: `Challenge opens ${rel(trip.challenge_opens_at)}`, to: "settings" }
               : { title: "Plan the dates", state: "todo", meta: "Optional — or start the challenge yourself", to: "settings" },
@@ -92,6 +99,7 @@ export function nowPlan({ phase, trip, progress, roster, pending = 0, now = new 
               to: "challenges",
             })),
             ...review,
+            ...names,
           ],
           when: trip.voting_opens_at ? `Voting opens ${rel(trip.voting_opens_at)}` : undefined,
           action: {
@@ -112,11 +120,20 @@ export function nowPlan({ phase, trip, progress, roster, pending = 0, now = new 
               to: "review",
             })),
             ...review,
+            ...names,
+            ...(progress.students > 0 ? [{
+              title: "Students who voted",
+              state: progress.voters === 0 ? "todo" : progress.voters >= progress.students ? "done" : "doing",
+              meta: `${progress.voters} of ${progress.students}`,
+            } satisfies PlanCheck] : []),
           ],
           when: closes ? `Voting ${new Date(closes) <= now ? "closed" : "closes"} ${rel(closes)}` : undefined,
           action: {
             label: "Close voting & compute results", to: "reveal",
-            confirm: "Voting stops and results are computed. Students see them only after the ceremony.",
+            confirm: "Voting stops and results are computed. Students see them only after the ceremony."
+              + (unchecked > 0
+                ? ` ${plural(unchecked, "team name")} ${unchecked === 1 ? "isn't" : "aren't"} checked: they'll show at the ceremony, then become “Team N” after erasure.`
+                : ""),
           },
         };
       }

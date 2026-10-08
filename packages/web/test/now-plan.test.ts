@@ -92,6 +92,7 @@ describe("challenge", () => {
       ["Tower", "doing", "1 of 4 teams entered"],
       ["Bridge", "todo", "0 of 4 teams entered"],
       ["Review nominations", "doing", "2 waiting"],
+      ["Check team names", "done", "All checked"],
     ]);
     expect(check(plan, /Review/).to).toBe("review");
     expect(plan.when).toBe("Voting opens in 2 days");
