@@ -1,5 +1,19 @@
 # Changelog
 
+## [0.5.0](https://github.com/FB-UNIV/trip-challenges/compare/v0.4.0...v0.5.0) (2026-10-08)
+
+
+### Features
+
+* **api:** teacher trip progress — team, photo and moderation counts, effective erasure date ([#86](https://github.com/FB-UNIV/trip-challenges/issues/86)) ([f3df1ee](https://github.com/FB-UNIV/trip-challenges/commit/f3df1ee49010facdb610f593e2b13d19b05767f7))
+* **web:** printable QR sheet; challenges editor with errors and empty state ([#89](https://github.com/FB-UNIV/trip-challenges/issues/89)) ([924e106](https://github.com/FB-UNIV/trip-challenges/commit/924e10631513e10093252cbaedc4f99045ea3f66))
+* **web:** review queue — grouped by challenge, approved list, confirmed photo removal ([#88](https://github.com/FB-UNIV/trip-challenges/issues/88)) ([067fb6c](https://github.com/FB-UNIV/trip-challenges/commit/067fb6c319370cff6d89134fc122f1b73efff81d))
+* **web:** roster progress and failed emails; settings, invites and results report errors ([#91](https://github.com/FB-UNIV/trip-challenges/issues/91)) ([db87afe](https://github.com/FB-UNIV/trip-challenges/commit/db87afedf89c1a0a12adbb41b4c3040a820d4c48))
+* **web:** teacher home — trip cards by phase, past trips apart, new trip on demand ([#90](https://github.com/FB-UNIV/trip-challenges/issues/90)) ([d5c9711](https://github.com/FB-UNIV/trip-challenges/commit/d5c971124182126506a23b083d5465db7d290398))
+* **web:** teacher Now card — per-phase checklist, countdowns, erasure warning, confirmed advance ([#87](https://github.com/FB-UNIV/trip-challenges/issues/87)) ([9602323](https://github.com/FB-UNIV/trip-challenges/commit/9602323adfd930c5ff91ea4b7e97efb624e26ebc))
+* **web:** teacher UI kit — confirm dialog, notice, useAction, copy field, stats, section nav ([#83](https://github.com/FB-UNIV/trip-challenges/issues/83)) ([32e33fe](https://github.com/FB-UNIV/trip-challenges/commit/32e33fef9ee54578dce5072524c24f2285922753))
+* **web:** trip admin split into sections with a nav; erasure behind a typed confirmation ([#84](https://github.com/FB-UNIV/trip-challenges/issues/84)) ([1c5c7ed](https://github.com/FB-UNIV/trip-challenges/commit/1c5c7edc6c2bc1e32a2a43b0a7a2f4896c75cf77))
+
 ## [0.4.0](https://github.com/FB-UNIV/trip-challenges/compare/v0.3.0...v0.4.0) (2026-10-07)
 
 
