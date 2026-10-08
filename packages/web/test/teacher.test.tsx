@@ -445,7 +445,8 @@ describe("trip admin", () => {
 
   describe("students", () => {
     const list = () => screen.findByRole("list", { name: "Students" });
-    const row = (email: string) => screen.getByText(email).closest("li") as HTMLElement;
+    const students = () => screen.getByRole("list", { name: "Students" });
+    const row = (email: string) => within(students()).getByText(email).closest("li") as HTMLElement;
 
     it("shows each student's status and team, with a hint when they asked for a new code", async () => {
       adminApi();
@@ -467,10 +468,12 @@ describe("trip admin", () => {
       await user.click(within(chips).getByRole("button", { name: "Not joined 3" }));
       expect(location()).toBe("/teacher/trips/t1/students?filter=not-joined");
       expect(within(await list()).getAllByRole("listitem")).toHaveLength(3);
-      expect(screen.queryByText("ana@school.test")).not.toBeInTheDocument();
+      expect(within(students()).queryByText("ana@school.test")).not.toBeInTheDocument();
 
       await user.type(screen.getByRole("searchbox", { name: "Search by email" }), "shcool");
       expect(within(await list()).getAllByRole("listitem")).toHaveLength(2);
+      await user.type(screen.getByRole("searchbox", { name: "Search by email" }), "-nobody");
+      expect(await screen.findByText("No one here")).toBeInTheDocument();
     });
 
     it("opens straight on a filter from a link", async () => {
@@ -505,7 +508,7 @@ describe("trip admin", () => {
       await user.clear(field);
       await user.type(field, "lea@school.test");
       await user.click(screen.getByRole("button", { name: "Save & send" }));
-      expect(await screen.findByText("lea@school.test")).toBeInTheDocument();
+      expect(await within(students()).findByText("lea@school.test")).toBeInTheDocument();
       expect(row("lea@school.test")).toHaveTextContent("Invited");
       expect(api.calls).toContain("fix s3 lea@school.test");
     });
@@ -519,7 +522,7 @@ describe("trip admin", () => {
       await user.clear(field);
       await user.type(field, "orphan@school.test");
       await user.click(screen.getByRole("button", { name: "Save & send" }));
-      expect(await screen.findByText("orphan@school.test")).toBeInTheDocument();
+      expect(await within(students()).findByText("orphan@school.test")).toBeInTheDocument();
       expect(row("orphan@school.test")).toHaveTextContent("Sending");
       expect(api.calls).toContain("retry i1 orphan@school.test");
     });
