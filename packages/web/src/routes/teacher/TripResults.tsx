@@ -1,7 +1,8 @@
 // Results: Grand Champion tie-break and the ceremony launcher (reveal onwards).
 import { Navigate } from "react-router-dom";
 import { api, type ResultRow } from "../../api.js";
-import { Button, Card, EmptyState, Notice, useAction, useAsync } from "../../ui.js";
+import { qk, useLoad, useTripRefresh } from "../../query.js";
+import { Button, Card, EmptyState, Notice, useAction } from "../../ui.js";
 import { hasResults, useTrip } from "./TripLayout.js";
 
 export function TripResults() {
@@ -11,7 +12,8 @@ export function TripResults() {
 }
 
 function Results({ tripId, phase }: { tripId: string; phase: string }) {
-  const res = useAsync(() => api.results(tripId).catch(() => ({ results: [] })), [tripId]);
+  const res = useLoad(qk.tripPart(tripId, "results"), () => api.results(tripId).catch(() => ({ results: [] as ResultRow[] })));
+  const refreshTrip = useTripRefresh(tripId);
   const results = res.data?.results ?? [];
   const champions = results.filter((r) => r.is_grand_champion);
 
@@ -28,7 +30,7 @@ function Results({ tripId, phase }: { tripId: string; phase: string }) {
       {phase === "reveal" && champions.length > 1 && (
         <div className="warncard mt-2">
           <b>It's a tie for Grand Champion — pick the winner:</b>
-          {champions.map((c) => <Crown key={c.id} tripId={tripId} team={c} onCrowned={res.reload} />)}
+          {champions.map((c) => <Crown key={c.id} tripId={tripId} team={c} onCrowned={() => void refreshTrip()} />)}
         </div>
       )}
 

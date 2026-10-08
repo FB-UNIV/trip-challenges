@@ -1,9 +1,10 @@
 // Teacher UI: sign-in gate, trip list/creation, and the trip admin screen.
-import { describe, it, expect, vi } from "vitest";
-import { screen, waitFor, within } from "@testing-library/react";
-import { http, HttpResponse } from "msw";
+import { describe, it, expect, vi, afterEach } from "vitest";
+import { act, screen, waitFor, within } from "@testing-library/react";
+import { delay, http, HttpResponse } from "msw";
 import { server } from "./server.js";
 import { renderAt } from "./render.js";
+import { LIVE_MS } from "../src/query.js";
 
 const TEACHER = { id: "tch1", email: "owner@school.test", display_name: "Owner" };
 
@@ -261,6 +262,52 @@ const card = (heading: string) => screen.getByRole("heading", { name: heading })
 const nav = () => screen.getByRole("navigation", { name: "Trip sections" });
 
 describe("trip admin", () => {
+  describe("live data", () => {
+    afterEach(() => { vi.useRealTimers(); });
+
+    it("switching sections shows what's cached at once, then refreshes it", async () => {
+      const api = adminApi();
+      const { user } = renderAt("/teacher/trips/t1/overview");
+      const tile = (k: string) => [...document.querySelectorAll(".tile")].find((t) => t.querySelector(".k")?.textContent === k);
+      await waitFor(() => expect(tile("Students")).toHaveTextContent("3"));
+      await screen.findByRole("heading", { name: "Getting ready" });
+      await user.click(within(nav()).getByRole("link", { name: "Challenges" }));
+      await screen.findByText("Gelato selfie");
+      // From now on the server is slow: only a cache can show the overview right away.
+      server.use(http.get("/api/trips/t1/progress", async () => { await delay(400); return HttpResponse.json(api.progress); }));
+      await user.click(within(nav()).getByRole("link", { name: "Overview" }));
+      expect(screen.getByRole("heading", { name: "Getting ready" })).toBeInTheDocument(); // no skeleton, no wait
+      expect(tile("Students")).toHaveTextContent("3");
+    });
+
+    it("an open screen picks up what changed elsewhere: a new nomination, a scheduled phase change", async () => {
+      vi.useFakeTimers({ shouldAdvanceTime: true });
+      const api = adminApi();
+      renderAt("/teacher/trips/t1/review");
+      expect(await screen.findByRole("link", { name: "Review, 1 pending" })).toBeInTheDocument();
+
+      api.nominations.push({ id: "n2", challenge_id: "ch1", team_id: "team2", submission_id: "sub2", state: "pending" });
+      api.trip.phase = "challenge"; // the planned date passed
+      await act(() => vi.advanceTimersByTimeAsync(LIVE_MS + 100));
+      expect(await within(nav()).findByRole("link", { name: "Review, 2 pending" })).toBeInTheDocument();
+      expect(screen.getByText("Challenge", { selector: ".trip-head .pill" })).toBeInTheDocument();
+    });
+
+    it("an action refreshes the rest of the trip: approving updates the overview counts", async () => {
+      const api = adminApi();
+      const { user } = renderAt("/teacher/trips/t1/review");
+      const queue = await screen.findByRole("region", { name: "Waiting for review" });
+      await user.click(await within(queue).findByRole("button", { name: "Approve" }));
+      api.progress.challenges[0]!.approved = 1;
+      api.progress.challenges[0]!.pending = 0;
+      await within(queue).findByText("Nothing to review");
+      await user.click(within(nav()).getByRole("link", { name: "Overview" }));
+      const tile = () => [...document.querySelectorAll(".tile")].find((t) => t.querySelector(".k")?.textContent === "To review");
+      await waitFor(() => expect(tile()).toHaveTextContent("0"));
+      expect(tile()).not.toHaveClass("flag");
+    });
+  });
+
   describe("layout", () => {
     it("lands on the overview with a section nav; Review shows what's pending", async () => {
       adminApi();

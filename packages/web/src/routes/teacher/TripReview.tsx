@@ -1,18 +1,20 @@
 // Review: nominations waiting for a decision, grouped by challenge, then the approved ones.
 // Any photo can be removed at any time — the child-safety backstop (CONTEXT: Moderation).
 import { api, type NominationRow } from "../../api.js";
-import { Button, EmptyState, Notice, Pill, useAction, useAsync, useConfirm, useLightbox } from "../../ui.js";
+import { qk, useLoad } from "../../query.js";
+import { Button, EmptyState, Notice, Pill, useAction, useConfirm, useLightbox } from "../../ui.js";
 import { useTrip } from "./TripLayout.js";
 
 export function TripReview() {
   const { tripId, pending, reloadPending } = useTrip();
-  const challenges = useAsync(() => api.listChallenges(tripId).catch(() => ({ challenges: [] })), [tripId]);
-  const approved = useAsync(
+  const challenges = useLoad(qk.tripPart(tripId, "challenges"), () => api.listChallenges(tripId)); // titles only
+  const approved = useLoad(
+    qk.tripPart(tripId, "nominations", "approved"),
     () => api.listNominations(tripId, "approved").catch(() => ({ nominations: [] as NominationRow[] })),
-    [tripId],
+    { live: true },
   );
   const titleOf = (id: string) => challenges.data?.challenges.find((c) => c.id === id)?.title ?? "Challenge";
-  const changed = () => { reloadPending(); approved.reload(); };
+  const changed = () => void reloadPending(); // the whole trip: queue, approved list, badge, overview
   const votable = approved.data?.nominations ?? [];
 
   return (
