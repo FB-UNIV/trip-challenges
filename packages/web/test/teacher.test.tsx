@@ -86,6 +86,7 @@ function adminApi(over: Partial<Trip> = {}) {
     patches: [] as unknown[],
     advanceRefusal: null as string | null,
     rosterRefusal: false,
+    moderationRefusal: null as string | null,
   };
   const ok = (call: string, body: object = { ok: true }) => { s.calls.push(call); return HttpResponse.json(body); };
   server.use(
@@ -136,11 +137,13 @@ function adminApi(over: Partial<Trip> = {}) {
       return ok(`delete ${params.id}`);
     }),
     http.get("/api/nominations/trip/t1", ({ request }) => {
-      expect(new URL(request.url).searchParams.get("state")).toBe("pending");
-      return HttpResponse.json({ nominations: s.nominations });
+      const state = new URL(request.url).searchParams.get("state");
+      return HttpResponse.json({ nominations: s.nominations.filter((n) => !state || n.state === state) });
     }),
     http.post("/api/nominations/:id/:decision", ({ params }) => {
-      s.nominations = s.nominations.filter((n) => n.id !== params.id);
+      if (s.moderationRefusal) return HttpResponse.json({ error: "closed", message: s.moderationRefusal }, { status: 409 });
+      const n = s.nominations.find((x) => x.id === params.id)!;
+      n.state = params.decision === "approve" ? "approved" : "rejected";
       return ok(`${params.decision} ${params.id}`);
     }),
     http.post("/api/submissions/:id/remove", ({ params }) => {
@@ -429,29 +432,75 @@ describe("trip admin", () => {
   });
 
   describe("review", () => {
+    const queue = () => screen.getByRole("region", { name: "Waiting for review" });
+    /** The queue once the trip (and so the section) has loaded. */
+    const loaded = () => screen.findByRole("region", { name: "Waiting for review" });
+
+    it("groups what waits for review by challenge", async () => {
+      const api = adminApi();
+      api.challenges.push({ id: "ch2", title: "Fountain", instructions: "", multiplier: 1, qr_slug: "def" });
+      api.nominations.push({ id: "n2", challenge_id: "ch2", team_id: "team2", submission_id: "sub2", state: "pending" });
+      renderAt("/teacher/trips/t1/review");
+      const gelato = await screen.findByRole("group", { name: "Gelato selfie" });
+      const fountain = screen.getByRole("group", { name: "Fountain" });
+      expect(within(gelato).getAllByRole("button", { name: "Approve" })).toHaveLength(1);
+      expect(within(fountain).getByRole("button", { name: "Enlarge photo" }).querySelector("img")).toHaveAttribute("src", "/api/submissions/sub2/photo");
+      expect(within(queue()).getByText("2 waiting")).toBeInTheDocument();
+    });
+
     it.each([
       ["Approve", "approve n1"],
       ["Reject", "reject n1"],
-      ["Remove photo", "remove sub1"],
-    ])("%s takes the nomination off the review list and the nav badge", async (button, call) => {
+    ])("%s takes the nomination off the queue and the nav badge", async (button, call) => {
       const api = adminApi();
       const { user } = renderAt("/teacher/trips/t1/review");
-      const mod = await waitFor(() => card("Moderation"));
-      expect(await within(mod).findByText("1 pending")).toBeInTheDocument();
-      expect(await within(nav()).findByRole("link", { name: "Review, 1 pending" })).toBeInTheDocument();
-      await user.click(within(mod).getByRole("button", { name: button }));
-      expect(await within(mod).findByText("Nothing to review.")).toBeInTheDocument();
+      expect(await screen.findByRole("link", { name: "Review, 1 pending" })).toBeInTheDocument();
+      await user.click(await within(await loaded()).findByRole("button", { name: button }));
+      expect(await within(queue()).findByText("Nothing to review")).toBeInTheDocument();
       expect(await within(nav()).findByRole("link", { name: "Review" })).toBeInTheDocument();
       expect(api.calls).toEqual([call]);
     });
 
-    it("enlarges a nomination's photo", async () => {
+    it("lists approved photos, which can still be removed", async () => {
       adminApi();
-      const { user, container } = renderAt("/teacher/trips/t1/review");
-      await waitFor(() => expect(container.querySelector(".mod-cell img")).not.toBeNull());
-      await user.click(container.querySelector<HTMLImageElement>(".mod-cell img")!);
+      const { user } = renderAt("/teacher/trips/t1/review");
+      await user.click(await within(await loaded()).findByRole("button", { name: "Approve" }));
+      const approved = await screen.findByRole("region", { name: "Approved — votable" });
+      expect(await within(approved).findByRole("button", { name: "Remove photo…" })).toBeInTheDocument();
+    });
+
+    it("removes a photo only after confirming", async () => {
+      const api = adminApi();
+      const { user } = renderAt("/teacher/trips/t1/review");
+      await user.click(await within(await loaded()).findByRole("button", { name: "Remove photo…" }));
+      const dialog = screen.getByRole("alertdialog", { name: "Remove this photo?" });
+      expect(dialog).toHaveTextContent("No one will see it again");
+      await user.click(within(dialog).getByRole("button", { name: "Cancel" }));
+      expect(api.calls).toEqual([]);
+
+      await user.click(within(queue()).getByRole("button", { name: "Remove photo…" }));
+      await user.click(within(screen.getByRole("alertdialog")).getByRole("button", { name: "Remove photo" }));
+      expect(await within(queue()).findByText("Nothing to review")).toBeInTheDocument();
+      expect(api.calls).toEqual(["remove sub1"]);
+    });
+
+    it("explains a refused decision and keeps the nomination", async () => {
+      const api = adminApi();
+      api.moderationRefusal = "Moderation is closed in this phase.";
+      const { user } = renderAt("/teacher/trips/t1/review");
+      await user.click(await within(await loaded()).findByRole("button", { name: "Approve" }));
+      expect(await within(queue()).findByRole("alert")).toHaveTextContent("Moderation is closed in this phase.");
+      expect(within(queue()).getByRole("button", { name: "Approve" })).toBeEnabled();
+    });
+
+    it("enlarges a photo from the keyboard", async () => {
+      adminApi();
+      const { user } = renderAt("/teacher/trips/t1/review");
+      const enlarge = await within(await loaded()).findByRole("button", { name: "Enlarge photo" });
+      enlarge.focus();
+      await user.keyboard("{Enter}");
       const dialog = screen.getByRole("dialog", { name: "Photo" });
-      expect(within(dialog).getByAltText("Nomination")).toHaveAttribute("src", "/api/submissions/sub1/photo");
+      expect(within(dialog).getByAltText("Gelato selfie")).toHaveAttribute("src", "/api/submissions/sub1/photo");
       await user.keyboard("{Escape}");
       expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
     });

@@ -113,13 +113,13 @@ export class TripAdminPage {
   async approveAll(expected: number) {
     await this.open("Review");
     await this.page.reload();
-    const card = this.card("Moderation");
-    await expect(card.getByRole("button", { name: "Approve" })).toHaveCount(expected);
+    const queue = this.page.getByRole("region", { name: "Waiting for review" });
+    await expect(queue.getByRole("button", { name: "Approve" })).toHaveCount(expected);
     for (let i = expected; i > 0; i--) {
-      await card.getByRole("button", { name: "Approve" }).first().click();
-      await expect(card.getByRole("button", { name: "Approve" })).toHaveCount(i - 1);
+      await queue.getByRole("button", { name: "Approve" }).first().click();
+      await expect(queue.getByRole("button", { name: "Approve" })).toHaveCount(i - 1);
     }
-    await expect(card.getByText("Nothing to review.")).toBeVisible();
+    await expect(queue.getByText("Nothing to review")).toBeVisible();
   }
 
   /** Erasure lives in Settings' danger zone and asks to type the trip's name. */
