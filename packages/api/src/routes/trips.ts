@@ -106,14 +106,17 @@ export async function tripRoutes(app: FastifyInstance) {
     const id = tripOf(req).id;
     const { rows: [t] } = await pool.query<{
       phase: string; hard_erase_at: Date; grace_ends_at: Date | null;
-      students: number; teams: number; without_team: number;
+      students: number; teams: number; without_team: number; teams_unreviewed: number; voters: number;
     }>(
       `SELECT phase, hard_erase_at,
               voting_closes_at + (grace_days || ' days')::interval AS grace_ends_at,
               (SELECT count(*)::int FROM student s WHERE s.trip_id = t.id) AS students,
               (SELECT count(DISTINCT m.team_id)::int FROM team_member m WHERE m.trip_id = t.id) AS teams,
               (SELECT count(*)::int FROM student s WHERE s.trip_id = t.id
-                  AND NOT EXISTS (SELECT 1 FROM team_member m WHERE m.student_id = s.id)) AS without_team
+                  AND NOT EXISTS (SELECT 1 FROM team_member m WHERE m.student_id = s.id)) AS without_team,
+              (SELECT count(*)::int FROM team tm WHERE tm.trip_id = t.id AND NOT tm.name_reviewed
+                  AND EXISTS (SELECT 1 FROM team_member m WHERE m.team_id = tm.id)) AS teams_unreviewed,
+              (SELECT count(DISTINCT d.voter_student_id)::int FROM duel d WHERE d.trip_id = t.id) AS voters
          FROM trip t WHERE t.id = $1`,
       [id],
     );
@@ -137,6 +140,8 @@ export async function tripRoutes(app: FastifyInstance) {
       students: t!.students,
       teams: t!.teams,
       studentsWithoutTeam: t!.without_team,
+      teamsUnreviewed: t!.teams_unreviewed,
+      voters: t!.voters,
       challenges,
       eraseAt: eraseAt.toISOString(),
       graceEndsAt: graceEndsAt?.toISOString() ?? null,
