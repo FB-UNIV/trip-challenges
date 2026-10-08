@@ -433,6 +433,8 @@ describe("trip admin", () => {
 
   describe("review", () => {
     const queue = () => screen.getByRole("region", { name: "Waiting for review" });
+    /** The queue once the trip (and so the section) has loaded. */
+    const loaded = () => screen.findByRole("region", { name: "Waiting for review" });
 
     it("groups what waits for review by challenge", async () => {
       const api = adminApi();
@@ -442,7 +444,7 @@ describe("trip admin", () => {
       const gelato = await screen.findByRole("group", { name: "Gelato selfie" });
       const fountain = screen.getByRole("group", { name: "Fountain" });
       expect(within(gelato).getAllByRole("button", { name: "Approve" })).toHaveLength(1);
-      expect(within(fountain).getByRole("img")).toHaveAttribute("src", "/api/submissions/sub2/photo");
+      expect(within(fountain).getByRole("button", { name: "Enlarge photo" }).querySelector("img")).toHaveAttribute("src", "/api/submissions/sub2/photo");
       expect(within(queue()).getByText("2 waiting")).toBeInTheDocument();
     });
 
@@ -452,8 +454,8 @@ describe("trip admin", () => {
     ])("%s takes the nomination off the queue and the nav badge", async (button, call) => {
       const api = adminApi();
       const { user } = renderAt("/teacher/trips/t1/review");
-      expect(await within(nav()).findByRole("link", { name: "Review, 1 pending" })).toBeInTheDocument();
-      await user.click(await within(queue()).findByRole("button", { name: button }));
+      expect(await screen.findByRole("link", { name: "Review, 1 pending" })).toBeInTheDocument();
+      await user.click(await within(await loaded()).findByRole("button", { name: button }));
       expect(await within(queue()).findByText("Nothing to review")).toBeInTheDocument();
       expect(await within(nav()).findByRole("link", { name: "Review" })).toBeInTheDocument();
       expect(api.calls).toEqual([call]);
@@ -462,7 +464,7 @@ describe("trip admin", () => {
     it("lists approved photos, which can still be removed", async () => {
       adminApi();
       const { user } = renderAt("/teacher/trips/t1/review");
-      await user.click(await within(queue()).findByRole("button", { name: "Approve" }));
+      await user.click(await within(await loaded()).findByRole("button", { name: "Approve" }));
       const approved = await screen.findByRole("region", { name: "Approved — votable" });
       expect(await within(approved).findByRole("button", { name: "Remove photo…" })).toBeInTheDocument();
     });
@@ -470,7 +472,7 @@ describe("trip admin", () => {
     it("removes a photo only after confirming", async () => {
       const api = adminApi();
       const { user } = renderAt("/teacher/trips/t1/review");
-      await user.click(await within(queue()).findByRole("button", { name: "Remove photo…" }));
+      await user.click(await within(await loaded()).findByRole("button", { name: "Remove photo…" }));
       const dialog = screen.getByRole("alertdialog", { name: "Remove this photo?" });
       expect(dialog).toHaveTextContent("No one will see it again");
       await user.click(within(dialog).getByRole("button", { name: "Cancel" }));
@@ -486,7 +488,7 @@ describe("trip admin", () => {
       const api = adminApi();
       api.moderationRefusal = "Moderation is closed in this phase.";
       const { user } = renderAt("/teacher/trips/t1/review");
-      await user.click(await within(queue()).findByRole("button", { name: "Approve" }));
+      await user.click(await within(await loaded()).findByRole("button", { name: "Approve" }));
       expect(await within(queue()).findByRole("alert")).toHaveTextContent("Moderation is closed in this phase.");
       expect(within(queue()).getByRole("button", { name: "Approve" })).toBeEnabled();
     });
@@ -494,7 +496,7 @@ describe("trip admin", () => {
     it("enlarges a photo from the keyboard", async () => {
       adminApi();
       const { user } = renderAt("/teacher/trips/t1/review");
-      const enlarge = await within(queue()).findByRole("button", { name: "Enlarge photo" });
+      const enlarge = await within(await loaded()).findByRole("button", { name: "Enlarge photo" });
       enlarge.focus();
       await user.keyboard("{Enter}");
       const dialog = screen.getByRole("dialog", { name: "Photo" });
