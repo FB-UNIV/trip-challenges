@@ -105,14 +105,14 @@ function Settings({ tripId, trip, onSaved }: { tripId: string; trip: any; onSave
         label={`Max team size${draft ? "" : " (locked — teams are formed)"}`}
         type="number" value={form.maxTeamSize} onChange={set("maxTeamSize")} disabled={!draft}
       />
-      <div className="row" style={{ gap: 10, alignItems: "flex-start" }}>
+      <div className="grid2">
         <Field label="Grace days" type="number" value={form.graceDays} onChange={set("graceDays")} />
         <Field label="Max retention days" type="number" value={form.maxRetentionDays} onChange={set("maxRetentionDays")} />
       </div>
       <Field label="Trip end date" type="date" value={form.tripEndDate} onChange={set("tripEndDate")} />
 
-      <div style={{ marginTop: 10, fontWeight: 700, fontSize: 14 }}>Planned dates</div>
-      <p className="muted tiny" style={{ margin: "2px 0 6px" }}>
+      <div className="settings-sub">Planned dates</div>
+      <p className="muted tiny mt-0">
         The trip moves on by itself: challenges open, then voting opens. Voting stops at its
         close time; you start the reveal ceremony yourself.
       </p>
@@ -120,23 +120,23 @@ function Settings({ tripId, trip, onSaved }: { tripId: string; trip: any; onSave
       <Field label="Voting opens" type="datetime-local" value={form.votingOpensAt} onChange={set("votingOpensAt")} />
       <Field label="Voting closes" type="datetime-local" value={form.votingClosesAt} onChange={set("votingClosesAt")} />
 
-      <div style={{ marginTop: 10 }}>
-        <div style={{ fontWeight: 700, fontSize: 14 }}>
+      <div>
+        <div className="settings-sub">
           Points table{beforeReveal ? "" : " (locked — results computed)"}
         </div>
         {points.map((p, i) => (
-          <div key={i} className="row" style={{ margin: "6px 0" }}>
+          <div key={i} className="row points-row">
             <span className="mono-tag">#{i + 1}</span>
             <input
               type="number" value={p.points} disabled={!beforeReveal} className="input"
+              aria-label={`Points for place ${i + 1}`}
               onChange={(e) => setPoints(points.map((q, j) => (j === i ? { ...q, points: Number(e.target.value) } : q)))}
-              style={{ width: 90 }}
             />
             <span className="muted tiny">pts</span>
           </div>
         ))}
         {beforeReveal && (
-          <div className="row" style={{ marginTop: 6 }}>
+          <div className="row mt-2">
             <Button variant="neutral" size="mini" onClick={() => setPoints([...points, { placement: points.length + 1, points: 0 }])}>+ placement</Button>
             {points.length > 0 && (
               <Button variant="neutral" size="mini" onClick={() => setPoints(points.slice(0, -1))}>− remove last</Button>
@@ -145,9 +145,9 @@ function Settings({ tripId, trip, onSaved }: { tripId: string; trip: any; onSave
         )}
       </div>
 
-      <div style={{ marginTop: 12 }}><Button onClick={save}>Save settings</Button></div>
-      {msg && <p className="ok tiny" style={{ marginBottom: 0 }}>{msg}</p>}
-      {err && <p className="err tiny" style={{ marginBottom: 0 }}>{err}</p>}
+      <div className="mt-3"><Button onClick={save}>Save settings</Button></div>
+      <Notice tone="ok">{msg}</Notice>
+      <Notice tone="err">{err}</Notice>
     </Card>
   );
 }
@@ -165,25 +165,20 @@ function CoTeachers({ tripId }: { tripId: string }) {
     <Card>
       <h3>Teachers</h3>
       {teachers.data?.teachers.map((t) => (
-        <div key={t.id} className="row" style={{ padding: "5px 0" }}>
-          <span style={{ flex: 1 }}>{t.email}</span>
-          <Pill tone={t.role === "owner" ? "accent" : "neutral"}>{t.role}</Pill>
+        <div key={t.id} className="row people-row">
+          <span>{t.email}</span>
+          <Pill tone={t.role === "owner" ? "accent" : "neutral"}>{t.role === "owner" ? "Owner" : "Co-teacher"}</Pill>
         </div>
       ))}
 
       {invites.data && invites.data.invites.length > 0 && (
-        <div style={{ marginTop: 8 }}>
+        <div className="mt-2">
           <div className="muted tiny">Pending invites</div>
-          {invites.data.invites.map((iv) => (
-            <div key={iv.id} className="row" style={{ padding: "3px 0" }}>
-              <span style={{ flex: 1 }}>{iv.email}</span>
-              <Button variant="neutral" size="mini" onClick={async () => { await api.revokeInvite(tripId, iv.id); reload(); }}>Revoke</Button>
-            </div>
-          ))}
+          {invites.data.invites.map((iv) => <Invite key={iv.id} tripId={tripId} invite={iv} onRevoked={reload} />)}
         </div>
       )}
 
-      <div style={{ marginTop: 12 }}>
+      <div className="mt-3">
         <Field label="Invite co-teacher by email" value={email} onChange={(e) => setEmail(e.target.value)} />
         <Button
           disabled={!email.trim()}
@@ -200,9 +195,22 @@ function CoTeachers({ tripId }: { tripId: string }) {
             }
           }}
         >Send invite</Button>
-        {msg && <p className="ok tiny" style={{ marginBottom: 0 }}>{msg}</p>}
-        {err && <p className="err tiny" style={{ marginBottom: 0 }}>{err}</p>}
+        <Notice tone="ok">{msg}</Notice>
+        <Notice tone="err">{err}</Notice>
       </div>
     </Card>
+  );
+}
+
+function Invite({ tripId, invite, onRevoked }: { tripId: string; invite: { id: string; email: string }; onRevoked: () => void }) {
+  const revoke = useAction(async () => { await api.revokeInvite(tripId, invite.id); onRevoked(); }, "Could not revoke the invite.");
+  return (
+    <div className="people-row">
+      <div className="row">
+        <span className="grow">{invite.email}</span>
+        <Button variant="neutral" size="mini" busy={revoke.busy} onClick={revoke.run}>Revoke</Button>
+      </div>
+      <Notice tone="err">{revoke.error}</Notice>
+    </div>
   );
 }

@@ -386,6 +386,16 @@ a.check-row:focus-visible { outline: 2px solid var(--accent); outline-offset: 2p
 .card-danger { border-color: color-mix(in srgb, var(--crit) 35%, var(--line)); }
 .card-danger h3 { color: var(--crit-ink); }
 
+.result-row { padding: 4px 0; }
+.result-champ { font-weight: 700; }
+.roster-progress { display: flex; flex-direction: column; gap: var(--s-2); margin-top: var(--s-4); }
+.roster-progress .warncard { margin-top: 0; }
+.settings-sub { margin-top: var(--s-4); font-weight: 700; font-size: 14px; }
+.points-row { margin: 6px 0; }
+.points-row .input { width: 90px; }
+.people-row { padding: 5px 0; }
+.people-row > span:first-child { flex: 1; min-width: 0; overflow-wrap: anywhere; }
+
 /* ---------- teacher home: trip cards, edge-coloured by phase ---------- */
 .trip-cards { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: var(--s-3); }
 .trip-card { --stop: var(--muted); display: flex; flex-direction: column; gap: var(--s-1); padding: var(--s-4); min-height: 76px;

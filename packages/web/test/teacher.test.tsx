@@ -119,6 +119,7 @@ function adminApi(over: Partial<Trip> = {}) {
     rosterRefusal: false,
     moderationRefusal: null as string | null,
     revokeRefusal: false,
+    crownRefusal: false,
   };
   const ok = (call: string, body: object = { ok: true }) => { s.calls.push(call); return HttpResponse.json(body); };
   server.use(
@@ -200,6 +201,7 @@ function adminApi(over: Partial<Trip> = {}) {
     http.get("/api/trips/t1/results", () => HttpResponse.json({ results: s.results })),
     http.post("/api/trips/t1/grand-champion", async ({ request }) => {
       const { resultId } = (await request.json()) as { resultId: string };
+      if (s.crownRefusal) return HttpResponse.json({ error: "closed", message: "The ceremony is over." }, { status: 409 });
       s.results = s.results.filter((r: any) => !r.is_grand_champion || r.id === resultId);
       return ok(`crown ${resultId}`);
     }),
@@ -435,7 +437,7 @@ describe("trip admin", () => {
       const bar = await screen.findByRole("progressbar", { name: "Codes emailed" });
       expect(bar).toHaveAttribute("aria-valuenow", "2");
       expect(bar).toHaveAttribute("aria-valuemax", "3");
-      expect(screen.getByText("2 of 3 codes emailed")).toBeInTheDocument();
+      expect(screen.getByText(/2 of 3 codes emailed — sending/)).toBeInTheDocument();
     });
 
     it("flags emails that couldn't be sent", async () => {
@@ -673,6 +675,21 @@ describe("trip admin", () => {
 
       await user.click(screen.getByRole("button", { name: "🏆 Launch ceremony" }));
       expect(open).toHaveBeenCalledWith("/ceremony/t1", "_blank", "noopener");
+    });
+
+    it("explains a crown that was refused", async () => {
+      const api = adminApi({ phase: "reveal" });
+      api.results = [...results];
+      api.crownRefusal = true;
+      const { user } = renderAt("/teacher/trips/t1/results");
+      await user.click((await screen.findAllByRole("button", { name: "Crown this team" }))[0]!);
+      expect(await screen.findByRole("alert")).toHaveTextContent("The ceremony is over.");
+    });
+
+    it("says when there are no results", async () => {
+      adminApi({ phase: "grace" });
+      renderAt("/teacher/trips/t1/results");
+      expect(await screen.findByText("No results")).toBeInTheDocument();
     });
   });
 });

@@ -1,7 +1,7 @@
 // Students: roster import and the lost-code recovery link.
 import { useEffect, useRef, useState } from "react";
-import { api, HttpError } from "../../api.js";
-import { Button, Card, CopyField } from "../../ui.js";
+import { api } from "../../api.js";
+import { Button, Card, CopyField, Notice, Progress, useAction } from "../../ui.js";
 import { useTrip } from "./TripLayout.js";
 
 export function TripStudents() {
@@ -11,8 +11,7 @@ export function TripStudents() {
 
 function Roster({ tripId }: { tripId: string }) {
   const [text, setText] = useState("");
-  const [msg, setMsg] = useState("");
-  const [err, setErr] = useState("");
+  const [queued, setQueued] = useState("");
   const [status, setStatus] = useState<{ pending: number; done: number; failed: number; students: number } | null>(null);
   const timer = useRef<ReturnType<typeof setInterval>>();
 
@@ -39,6 +38,16 @@ function Roster({ tripId }: { tripId: string }) {
     }, 2000);
   };
 
+  const emails = text.split(/[\s,;]+/).map((s) => s.trim()).filter(Boolean);
+  const importRoster = useAction(async () => {
+    setQueued("");
+    const r = await api.importRoster(tripId, emails);
+    setQueued(`Queued ${r.queued} of ${r.requested}. Sending access codes in the background…`);
+    setText("");
+    startPolling();
+  }, "Could not import the roster.");
+  const sent = status && status.students > 0 ? status : null;
+
   return (
     <Card>
       <h3>Roster</h3>
@@ -46,33 +55,21 @@ function Roster({ tripId }: { tripId: string }) {
         <span>Student emails — one per line or comma-separated</span>
         <textarea value={text} onChange={(e) => setText(e.target.value)} rows={5} />
       </label>
-      <div style={{ marginTop: 8 }}>
-        <Button
-          onClick={async () => {
-            const emails = text.split(/[\s,;]+/).map((s) => s.trim()).filter(Boolean);
-            if (!emails.length) return;
-            setMsg(""); setErr("");
-            try {
-              const r = await api.importRoster(tripId, emails);
-              setMsg(`Queued ${r.queued} of ${r.requested}. Sending access codes in the background…`);
-              setText("");
-              startPolling();
-            } catch (e) {
-              setErr(`Could not import${e instanceof HttpError ? `: ${e.reason}` : "."}`);
-            }
-          }}
-        >Import + email codes</Button>
-      </div>
-      {msg && <p className="ok tiny">{msg}</p>}
-      {err && <p className="err tiny">{err}</p>}
-      {status && (status.pending > 0 || status.done > 0 || status.failed > 0) && (
-        <p className="muted tiny">
-          {status.students} students · {status.pending} queued
-          {status.done > 0 && ` · ${status.done} emailed`}
-          {status.failed > 0 && ` · ${status.failed} failed`}
-        </p>
+      <Button disabled={emails.length === 0} busy={importRoster.busy} onClick={importRoster.run}>Import + email codes</Button>
+      <Notice tone="ok">{queued}</Notice>
+      <Notice tone="err">{importRoster.error}</Notice>
+      {sent && (
+        <div className="roster-progress">
+          <Progress value={sent.done} max={sent.students} label="Codes emailed" tone="good" />
+          <p className="muted tiny mb-0">{sent.done} of {sent.students} codes emailed{sent.pending > 0 && " — sending…"}</p>
+          {sent.failed > 0 && (
+            <p className="warncard tiny mb-0">
+              <b>{sent.failed === 1 ? "1 email failed" : `${sent.failed} emails failed`}</b> — check the address{sent.failed === 1 ? "" : "es"} and import {sent.failed === 1 ? "it" : "them"} again.
+            </p>
+          )}
+        </div>
       )}
-      <div className="mt-3">
+      <div className="mt-4">
         <CopyField label="Lost-code recovery link" value={`${location.origin}/join?trip=${tripId}`} />
         <p className="muted tiny mt-0">Share it with any student who changed or lost their device.</p>
       </div>
