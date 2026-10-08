@@ -11,7 +11,9 @@ export function TripSettings() {
     <div className="admin-grid">
       <Settings tripId={tripId} trip={trip} onSaved={reload} />
       <CoTeachers tripId={tripId} />
-      {trip.phase !== "erased" && <DangerZone tripId={tripId} name={trip.name} onErased={reload} />}
+      {trip.phase === "erased"
+        ? <Card><Notice tone="ok">Student data erased. Only the results, without photos, are kept.</Notice></Card>
+        : <DangerZone tripId={tripId} name={trip.name} onErased={reload} />}
     </div>
   );
 }
@@ -25,8 +27,8 @@ function DangerZone({ tripId, name, onErased }: { tripId: string; name: string; 
       confirmLabel: "Erase now", danger: true, typeToConfirm: name,
     });
     if (!ok) return;
-    await api.erase(tripId);
-    onErased();
+    // Reload either way: a failed erase leaves the trip due (header: "Erasure pending").
+    try { await api.erase(tripId); } finally { onErased(); }
   }, "Could not erase the trip.");
   return (
     <Card className="card-danger">

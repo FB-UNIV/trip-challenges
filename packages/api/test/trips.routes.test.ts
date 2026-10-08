@@ -8,6 +8,8 @@ vi.mock("../src/email/mailer.js", () => import("./support/fake-mailer.js"));
 
 import { tripRoutes } from "../src/routes/trips.js";
 import { hasKey, keyCount } from "./support/fake-vault.js";
+import { s3faults } from "./support/fake-s3.js";
+import { findTripsDueForErasure } from "../src/erasure.js";
 import {
   pool, resetAll, buildApp, teacherCookie, makeTeacher, makeTrip, auditActions, count,
 } from "./support/harness.js";
@@ -139,6 +141,26 @@ describe("POST /api/trips/:id/erase", () => {
     expect(res.json()).toEqual({ ok: true, erased: true });
     expect(await phaseOf(id)).toBe("erased");
     expect(hasKey(id)).toBe(false);
+  });
+
+  it("records the request before erasing", async () => {
+    const id = await makeTrip(owner, { phase: "voting" });
+    await app.inject({ method: "POST", url: `/api/trips/${id}/erase`, headers: asOwner });
+    expect(await auditActions(id)).toEqual(["erasure_requested", "erasure_fired"]);
+  });
+
+  // #68: a failed "Erase now" used to be a bare 500 that nothing retried.
+  it("on failure, leaves the trip due so the scheduler retries, and says so", async () => {
+    const id = await makeTrip(owner, { phase: "voting" });
+    s3faults.deleteFailures = 1;
+    const res = await app.inject({ method: "POST", url: `/api/trips/${id}/erase`, headers: asOwner });
+    expect(res.statusCode).toBe(503);
+    expect(res.json()).toMatchObject({ error: "erasure_pending", requestId: expect.any(String) });
+    expect(res.json().message).toMatch(/retr/i);
+    expect(await phaseOf(id)).toBe("voting");
+    expect(hasKey(id)).toBe(true);
+    expect(await findTripsDueForErasure()).toContain(id);
+    expect(await auditActions(id)).toEqual(["erasure_requested"]);
   });
 
   it("404s for a non-member and leaves the trip alone", async () => {

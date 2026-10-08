@@ -2,7 +2,7 @@
 import { Navigate, Outlet, useOutletContext, useParams } from "react-router-dom";
 import { api, type NominationRow } from "../../api.js";
 import { qk, useLoad, useTripRefresh } from "../../query.js";
-import { PhasePill, PhaseTrail, SectionNav, Skeleton, type Section } from "../../ui.js";
+import { PhasePill, PhaseTrail, Pill, SectionNav, Skeleton, type Section } from "../../ui.js";
 
 const PHASES = ["draft", "challenge", "voting", "reveal", "grace", "erased"];
 export const rankOf = (p: string) => PHASES.indexOf(p);
@@ -46,6 +46,8 @@ export function TripLayout() {
     ...(hasResults(t.phase) ? [{ to: `${base}/results`, label: "Results" }] : []),
     { to: `${base}/settings`, label: "Settings" },
   ];
+  // Due but not erased yet: an "Erase now" or scheduled run failed and is being retried (#68).
+  const erasurePending = t.phase !== "erased" && !!t.hard_erase_at && new Date(t.hard_erase_at) <= new Date();
   const ctx: TripCtx = { tripId: id!, trip: t, reload: refreshTrip, pending, reloadPending: refreshTrip };
 
   return (
@@ -53,6 +55,7 @@ export function TripLayout() {
       <header className="trip-head">
         <div className="row">
           <h2 className="grow">{t.name}</h2>
+          {erasurePending && <Pill tone="warn">Erasure pending</Pill>}
           <PhasePill phase={t.phase} dot />
         </div>
         <PhaseTrail phase={t.phase} variant="teacher" />

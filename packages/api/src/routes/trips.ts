@@ -148,10 +148,28 @@ export async function tripRoutes(app: FastifyInstance) {
     };
   });
 
-  // Fire Erasure early (teacher). Irreversible.
+  // Fire Erasure early (teacher). Irreversible. The trip is made due first, so if the attempt
+  // fails the scheduler retries it and alerts teachers when it keeps failing (#68).
   app.post("/:id/erase", { preHandler: member }, async (req, reply) => {
     const id = tripOf(req).id;
-    await eraseTrip(id);
+    await tx(async (c) => {
+      await c.query(`UPDATE trip SET hard_erase_at = LEAST(hard_erase_at, now()) WHERE id = $1`, [id]);
+      await c.query(
+        `INSERT INTO audit_log (trip_id, teacher_id, action) VALUES ($1, $2, 'erasure_requested')`,
+        [id, teacherOf(req).teacherId],
+      );
+    });
+    try {
+      await eraseTrip(id);
+    } catch (err) {
+      req.log.error({ err, tripId: id }, "erasure failed; the scheduler will retry");
+      return reply.code(503).send({
+        error: "erasure_pending",
+        message:
+          "Erasure could not finish yet. It will retry automatically; teachers will be alerted if it keeps failing.",
+        requestId: req.id,
+      });
+    }
     return { ok: true, erased: true };
   });
 

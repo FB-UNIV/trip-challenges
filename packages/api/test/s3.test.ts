@@ -98,4 +98,30 @@ describe("objects", () => {
     const deletes = s3.sent.filter((s) => s.cmd === "DeleteObjects").map((s) => s.input.Delete.Objects.map((o: any) => o.Key));
     expect(deletes).toEqual([["t/1", "t/2"], ["t/3"]]);
   });
+
+  // #68: S3/MinIO report per-object delete failures inside a 200; ignoring them erased the
+  // trip while photo objects remained.
+  it("throws when DeleteObjects reports per-object errors, naming the code but no keys", async () => {
+    s3.handler = (c) =>
+      c === "ListObjectsV2"
+        ? { Contents: [{ Key: "t/secret-1" }, { Key: "t/secret-2" }], IsTruncated: false }
+        : { Errors: [{ Key: "t/secret-1", Code: "AccessDenied", Message: "Access Denied." }] };
+    const e = await deleteTripBlobs("t").catch((x: Error) => x);
+    expect(e).toBeInstanceOf(Error);
+    expect((e as Error).message).toMatch(/AccessDenied/);
+    expect((e as Error).message).toMatch(/1 of 2/);
+    expect((e as Error).message).not.toMatch(/secret/);
+  });
+
+  it("asks for per-object errors (Quiet still returns them)", async () => {
+    s3.handler = (c) => (c === "ListObjectsV2" ? { Contents: [{ Key: "t/1" }], IsTruncated: false } : {});
+    await deleteTripBlobs("t");
+    expect(s3.sent.find((s) => s.cmd === "DeleteObjects")!.input.Delete.Quiet).toBe(true);
+  });
+
+  it("fails when the trip's objects cannot be listed", async () => {
+    s3.handler = () => { throw err("AccessDenied", 403); };
+    await expect(deleteTripBlobs("t")).rejects.toThrow(/AccessDenied/);
+    expect(cmds()).toEqual(["ListObjectsV2"]);
+  });
 });
