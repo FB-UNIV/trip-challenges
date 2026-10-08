@@ -39,12 +39,13 @@ test("a teacher creates a trip, manages challenges and settings, and edits lock 
 
   await test.step("delete a challenge while still in draft", async () => {
     await admin.addChallenge("Tower photo");
-    teacher.page.once("dialog", (d) => void d.accept());
     await admin.challengeRow("Tower photo").getByRole("button", { name: "Delete" }).click();
+    await admin.confirm("Delete");
     await expect(admin.challengeRow("Tower photo")).toHaveCount(0);
   });
 
   await test.step("save settings", async () => {
+    await admin.open("Settings");
     const settings = admin.card("Settings");
     await settings.getByLabel("Trip name").fill(`${name} (edited)`);
     await settings.getByLabel("Grace days").fill("3");
@@ -75,7 +76,9 @@ test("a teacher creates a trip, manages challenges and settings, and edits lock 
 
   await test.step("after the challenge starts: no deleting challenges, team size locked", async () => {
     await admin.advanceTo("challenge");
+    await admin.open("Challenges");
     await expect(admin.challengeRow("Gelato group selfie").getByRole("button", { name: "Delete" })).toHaveCount(0);
+    await admin.open("Settings");
     await expect(admin.card("Settings").getByLabel(/Max team size/)).toBeDisabled();
   });
 

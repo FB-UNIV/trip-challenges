@@ -11,6 +11,7 @@ test("the owner invites a co-teacher by email; only the invited account can acce
   const coEmail = uniqueEmail("co");
 
   await admin.goto(tripId);
+  await admin.open("Settings");
   const teachers = admin.card("Teachers");
   await teachers.getByLabel("Invite co-teacher by email").fill(coEmail);
   await teachers.getByRole("button", { name: "Send invite" }).click();
@@ -29,10 +30,11 @@ test("the owner invites a co-teacher by email; only the invited account can acce
   await test.step("the invited teacher accepts and lands on the trip", async () => {
     const co = await signInTeacher(browser, coEmail);
     await co.page.goto(acceptPath);
-    await expect(co.page).toHaveURL(new RegExp(`/teacher/trips/${tripId}$`));
+    await expect(co.page).toHaveURL(new RegExp(`/teacher/trips/${tripId}/overview$`));
     await expect(co.page.getByRole("heading", { name, level: 2 })).toBeVisible();
 
     const coAdmin = new TripAdminPage(co.page);
+    await coAdmin.open("Settings");
     await expect(coAdmin.card("Teachers").getByText(coEmail)).toBeVisible();
 
     await test.step("co-teachers can't invite others", async () => {

@@ -9,7 +9,13 @@ import { ChallengesPage } from "./routes/ChallengesPage.js";
 import { VoteHome } from "./routes/VoteHome.js";
 import { VotePage } from "./routes/VotePage.js";
 import { TeacherHome } from "./routes/teacher/TeacherHome.js";
-import { TripAdmin } from "./routes/teacher/TripAdmin.js";
+import { TripLanding, TripLayout } from "./routes/teacher/TripLayout.js";
+import { TripOverview } from "./routes/teacher/TripOverview.js";
+import { TripChallenges } from "./routes/teacher/TripChallenges.js";
+import { TripStudents } from "./routes/teacher/TripStudents.js";
+import { TripReview } from "./routes/teacher/TripReview.js";
+import { TripResults } from "./routes/teacher/TripResults.js";
+import { TripSettings } from "./routes/teacher/TripSettings.js";
 import { AcceptInvite } from "./routes/teacher/AcceptInvite.js";
 import { Ceremony } from "./routes/Ceremony.js";
 
@@ -27,7 +33,19 @@ export const routes: RouteObject[] = [
       { path: "vote/:challengeId", element: <VotePage /> },
       { path: "teacher", element: <TeacherHome /> },
       { path: "teacher/accept", element: <AcceptInvite /> }, // ?token=... from invite email
-      { path: "teacher/trips/:id", element: <TripAdmin /> },
+      {
+        path: "teacher/trips/:id",
+        element: <TripLayout />,
+        children: [
+          { index: true, element: <TripLanding /> }, // overview, or results during the reveal
+          { path: "overview", element: <TripOverview /> },
+          { path: "challenges", element: <TripChallenges /> },
+          { path: "students", element: <TripStudents /> },
+          { path: "review", element: <TripReview /> },
+          { path: "results", element: <TripResults /> },
+          { path: "settings", element: <TripSettings /> },
+        ],
+      },
     ],
   },
   // Full-screen (outside the app chrome) — projected during the reveal.

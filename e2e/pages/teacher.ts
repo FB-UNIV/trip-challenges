@@ -22,23 +22,35 @@ export class TeacherHomePage {
     return this.page.getByRole("link", { name: new RegExp(name) });
   }
 
-  /** Open a trip's admin page and return its id. */
+  /** Open a trip's admin page (it lands on the overview) and return its id. */
   async openTrip(name: string): Promise<string> {
     await this.tripLink(name).click();
-    await expect(this.page).toHaveURL(/\/teacher\/trips\/[0-9a-f-]{36}$/);
-    return this.page.url().split("/").pop()!;
+    await expect(this.page).toHaveURL(/\/teacher\/trips\/[0-9a-f-]{36}\/overview$/);
+    return this.page.url().split("/").at(-2)!;
   }
 }
 
+/** The trip desk: a header (name, phase), a section nav, and the current section's cards. */
 export class TripAdminPage {
   constructor(readonly page: Page) {}
 
   async goto(tripId: string) {
     await this.page.goto(`/teacher/trips/${tripId}`);
-    await expect(this.card("Lifecycle")).toBeVisible();
+    await expect(this.nav()).toBeVisible();
   }
 
-  /** An admin card, found by its heading. */
+  nav(): Locator {
+    return this.page.getByRole("navigation", { name: "Trip sections" });
+  }
+
+  /** Switch section via the nav ("Review" may carry a pending badge: "Review, 2 pending"). */
+  async open(section: "Overview" | "Challenges" | "Students" | "Review" | "Results" | "Settings") {
+    const link = this.nav().getByRole("link", { name: new RegExp(`^${section}\\b`) });
+    await link.click();
+    await expect(link).toHaveAttribute("aria-current", "page");
+  }
+
+  /** A card in the current section, found by its heading. */
   card(heading: string): Locator {
     return this.page.locator(".card").filter({ has: this.page.getByRole("heading", { name: heading, exact: true }) });
   }
@@ -48,15 +60,17 @@ export class TripAdminPage {
   }
 
   async expectPhase(phase: string) {
-    await expect(this.tile("Phase")).toHaveText(phase);
+    await expect(this.page.locator(".trip-head .pill")).toHaveText(new RegExp(`^${phase}$`, "i"));
   }
 
   async advanceTo(phase: string) {
+    await this.open("Overview");
     await this.card("Lifecycle").getByRole("button", { name: `Advance to ${phase} →` }).click();
     await this.expectPhase(phase);
   }
 
   async addChallenge(title: string, instructions = "", multiplier = 1) {
+    await this.open("Challenges");
     const card = this.card("Challenges");
     await card.getByLabel("Title").fill(title);
     await card.getByLabel("Instructions").fill(instructions);
@@ -69,15 +83,25 @@ export class TripAdminPage {
     return this.card("Challenges").locator(".list-row").filter({ hasText: title });
   }
 
+  /** Answer the in-app confirmation dialog. */
+  async confirm(button: string, typeToConfirm?: string) {
+    const dialog = this.page.getByRole("alertdialog");
+    if (typeToConfirm !== undefined) await dialog.getByLabel(/to confirm/).fill(typeToConfirm);
+    await dialog.getByRole("button", { name: button, exact: true }).click();
+    await expect(dialog).toHaveCount(0);
+  }
+
   async importRoster(emails: string[]) {
+    await this.open("Students");
     const card = this.card("Roster");
-    await card.locator("textarea").fill(emails.join("\n"));
+    await card.getByLabel(/Student emails/).fill(emails.join("\n"));
     await card.getByRole("button", { name: "Import + email codes" }).click();
     await expect(card.getByText(`Queued ${emails.length} of ${emails.length}.`)).toBeVisible();
   }
 
   /** Approve every pending nomination (reloads first: the list loads once per visit). */
   async approveAll(expected: number) {
+    await this.open("Review");
     await this.page.reload();
     const card = this.card("Moderation");
     await expect(card.getByRole("button", { name: "Approve" })).toHaveCount(expected);
@@ -88,10 +112,12 @@ export class TripAdminPage {
     await expect(card.getByText("Nothing to review.")).toBeVisible();
   }
 
-  /** "Erase now" asks for confirmation with a native dialog. */
+  /** Erasure lives in Settings' danger zone and asks to type the trip's name. */
   async eraseNow() {
-    this.page.once("dialog", (d) => void d.accept());
-    await this.card("Lifecycle").getByRole("button", { name: "Erase now" }).click();
+    await this.open("Settings");
+    const name = await this.page.locator(".trip-head h2").innerText();
+    await this.card("Danger zone").getByRole("button", { name: "Erase all student data…" }).click();
+    await this.confirm("Erase now", name);
     await this.expectPhase("erased");
   }
 }

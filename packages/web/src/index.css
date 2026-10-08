@@ -343,6 +343,13 @@ a.check-row:focus-visible { outline: 2px solid var(--accent); outline-offset: 2p
 .sk-line:first-child { height: 26px; width: 60%; }
 .sk-line:last-child:not(:first-child) { width: 80%; }
 
+/* ---------- trip desk ---------- */
+.trip-head { display: flex; flex-direction: column; gap: var(--s-3); }
+.trip-head h2 { font-size: 22px; font-weight: 850; min-width: 0; overflow-wrap: anywhere; }
+.grow { flex: 1; min-width: 0; }
+.card-danger { border-color: color-mix(in srgb, var(--crit) 35%, var(--line)); }
+.card-danger h3 { color: var(--crit-ink); }
+
 /* ---------- teacher kit (notice, confirm, copy field, section nav) ---------- */
 .mt-0 { margin-top: 0; } .mt-2 { margin-top: var(--s-2); } .mt-3 { margin-top: var(--s-3); } .mt-4 { margin-top: var(--s-4); }
 .mb-0 { margin-bottom: 0; }
