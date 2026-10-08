@@ -14,6 +14,10 @@ Organizer. Configures Challenges, manages the trip lifecycle (challenge period, 
 Opaque per-student secret emailed to a Student. Authentication mechanism for Students. Sourced from the Roster. **Single-use**: redeeming it establishes a long-lived, device-bound session; the code is then spent. A Student who loses/changes device requests a fresh code to their email; **redeeming that new code invalidates the prior session** (requesting alone does not — so a stranger who knows the email cannot log the Student out without also reading the emailed code). Not a standing shareable password. Valid only until that Trip's Erasure.
 _Avoid_: password, login, PIN (it is not a chosen credential).
 
+### Joined
+A Student has **Joined** once they have redeemed an Access Code on a device at least once. Requesting a fresh code later (lost device) does not undo it. A Student who was emailed a code but never redeemed one is **invited**, not joined. A Roster address whose email could not be delivered never becomes a Student at all (**undelivered**).
+_Avoid_: registered, signed up, active (a joined Student may not have opened the app since).
+
 ### Roster
 List of student emails bulk-imported by a Teacher. School holds parental consent offline and is the data **controller**; this system is a **processor**. Roster emails are wiped at Erasure.
 
@@ -23,6 +27,7 @@ A voluntary grouping of Students, formed by Students themselves. Unit credited f
 - **Solo allowed**: a Team may have a single member.
 - **Fixed**: membership locks when the challenge period starts; free to form/join/leave only before lock.
 - **Bounded**: 1..maxTeamSize, where maxTeamSize is set per Trip by the Teacher (default 4).
+- **Named by Students, reviewed by a Teacher**: a Team name is free text and may identify Students. A Teacher may rename a Team at any time before the reveal and marks its name **reviewed** (renaming counts as reviewing). Unreviewed names are shown during the Trip and the ceremony, but never survive Erasure.
 
 ### Trip
 The top-level container for one school trip and the isolation boundary. Owns the Roster, the Challenges, the config (e.g. maxTeamSize, points table), and the lifecycle phases (challenge period -> voting period -> Erasure). Everything is scoped by `tripId`. Created and owned by a Teacher; a Teacher only sees their own Trip(s). One deployment hosts **many Trips, possibly concurrent**; each Trip has its own encryption key (per-Trip blast radius). A given student email may appear in two Trips' Rosters — those are **separate** Students with separate Access Codes; no data crosses Trips.
@@ -75,7 +80,7 @@ Irreversible destruction of all Student PII and Submissions for a Trip. Core req
 - **Logs & email-delivery records** — scrubbed/rotated so no residual student PII survives.
 
 **Survives** (non-personal only):
-- A results record such as "Team FOX won Challenge 3" — Challenge title + winning Team name, **no image, no student identity**. Retained results must contain no identifying info (Team names reviewed accordingly).
+- A results record such as "Team FOX won Challenge 3" — Challenge title + winning Team name, **no image, no student identity**. Only a **reviewed** Team name survives; an unreviewed one is replaced by a neutral label ("Team 3") at Erasure.
 - The **teacher-action audit log** (e.g. "teacher removed a Submission at T", "Erasure fired") — **PII-free by design** (references opaque IDs and teacher identity, never student PII), which is precisely why it may survive.
 
 ## Open Questions

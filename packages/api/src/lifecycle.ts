@@ -101,6 +101,14 @@ async function computeResultsIn(c: PoolClient, tripId: string): Promise<void> {
 
   const nameCache = new Map<string, string>();
   const teamTotals = new Map<string, number>();
+  // Each team's neutral label ("Team N", trip-wide creation order) and whether a teacher
+  // reviewed its name: Erasure keeps only reviewed names (#92, ADR 0007).
+  const { rows: teams } = await c.query<{ id: string; name_reviewed: boolean }>(
+    `SELECT id, name_reviewed FROM team WHERE trip_id = $1 ORDER BY created_at, id`,
+    [tripId],
+  );
+  const labelOf = new Map(teams.map((t, i) => [t.id, `Team ${i + 1}`]));
+  const reviewed = new Map(teams.map((t) => [t.id, t.name_reviewed]));
 
   for (const ch of challenges) {
     const { rows: noms } = await c.query<{ team_id: string; name_enc: Buffer; wilson: number }>(
@@ -132,9 +140,9 @@ async function computeResultsIn(c: PoolClient, tripId: string): Promise<void> {
       }
       const points = (ptsMap.get(placement) ?? 0) * Number(ch.multiplier);
       await c.query(
-        `INSERT INTO result (trip_id, challenge_title, placement, team_name_vetted, points)
-         VALUES ($1,$2,$3,$4,$5)`,
-        [tripId, ch.title, placement, nameCache.get(nom.team_id), points],
+        `INSERT INTO result (trip_id, challenge_title, placement, team_name_vetted, points, team_label, team_name_reviewed)
+         VALUES ($1,$2,$3,$4,$5,$6,$7)`,
+        [tripId, ch.title, placement, nameCache.get(nom.team_id), points, labelOf.get(nom.team_id), reviewed.get(nom.team_id)],
       );
       teamTotals.set(nom.team_id, (teamTotals.get(nom.team_id) ?? 0) + points);
     }
@@ -145,9 +153,9 @@ async function computeResultsIn(c: PoolClient, tripId: string): Promise<void> {
   for (const [teamId, total] of teamTotals) {
     if (total === max && total > 0) {
       await c.query(
-        `INSERT INTO result (trip_id, challenge_title, placement, team_name_vetted, points, is_grand_champion)
-         VALUES ($1, 'Grand Champion', 0, $2, $3, true)`,
-        [tripId, nameCache.get(teamId), total],
+        `INSERT INTO result (trip_id, challenge_title, placement, team_name_vetted, points, is_grand_champion, team_label, team_name_reviewed)
+         VALUES ($1, 'Grand Champion', 0, $2, $3, true, $4, $5)`,
+        [tripId, nameCache.get(teamId), total, labelOf.get(teamId), reviewed.get(teamId)],
       );
     }
   }
