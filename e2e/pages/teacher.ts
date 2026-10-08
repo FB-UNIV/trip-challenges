@@ -81,7 +81,7 @@ export class TripAdminPage {
 
   async addChallenge(title: string, instructions = "", multiplier = 1) {
     await this.open("Challenges");
-    const card = this.card("Challenges");
+    const card = this.card("New challenge");
     await card.getByLabel("Title").fill(title);
     await card.getByLabel("Instructions").fill(instructions);
     await card.getByLabel("Multiplier").fill(String(multiplier));
