@@ -229,7 +229,7 @@ describe("trip admin", () => {
 
     it("warns when student data is about to be erased", async () => {
       const api = adminApi({ phase: "voting" });
-      api.progress.eraseAt = new Date(Date.now() + 2.5 * 86_400_000).toISOString();
+      api.progress.eraseAt = new Date(Date.now() + 2.2 * 86_400_000).toISOString();
       renderAt("/teacher/trips/t1/overview");
       expect(await screen.findByText("Student data will be erased in 2 days.")).toBeInTheDocument();
     });

@@ -30,6 +30,14 @@ export class TeacherHomePage {
   }
 }
 
+/** The Now card's action that moves a trip into each phase. */
+const ADVANCE = {
+  challenge: "Start the challenge",
+  voting: "Open voting",
+  reveal: "Close voting & compute results",
+  grace: "Publish results",
+} as const;
+
 /** The trip desk: a header (name, phase), a section nav, and the current section's cards. */
 export class TripAdminPage {
   constructor(readonly page: Page) {}
@@ -63,9 +71,11 @@ export class TripAdminPage {
     await expect(this.page.locator(".trip-head .pill")).toHaveText(new RegExp(`^${phase}$`, "i"));
   }
 
-  async advanceTo(phase: string) {
+  /** The overview's Now card moves the trip on, after confirming what that does. */
+  async advanceTo(phase: keyof typeof ADVANCE) {
     await this.open("Overview");
-    await this.card("Lifecycle").getByRole("button", { name: `Advance to ${phase} →` }).click();
+    await this.page.getByRole("button", { name: `${ADVANCE[phase]} →` }).click();
+    await this.confirm(ADVANCE[phase]);
     await this.expectPhase(phase);
   }
 

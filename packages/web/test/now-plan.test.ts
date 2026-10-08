@@ -120,7 +120,7 @@ describe("voting", () => {
       ["Tower", "todo", "2 approved — needs 3 to be votable"],
       ["Review nominations", "doing", "1 waiting"],
     ]);
-    expect(plan.when).toBe("Voting closed 1 day ago");
+    expect(plan.when).toBe("Voting closed yesterday");
     expect(plan.action).toMatchObject({ label: "Close voting & compute results", to: "reveal" });
     expect(plan.action!.confirm).toMatch(/only after the ceremony/);
   });
@@ -150,7 +150,7 @@ describe("reveal, grace, erased", () => {
 
   it("erased: nothing left to do", () => {
     const plan = nowPlan(input({ phase: "erased" }));
-    expect(plan).toMatchObject({ title: "Trip erased", checks: [], action: undefined });
+    expect(plan).toEqual({ title: "Trip erased", checks: [] });
   });
 });
 
