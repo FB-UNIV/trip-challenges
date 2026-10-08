@@ -18,6 +18,7 @@ import { TripResults } from "./routes/teacher/TripResults.js";
 import { TripSettings } from "./routes/teacher/TripSettings.js";
 import { AcceptInvite } from "./routes/teacher/AcceptInvite.js";
 import { Ceremony } from "./routes/Ceremony.js";
+import { QrSheet } from "./routes/teacher/QrSheet.js";
 
 export const routes: RouteObject[] = [
   {
@@ -50,4 +51,6 @@ export const routes: RouteObject[] = [
   },
   // Full-screen (outside the app chrome) — projected during the reveal.
   { path: "/ceremony/:id", element: <Ceremony /> },
+  // Printable QR cards — also outside the chrome, so only the cards are printed.
+  { path: "/qr/:id", element: <QrSheet /> },
 ];

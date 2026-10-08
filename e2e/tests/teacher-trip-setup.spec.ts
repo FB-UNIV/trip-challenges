@@ -29,6 +29,18 @@ test("a teacher creates a trip, manages challenges and settings, and edits lock 
     await expect.poll(() => qr.evaluate((img: HTMLImageElement) => img.naturalWidth)).toBeGreaterThan(0);
   });
 
+  await test.step("print the QR sheet", async () => {
+    const [sheet] = await Promise.all([
+      teacher.context.waitForEvent("page"),
+      teacher.page.getByRole("link", { name: "Print QR codes" }).click(),
+    ]);
+    const card = sheet.getByRole("article").filter({ hasText: "Gelato selfie" });
+    await expect(card.getByText("×2 points")).toBeVisible();
+    const qr = card.getByRole("img", { name: "QR code for Gelato selfie" });
+    await expect.poll(() => qr.evaluate((img: HTMLImageElement) => img.naturalWidth)).toBeGreaterThan(0);
+    await sheet.close();
+  });
+
   await test.step("edit the challenge", async () => {
     const card = admin.card("Challenges");
     await admin.challengeRow("Gelato selfie").getByRole("button", { name: "Edit" }).click();
