@@ -1,5 +1,18 @@
 # Changelog
 
+## [0.8.0](https://github.com/FB-UNIV/trip-challenges/compare/v0.7.0...v0.8.0) (2026-10-08)
+
+
+### Features
+
+* **api:** one error shape with request ids; dependency outages answer 503 ([#112](https://github.com/FB-UNIV/trip-challenges/issues/112)) ([2fae76d](https://github.com/FB-UNIV/trip-challenges/commit/2fae76da090c9c3eab1fe510299cd08dac0c3747))
+
+
+### Bug Fixes
+
+* **api:** hash student session tokens with SHA-256, not argon2 ([#110](https://github.com/FB-UNIV/trip-challenges/issues/110)) ([c90f539](https://github.com/FB-UNIV/trip-challenges/commit/c90f539336252746bfbdf64ef1d0cdfee44740bd))
+* erasure fails loudly and retries; S3 delete errors no longer ignored ([#111](https://github.com/FB-UNIV/trip-challenges/issues/111)) ([efc7da0](https://github.com/FB-UNIV/trip-challenges/commit/efc7da046283832d3e14f917a392cbaf22d872fd))
+
 ## [0.7.0](https://github.com/FB-UNIV/trip-challenges/compare/v0.6.0...v0.7.0) (2026-10-08)
 
 
