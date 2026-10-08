@@ -94,6 +94,7 @@ type Trip = {
   id: string; name: string; phase: string; max_team_size: number; grace_days: number; max_retention_days: number;
   trip_end_date: string; points_table: { placement: number; points: number }[];
   challenge_opens_at: string | null; voting_opens_at: string | null; voting_closes_at: string | null;
+  hard_erase_at?: string;
 };
 
 /** A stateful fake of every endpoint the trip admin screen uses. */
@@ -102,7 +103,8 @@ function adminApi(over: Partial<Trip> = {}) {
     trip: {
       id: "t1", name: "Rome 2030", phase: "draft", max_team_size: 4, grace_days: 7, max_retention_days: 30,
       trip_end_date: "2030-01-01T00:00:00.000Z", points_table: [{ placement: 1, points: 5 }, { placement: 2, points: 3 }],
-      challenge_opens_at: null, voting_opens_at: null, voting_closes_at: null, ...over,
+      challenge_opens_at: null, voting_opens_at: null, voting_closes_at: null,
+      hard_erase_at: "2030-01-31T00:00:00.000Z", ...over,
     } as Trip,
     roster: { pending: 0, done: 3, failed: 0, students: 3 },
     challenges: [{ id: "ch1", title: "Gelato selfie", instructions: "With a gelato", multiplier: 2, qr_slug: "abc" }],
@@ -132,6 +134,7 @@ function adminApi(over: Partial<Trip> = {}) {
         nominations: { pending: 1, approved: 0, rejected: 0 } },
     ],
     crownRefusal: false,
+    eraseFails: false,
   };
   const ok = (call: string, body: object = { ok: true }) => { s.calls.push(call); return HttpResponse.json(body); };
   server.use(
@@ -154,7 +157,18 @@ function adminApi(over: Partial<Trip> = {}) {
       s.trip.phase = to;
       return ok(`advance ${to}`, { ok: true, phase: to });
     }),
-    http.post("/api/trips/t1/erase", () => ok("erase")),
+    http.post("/api/trips/t1/erase", () => {
+      s.calls.push("erase");
+      s.trip.hard_erase_at = new Date().toISOString();
+      if (s.eraseFails) {
+        return HttpResponse.json({
+          error: "erasure_pending", requestId: "req-7",
+          message: "Erasure could not finish yet. It will retry automatically; teachers will be alerted if it keeps failing.",
+        }, { status: 503 });
+      }
+      s.trip.phase = "erased";
+      return HttpResponse.json({ ok: true, erased: true });
+    }),
     http.get("/api/trips/t1/roster/status", () => HttpResponse.json(s.roster)),
     http.get("/api/trips/t1/progress", () => HttpResponse.json(s.progress)),
     http.get("/api/trips/t1/students", () => {
@@ -487,6 +501,22 @@ describe("trip admin", () => {
       await user.type(within(dialog).getByLabelText(/Type “Rome 2030” to confirm/), "Rome 2030");
       await user.click(erase);
       await waitFor(() => expect(api.calls).toContain("erase"));
+      expect(await screen.findByText(/Student data erased/)).toBeInTheDocument();
+    });
+
+    // #68: a failed erase used to look like nothing happened.
+    it("says a failed erase will retry, and the header shows it's pending", async () => {
+      const api = adminApi({ phase: "voting" });
+      api.eraseFails = true;
+      const { user } = renderAt("/teacher/trips/t1/settings");
+      const danger = await waitFor(() => card("Danger zone"));
+      expect(screen.queryByText("Erasure pending")).not.toBeInTheDocument();
+      await user.click(within(danger).getByRole("button", { name: "Erase all student data…" }));
+      const dialog = screen.getByRole("alertdialog", { name: "Erase all student data?" });
+      await user.type(within(dialog).getByLabelText(/Type “Rome 2030” to confirm/), "Rome 2030");
+      await user.click(within(dialog).getByRole("button", { name: "Erase now" }));
+      expect(await within(danger).findByText(/will retry automatically/)).toBeInTheDocument();
+      expect(await screen.findByText("Erasure pending")).toBeInTheDocument();
     });
   });
 

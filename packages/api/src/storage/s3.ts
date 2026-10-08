@@ -66,17 +66,29 @@ export async function getBlob(key: string): Promise<Buffer> {
 }
 
 /** Hard-delete every object for a Trip (Erasure step 1). Paginates + batch-deletes. */
+// Throws if any object could not be deleted (#68). Errors name the S3 code only: object
+// keys are opaque, but there's no reason to spread them into alerts and logs.
 export async function deleteTripBlobs(tripId: string): Promise<void> {
   let ContinuationToken: string | undefined;
   do {
-    const list = await s3.send(
-      new ListObjectsV2Command({ Bucket, Prefix: `${tripId}/`, ContinuationToken }),
-    );
+    const list = await s3
+      .send(new ListObjectsV2Command({ Bucket, Prefix: `${tripId}/`, ContinuationToken }))
+      .catch((e: Error) => {
+        throw new Error(`could not list photos of trip ${tripId} for deletion (${e.name})`);
+      });
     const Objects = (list.Contents ?? [])
       .map((o) => ({ Key: o.Key! }))
       .filter((o) => o.Key);
     if (Objects.length) {
-      await s3.send(new DeleteObjectsCommand({ Bucket, Delete: { Objects, Quiet: true } }));
+      // Quiet still reports failures: S3/MinIO return per-object errors inside a 200.
+      const res = await s3.send(new DeleteObjectsCommand({ Bucket, Delete: { Objects, Quiet: true } }));
+      const errors = res?.Errors ?? [];
+      if (errors.length) {
+        const codes = [...new Set(errors.map((e) => e.Code ?? "unknown"))].join(", ");
+        throw new Error(
+          `could not delete ${errors.length} of ${Objects.length} photos of trip ${tripId} (${codes})`,
+        );
+      }
     }
     ContinuationToken = list.IsTruncated ? list.NextContinuationToken : undefined;
   } while (ContinuationToken);
