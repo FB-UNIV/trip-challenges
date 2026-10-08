@@ -71,6 +71,7 @@ test("a full trip: roster → teams → photos → moderation → duels → cere
 
   await test.step("reveal: results computed, visible to the teacher only", async () => {
     await admin.advanceTo("reveal");
+    await admin.open("Results");
     const results = admin.card("Results & ceremony");
     await expect(results.getByText("🏆 Foxes (5 pts)")).toBeVisible();
     await expect(results.getByText("Best gelato #1 — Foxes (5 pts)")).toBeVisible();
