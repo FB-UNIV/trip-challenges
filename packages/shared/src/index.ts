@@ -198,6 +198,35 @@ export const TripProgress = z.object({
 });
 export type TripProgress = z.infer<typeof TripProgress>;
 
+// ---- Teacher: a Trip's students (emails decrypted for its teachers, ADR 0006) ----
+// kind "student": a Student row (id = student id). kind "import": a Roster address that
+// never became a Student (id = roster item id) — still sending, or failed.
+export const RosterStatus = z.enum(["joined", "invited", "undelivered", "sending"]);
+export const RosterEntry = z.object({
+  kind: z.enum(["student", "import"]),
+  id: Uuid,
+  email: z.string(),
+  status: RosterStatus, // CONTEXT: Joined; "sending" = still in the mail queue
+  newCodeRequested: z.boolean(), // joined, and a fresh code is waiting to be used (lost device)
+  teamId: Uuid.nullable(),
+  lastError: z.string().nullable(), // mail error code only, never the address
+});
+export type RosterEntry = z.infer<typeof RosterEntry>;
+export const RosterList = z.object({
+  students: z.array(RosterEntry),
+  counts: z.object({
+    all: z.number().int().nonnegative(),
+    notJoined: z.number().int().nonnegative(),
+    undelivered: z.number().int().nonnegative(),
+    noTeam: z.number().int().nonnegative(),
+    sending: z.number().int().nonnegative(),
+  }),
+});
+export type RosterList = z.infer<typeof RosterList>;
+const NormalEmail = z.string().trim().toLowerCase().pipe(Email);
+export const FixAddress = z.object({ email: NormalEmail });
+export const RetryRosterItem = z.object({ email: NormalEmail.optional() });
+
 // ---- Teacher: a Trip's Teams (names decrypted for its teachers) ----
 export const TripTeam = z.object({
   id: Uuid,

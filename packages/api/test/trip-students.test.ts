@@ -2,6 +2,9 @@
 // in which team — and the two fixes: resend a code, correct an undelivered address.
 // Emails are decrypted for the Trip's teachers only (ADR 0006).
 import { vi, describe, it, expect, beforeEach } from "vitest";
+import Fastify from "fastify";
+import cookie from "@fastify/cookie";
+import { Writable } from "node:stream";
 
 vi.mock("pg", () => import("./support/fake-pg.js"));
 vi.mock("../src/config.js", () => import("./support/config.js"));
@@ -13,6 +16,8 @@ import { RosterList } from "@trip/shared";
 import { tripStudentRoutes } from "../src/routes/trip-students.js";
 import { encrypt, decrypt, hmac } from "./support/fake-vault.js";
 import { sent, mailer } from "./support/fake-mailer.js";
+import { loggerOptions } from "../src/lib/logging.js";
+import { config } from "./support/config.js";
 import {
   pool, resetAll, buildApp, teacherCookie, makeTeacher, makeTrip, makeStudent, makeTeam, auditActions, count,
 } from "./support/harness.js";
@@ -189,5 +194,30 @@ describe("POST /api/trips/:id/roster/items/:itemId/retry", () => {
     const elsewhere = await item(await makeTrip(owner), "b@school.test", "failed");
     expect((await retry(trip, pending)).statusCode).toBe(404);
     expect((await retry(trip, elsewhere)).statusCode).toBe(404);
+  });
+});
+
+describe("the decrypted emails never reach the logs (ADR 0006)", () => {
+  it("not on listing, nor on a failed resend or fix", async () => {
+    const lines: string[] = [];
+    const stream = new Writable({ write(chunk, _enc, cb) { lines.push(chunk.toString()); cb(); } });
+    const logged = Fastify({ logger: { ...loggerOptions("production"), stream } });
+    await logged.register(cookie, { secret: config.SESSION_SECRET });
+    await logged.register(tripStudentRoutes, { prefix: "/api/trips" });
+    await logged.ready();
+    const headers = { cookie: teacherCookie(logged, owner) };
+
+    const trip = await makeTrip(owner);
+    const lea = await student(trip, "lea@shcool.test", "undelivered");
+    await item(trip, "orphan@school.test", "failed", "EENVELOPE");
+    mailer.fail = true; // the fake's error message echoes the address, like real SMTP errors
+    await logged.inject({ method: "GET", url: `/api/trips/${trip}/students`, headers });
+    await logged.inject({ method: "POST", url: `/api/trips/${trip}/students/${lea}/resend`, headers });
+    await logged.inject({ method: "PATCH", url: `/api/trips/${trip}/students/${lea}`, headers, payload: { email: "lea@school.test" } });
+
+    const all = lines.join("");
+    expect(all).toContain(`/api/trips/${trip}/students`);
+    for (const email of ["lea@shcool.test", "lea@school.test", "orphan@school.test"]) expect(all).not.toContain(email);
+    await logged.close();
   });
 });
