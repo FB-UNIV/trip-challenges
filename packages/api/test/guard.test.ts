@@ -82,7 +82,7 @@ describe("guard: roles", () => {
     for (const cookie of [undefined, "teacher_session=forged"]) {
       const res = await get("/p/teacher", cookie);
       expect(res.statusCode).toBe(401);
-      expect(res.json()).toEqual({ error: "unauthorized", message: "teacher login required" });
+      expect(res.json()).toEqual({ error: "unauthorized", message: "teacher login required", requestId: expect.any(String) });
     }
     expect((await get("/p/teacher", asOwner())).json()).toEqual({ teacherId: owner });
   });
@@ -90,7 +90,7 @@ describe("guard: roles", () => {
   it("student routes answer 401 without a live student session, and expose the student's trip", async () => {
     const res = await get("/p/student");
     expect(res.statusCode).toBe(401);
-    expect(res.json()).toEqual({ error: "unauthorized", message: "no session" });
+    expect(res.json()).toEqual({ error: "unauthorized", message: "no session", requestId: expect.any(String) });
 
     const kid = await makeStudent(trip);
     const ok = await get("/p/student", kid.cookie);
@@ -138,7 +138,7 @@ describe("guard: trip scoping (teacher)", () => {
     ] as const) {
       const res = await get(url, cookie);
       expect(res.statusCode).toBe(404);
-      expect(res.json()).toEqual({ error: "not_found", message: "no such trip" });
+      expect(res.json()).toEqual({ error: "not_found", message: "no such trip", requestId: expect.any(String) });
     }
   });
 
@@ -148,7 +148,7 @@ describe("guard: trip scoping (teacher)", () => {
     for (const t of [co, await makeTeacher()]) {
       const res = await get(`/p/owner/${trip}`, teacherCookie(app, t));
       expect(res.statusCode).toBe(403);
-      expect(res.json()).toEqual({ error: "forbidden", message: "owners only" });
+      expect(res.json()).toEqual({ error: "forbidden", message: "owners only", requestId: expect.any(String) });
     }
     expect((await get(`/p/owner/${trip}`, asOwner())).statusCode).toBe(200);
   });
@@ -165,9 +165,9 @@ describe("guard: trip scoping (teacher)", () => {
     expect((await get(`/p/submission/${sub}`, asOwner())).statusCode).toBe(200);
 
     const stranger = teacherCookie(app, await makeTeacher());
-    expect((await get(`/p/challenge/${ch}`, stranger)).json()).toEqual({ error: "not_found", message: "challenge" });
-    expect((await get(`/p/nomination/${nom}`, stranger)).json()).toEqual({ error: "not_found", message: "nomination" });
-    expect((await get(`/p/submission/${sub}`, stranger)).json()).toEqual({ error: "not_found", message: "submission" });
+    expect((await get(`/p/challenge/${ch}`, stranger)).json()).toEqual({ error: "not_found", message: "challenge", requestId: expect.any(String) });
+    expect((await get(`/p/nomination/${nom}`, stranger)).json()).toEqual({ error: "not_found", message: "nomination", requestId: expect.any(String) });
+    expect((await get(`/p/submission/${sub}`, stranger)).json()).toEqual({ error: "not_found", message: "submission", requestId: expect.any(String) });
 
     await pool.query(`UPDATE nomination SET active = false WHERE id = $1`, [nom]);
     expect((await get(`/p/nomination/${nom}`, asOwner())).statusCode).toBe(404); // retired nominations are gone
@@ -186,7 +186,7 @@ describe("guard: trip scoping (student)", () => {
     for (const id of [theirs, NIL, "nope"]) {
       const res = await get(`/p/kid-challenge?challengeId=${id}`, kid.cookie);
       expect(res.statusCode).toBe(404);
-      expect(res.json()).toEqual({ error: "not_found", message: "challenge" });
+      expect(res.json()).toEqual({ error: "not_found", message: "challenge", requestId: expect.any(String) });
     }
   });
 });
@@ -197,7 +197,7 @@ describe("guard: phases", () => {
     await pool.query(`UPDATE trip SET phase = 'challenge' WHERE id = $1`, [trip]);
     const res = await get(`/p/draft/${trip}`, asOwner());
     expect(res.statusCode).toBe(409);
-    expect(res.json()).toEqual({ error: "wrong_phase", message: "not available in phase 'challenge'" });
+    expect(res.json()).toEqual({ error: "wrong_phase", message: "not available in phase 'challenge'", requestId: expect.any(String) });
   });
 
   it("uses the route's own closed reply when one is given", async () => {
@@ -209,7 +209,7 @@ describe("guard: phases", () => {
     await pool.query(`UPDATE trip SET phase = 'voting' WHERE id = $1`, [trip]);
     const closed = await get(`/p/kid-challenge?challengeId=${await makeChallenge(trip)}`, kid.cookie);
     expect(closed.statusCode).toBe(409);
-    expect(closed.json()).toEqual({ error: "closed", message: "submissions are closed" });
+    expect(closed.json()).toEqual({ error: "closed", message: "submissions are closed", requestId: expect.any(String) });
   });
 
   it("flags a voting trip whose planned close time has passed", async () => {
@@ -223,7 +223,7 @@ describe("guard: input validation", () => {
     const kid = await makeStudent(trip);
     const res = await get(`/p/kid-challenge`, kid.cookie);
     expect(res.statusCode).toBe(400);
-    expect(res.json()).toEqual({ error: "bad_request", message: "challengeId" });
+    expect(res.json()).toEqual({ error: "bad_request", message: "challengeId", requestId: expect.any(String) });
   });
 
   it("validates the body first, then resolves the trip it names", async () => {

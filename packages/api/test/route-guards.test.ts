@@ -99,7 +99,7 @@ describe("a student of another trip", () => {
     await setPhase(phase);
     const res = await call(method, url + ids.ch, outsider.cookie);
     expect(res.statusCode).toBe(404);
-    expect(res.json()).toEqual({ error: "not_found", message: "challenge" });
+    expect(res.json()).toEqual({ error: "not_found", message: "challenge", requestId: expect.any(String) });
   });
 });
 
@@ -134,7 +134,7 @@ describe("outside its phases", () => {
     await setPhase(phase);
     const res = await call(method, url, cookie, payload(ids));
     expect(res.statusCode).toBe(409);
-    expect(res.json()).toEqual(body);
+    expect(res.json()).toEqual({ ...body, requestId: expect.any(String) });
   });
 
   it("GET /api/duels/next answers 'closed' (not an error) before voting and after its planned close", async () => {

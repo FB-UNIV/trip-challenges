@@ -7,6 +7,7 @@ import multipart from "@fastify/multipart";
 import argon2 from "argon2";
 import { randomBytes } from "node:crypto";
 import { hashSessionToken } from "../../src/auth/session-token.js";
+import { installErrorHandling, requestIdOptions } from "../../src/lib/errors.js";
 import { config } from "./config.js";
 import { pool } from "../../src/db.js";
 import { sealBlob } from "../../src/crypto/envelope.js";
@@ -32,7 +33,8 @@ export async function resetAll(): Promise<void> {
 export async function buildApp(
   ...routes: [FastifyPluginAsync<any>, string?][]
 ): Promise<FastifyInstance> {
-  const app = Fastify();
+  const app = Fastify(requestIdOptions);
+  installErrorHandling(app);
   await app.register(cookie, { secret: config.SESSION_SECRET });
   await app.register(multipart, { limits: { fileSize: 15 * 1024 * 1024, files: 1 } });
   for (const [plugin, prefix] of routes) await app.register(plugin, prefix ? { prefix } : {});

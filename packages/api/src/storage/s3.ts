@@ -12,6 +12,7 @@ import {
   DeleteObjectsCommand,
 } from "@aws-sdk/client-s3";
 import { config } from "../config.js";
+import { tagDependency } from "../lib/errors.js";
 
 export const s3 = new S3Client({
   region: config.S3_REGION,
@@ -22,6 +23,12 @@ export const s3 = new S3Client({
     secretAccessKey: config.S3_SECRET_ACCESS_KEY,
   },
 });
+// Tag every failure (network ones included, which carry no $metadata) as "storage", so the
+// API answers 503 storage_unavailable instead of mistaking it for a database outage (#69).
+s3.middlewareStack.add(
+  (next) => (args) => next(args).catch((e: unknown) => { throw tagDependency(e, "storage"); }),
+  { step: "initialize", name: "tagStorageErrors" },
+);
 
 const Bucket = config.S3_BUCKET;
 
