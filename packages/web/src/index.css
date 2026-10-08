@@ -125,7 +125,9 @@ nav.tabs { display: flex; gap: 4px; }
 .center { text-align: center; }
 .stack { display: flex; flex-direction: column; gap: 12px; }
 .row { display: flex; align-items: center; gap: 8px; }
-.grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+/* minmax(0, …): a grid cell may shrink below its content (date inputs have a large intrinsic width). */
+.grid2 { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
+@media (max-width: 380px) { .grid2 { grid-template-columns: minmax(0, 1fr); gap: 0; } }
 .err { color: var(--crit); }
 .ok { color: var(--good); }
 .spacer { flex: 1; }
@@ -168,13 +170,19 @@ nav.tabs { display: flex; gap: 4px; }
 .btn-mini { padding: 6px 11px; font-size: 12.5px; border-radius: 8px; box-shadow: none; }
 
 /* ---------- field ---------- */
-.field { display: block; margin: 10px 0; }
+.field { display: block; margin: 10px 0; min-width: 0; }
 .field > span { display: block; font-size: 13px; font-weight: 600; color: var(--muted); margin-bottom: 5px; }
 .input, .field input, .field textarea {
-  width: 100%; padding: 10px 12px; border-radius: var(--radius-sm); border: 1px solid var(--line);
-  background: var(--surface); color: var(--ink); font-size: 15px; font-family: var(--sans);
+  width: 100%; max-width: 100%; min-width: 0; padding: 10px 12px; border-radius: var(--radius-sm); border: 1px solid var(--line);
+  background: var(--surface); color: var(--ink); font-size: 16px; font-family: var(--sans); /* < 16px makes iOS zoom on focus */
   transition: border-color .12s ease, box-shadow .12s ease;
 }
+/* iOS Safari renders date/time inputs natively with a fixed minimum width that ignores width: 100%,
+   so they spill out of cards and grid cells on phones. Drop the native look, keep the picker. */
+.input[type="date"], .input[type="datetime-local"], .field input[type="date"], .field input[type="datetime-local"] {
+  -webkit-appearance: none; appearance: none; display: block; min-height: 44px; line-height: 1.3; text-align: left;
+}
+input[type="date"]::-webkit-date-and-time-value, input[type="datetime-local"]::-webkit-date-and-time-value { text-align: left; }
 .field textarea { resize: vertical; }
 .input:focus, .field input:focus, .field textarea:focus { outline: none; border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-wash); }
 .input-mono { font-family: var(--mono); letter-spacing: .16em; text-transform: uppercase; text-align: center; font-size: 17px; }
