@@ -1,7 +1,7 @@
 import { useRef, useState } from "react";
 import { Link, useParams } from "react-router-dom";
 import { api, HttpError } from "../api.js";
-import { qk, useLoad, useMe, useRefresh } from "../query.js";
+import { qk, useLoad, useMe, useOptimistic, useRefresh } from "../query.js";
 import { Button, Card, Field, PhasePill } from "../ui.js";
 
 export function ChallengePage() {
@@ -54,6 +54,8 @@ function UploadAndNominate({ challengeId }: { challengeId: string }) {
   const subs = useLoad(qk.submissions(challengeId), () => api.listSubmissions(challengeId), { live: true });
   const refresh = useRefresh();
   const changed = () => refresh(qk.submissions(challengeId), qk.myChallenges); // the photos here, the checklist, the badge
+  const optimistic = useOptimistic();
+  type Subs = Awaited<ReturnType<typeof api.listSubmissions>>;
   const fileRef = useRef<HTMLInputElement>(null);
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState("");
@@ -97,7 +99,15 @@ function UploadAndNominate({ challengeId }: { challengeId: string }) {
                 variant={s.nominated ? "gold" : "ghost"} size="mini"
                 onClick={async () => {
                   setErr("");
-                  try { await api.nominate(challengeId, s.id); await changed(); }
+                  try {
+                    // Optimistic: the mark moves to this photo at once (a team has one nomination per challenge).
+                    await optimistic<Subs>(
+                      qk.submissions(challengeId),
+                      (old) => ({ submissions: old.submissions.map((x) => ({ ...x, nominated: x.id === s.id })) }),
+                      () => api.nominate(challengeId, s.id),
+                    );
+                    await changed();
+                  }
                   catch (e) { setErr(e instanceof HttpError ? e.reason : "Nomination failed"); }
                 }}
               >{s.nominated ? "Nominated ✓" : "Nominate"}</Button>
