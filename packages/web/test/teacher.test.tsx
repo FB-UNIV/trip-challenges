@@ -122,6 +122,7 @@ function adminApi(over: Partial<Trip> = {}) {
     http.get("/api/challenges", () => HttpResponse.json({ challenges: s.challenges })),
     http.post("/api/challenges", async ({ request }) => {
       const body = (await request.json()) as { title: string; instructions: string; multiplier: number };
+      if (body.title === "Refused") return HttpResponse.json({ error: "bad_request", message: "multiplier must be positive" }, { status: 400 });
       s.calls.push(`create ${JSON.stringify(body)}`);
       s.challenges.push({ id: "ch2", qr_slug: "def", ...body });
       return HttpResponse.json({ id: "ch2", qrSlug: "def" }, { status: 201 });
@@ -395,14 +396,17 @@ describe("trip admin", () => {
       const ch = await waitFor(() => card("Challenges"));
       expect(await within(ch).findByText("Gelato selfie")).toBeInTheDocument();
       expect(within(ch).getByText("×2")).toBeInTheDocument();
-      expect(within(ch).getByAltText("QR")).toHaveAttribute("src", "/api/challenges/ch1/qr.png");
+      expect(within(ch).getByAltText("QR code for Gelato selfie")).toHaveAttribute("src", "/api/challenges/ch1/qr.png");
 
-      await user.type(within(ch).getByLabelText("Title"), " Fountain ");
-      await user.click(within(ch).getByRole("button", { name: "Add challenge" }));
+      const add = card("New challenge");
+      await user.type(within(add).getByLabelText("Title"), " Fountain ");
+      await user.type(within(add).getByLabelText("Instructions"), "Throw a coin{enter}Make a wish");
+      await user.click(within(add).getByRole("button", { name: "Add challenge" }));
       expect(await within(ch).findByText("Fountain")).toBeInTheDocument();
+      expect(within(add).getByLabelText("Title")).toHaveValue("");
 
       await user.click(within(ch).getAllByRole("button", { name: "Edit" })[0]!);
-      const title = within(ch).getAllByLabelText("Title")[0]!;
+      const title = within(ch).getByLabelText("Title");
       await user.clear(title);
       await user.type(title, "Gelato duo");
       await user.click(within(ch).getByRole("button", { name: "Save" }));
@@ -414,10 +418,27 @@ describe("trip admin", () => {
       await user.click(within(dialog).getByRole("button", { name: "Delete" }));
       await waitFor(() => expect(within(ch).queryByText("Fountain")).not.toBeInTheDocument());
       expect(api.calls).toEqual([
-        `create {"tripId":"t1","title":"Fountain","instructions":"","multiplier":1}`,
+        `create {"tripId":"t1","title":"Fountain","instructions":"Throw a coin\\nMake a wish","multiplier":1}`,
         `edit ch1 {"title":"Gelato duo","instructions":"With a gelato","multiplier":2}`,
         "delete ch2",
       ]);
+    });
+
+    it("explains a challenge that can't be added, and keeps what was typed", async () => {
+      adminApi();
+      const { user } = renderAt("/teacher/trips/t1/challenges");
+      const add = await waitFor(() => card("New challenge"));
+      await user.type(within(add).getByLabelText("Title"), "Refused");
+      await user.click(within(add).getByRole("button", { name: "Add challenge" }));
+      expect(await within(add).findByRole("alert")).toHaveTextContent("multiplier must be positive");
+      expect(within(add).getByLabelText("Title")).toHaveValue("Refused");
+    });
+
+    it("shows an empty state before the first challenge", async () => {
+      const api = adminApi();
+      api.challenges = [];
+      renderAt("/teacher/trips/t1/challenges");
+      expect(await screen.findByText("No challenges yet")).toBeInTheDocument();
     });
 
     it("stops adding at voting, editing at reveal, and deleting after draft", async () => {
@@ -425,9 +446,41 @@ describe("trip admin", () => {
       renderAt("/teacher/trips/t1/challenges");
       const ch = await waitFor(() => card("Challenges"));
       await within(ch).findByText("Gelato selfie");
-      expect(within(ch).queryByRole("button", { name: "Add challenge" })).not.toBeInTheDocument();
+      expect(screen.queryByRole("heading", { name: "New challenge" })).not.toBeInTheDocument();
       expect(within(ch).getByRole("button", { name: "Edit" })).toBeInTheDocument();
       expect(within(ch).queryByRole("button", { name: "Delete" })).not.toBeInTheDocument();
+    });
+
+    it("opens a printable sheet of the QR codes", async () => {
+      adminApi();
+      renderAt("/teacher/trips/t1/challenges");
+      const print = await screen.findByRole("link", { name: "Print QR codes" });
+      expect(print).toHaveAttribute("href", "/qr/t1");
+      expect(print).toHaveAttribute("target", "_blank");
+    });
+  });
+
+  describe("QR sheet", () => {
+    it("lays out one cut-out card per challenge and prints", async () => {
+      const api = adminApi();
+      api.challenges.push({ id: "ch2", title: "Fountain", instructions: "Throw a coin", multiplier: 1, qr_slug: "def" });
+      const print = vi.spyOn(window, "print").mockImplementation(() => {});
+      const { user } = renderAt("/qr/t1");
+      expect(await screen.findByRole("heading", { name: "Rome 2030 — QR codes" })).toBeInTheDocument();
+      const cards = await screen.findAllByRole("article");
+      expect(cards).toHaveLength(2);
+      expect(within(cards[0]!).getByRole("heading", { name: "Gelato selfie" })).toBeInTheDocument();
+      expect(within(cards[0]!).getByText("×2 points")).toBeInTheDocument();
+      expect(within(cards[1]!).getByText("Throw a coin")).toBeInTheDocument();
+      expect(within(cards[1]!).getByRole("img", { name: "QR code for Fountain" })).toHaveAttribute("src", "/api/challenges/ch2/qr.png");
+      await user.click(screen.getByRole("button", { name: "Print" }));
+      expect(print).toHaveBeenCalled();
+    });
+
+    it("says so when the trip can't be loaded", async () => {
+      server.use(http.get("/api/trips/zzz", () => HttpResponse.json({}, { status: 404 })));
+      renderAt("/qr/zzz");
+      expect(await screen.findByText("Not found.")).toBeInTheDocument();
     });
   });
 
