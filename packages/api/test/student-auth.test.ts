@@ -6,6 +6,7 @@ vi.mock("../src/crypto/vault.js", () => import("./support/fake-vault.js"));
 vi.mock("../src/storage/s3.js", () => import("./support/fake-s3.js"));
 vi.mock("../src/email/mailer.js", () => import("./support/fake-mailer.js"));
 
+import argon2 from "argon2";
 import { studentAuthRoutes } from "../src/routes/student-auth.js";
 import { sent, mailer } from "./support/fake-mailer.js";
 import {
@@ -51,6 +52,70 @@ describe("GET /api/student/me", () => {
     const s = await makeStudent(trip);
     await pool.query(`UPDATE student_session SET revoked_at = now() WHERE student_id = $1`, [s.id]);
     expect((await me(s.cookie)).statusCode).toBe(401);
+  });
+});
+
+// #64: session tokens are 256-bit random, so a fast hash is enough; argon2 per request was
+// the bottleneck. Legacy argon2 sessions still work and are upgraded on first use.
+describe("student session token hashing (#64)", () => {
+  const storedHash = async (studentId: string) =>
+    (await pool.query<{ token_hash: string }>(
+      `SELECT token_hash FROM student_session WHERE student_id = $1`, [studentId],
+    )).rows[0]!.token_hash;
+
+  it("stores new sessions as SHA-256 and authenticates them without argon2", async () => {
+    const s = await makeStudent(trip, { unredeemedCode: true });
+    await pool.query(`DELETE FROM student_session WHERE student_id = $1`, [s.id]);
+    const cookie = sessionCookie(await redeem(s.code!));
+    expect(await storedHash(s.id)).toMatch(/^sha256:[0-9a-f]{64}$/);
+
+    const verify = vi.spyOn(argon2, "verify");
+    try {
+      expect((await me(cookie)).statusCode).toBe(200);
+      expect(verify).not.toHaveBeenCalled();
+    } finally {
+      verify.mockRestore();
+    }
+  });
+
+  it("refuses a wrong token against a SHA-256 session", async () => {
+    const s = await makeStudent(trip);
+    expect((await me(`student_session=${s.id}.${"x".repeat(43)}`)).statusCode).toBe(401);
+  });
+
+  it("refuses a revoked SHA-256 session", async () => {
+    const s = await makeStudent(trip);
+    expect(await storedHash(s.id)).toMatch(/^sha256:/);
+    await pool.query(`UPDATE student_session SET revoked_at = now() WHERE student_id = $1`, [s.id]);
+    expect((await me(s.cookie)).statusCode).toBe(401);
+  });
+
+  it("accepts a legacy argon2 session once, then upgrades it to SHA-256 in place", async () => {
+    const s = await makeStudent(trip);
+    const token = s.cookie.split(".")[1]!;
+    await pool.query(`UPDATE student_session SET token_hash = $2 WHERE student_id = $1`, [
+      s.id, await argon2.hash(token, { type: argon2.argon2id, memoryCost: 1024, timeCost: 1, parallelism: 1 }),
+    ]);
+
+    const verify = vi.spyOn(argon2, "verify");
+    try {
+      expect((await me(s.cookie)).statusCode).toBe(200);
+      expect(verify).toHaveBeenCalledTimes(1);
+      expect(await storedHash(s.id)).toMatch(/^sha256:[0-9a-f]{64}$/);
+
+      expect((await me(s.cookie)).statusCode).toBe(200);
+      expect(verify).toHaveBeenCalledTimes(1); // the upgraded hash skips argon2
+    } finally {
+      verify.mockRestore();
+    }
+  });
+
+  it("does not upgrade a legacy session when the token is wrong", async () => {
+    const s = await makeStudent(trip);
+    const legacy = await argon2.hash("right", { type: argon2.argon2id, memoryCost: 1024, timeCost: 1, parallelism: 1 });
+    await pool.query(`UPDATE student_session SET token_hash = $2 WHERE student_id = $1`, [s.id, legacy]);
+    expect((await me(`student_session=${s.id}.wrong`)).statusCode).toBe(401);
+    expect(await storedHash(s.id)).toBe(legacy);
   });
 });
 

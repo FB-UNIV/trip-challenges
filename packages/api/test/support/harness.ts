@@ -6,6 +6,7 @@ import cookie from "@fastify/cookie";
 import multipart from "@fastify/multipart";
 import argon2 from "argon2";
 import { randomBytes } from "node:crypto";
+import { hashSessionToken } from "../../src/auth/session-token.js";
 import { config } from "./config.js";
 import { pool } from "../../src/db.js";
 import { sealBlob } from "../../src/crypto/envelope.js";
@@ -122,7 +123,7 @@ export async function makeStudent(
   const token = randomBytes(32).toString("base64url");
   await pool.query(`INSERT INTO student_session (student_id, token_hash) VALUES ($1, $2)`, [
     id,
-    await argon2.hash(token, FAST_ARGON),
+    hashSessionToken(token),
   ]);
   return {
     id,
