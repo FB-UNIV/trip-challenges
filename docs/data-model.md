@@ -81,7 +81,7 @@ Same email in two Trips = two rows in two Trips, different `email_lookup` (diffe
 |---|---|---|
 | id | uuid pk | |
 | student_id | uuid fk | |
-| token_hash | text | hash of the long-lived device token |
+| token_hash | text | `sha256:<hex>` of the 256-bit device token (#64); legacy argon2 hashes are upgraded on first use |
 | created_at | timestamptz | |
 | revoked_at | timestamptz null | set when a fresh code is re-issued (invalidates prior session) |
 

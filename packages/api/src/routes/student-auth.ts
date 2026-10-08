@@ -4,6 +4,7 @@
 import type { FastifyInstance } from "fastify";
 import argon2 from "argon2";
 import { randomBytes, timingSafeEqual } from "node:crypto";
+import { hashSessionToken } from "../auth/session-token.js";
 import { RedeemAccessCode, ReissueAccessCode } from "@trip/shared";
 import { config } from "../config.js";
 import { pool, tx } from "../db.js";
@@ -78,7 +79,7 @@ export async function studentAuthRoutes(app: FastifyInstance) {
 
       // Issue a device-bound session; mark the code spent.
       const token = randomBytes(32).toString("base64url");
-      const tokenHash = await argon2.hash(token);
+      const tokenHash = hashSessionToken(token);
       const spent = await tx(async (c) => {
         // Claim the code atomically: only the request that flips THIS code (same hash, so
         // a concurrent reissue can't be spent by the old code) from 'unredeemed' wins.
