@@ -131,6 +131,40 @@ describe("voting", () => {
   });
 });
 
+describe("team names and voting participation (#96)", () => {
+  it("asks to check team names from the challenge until the reveal, linking to the teams", () => {
+    for (const phase of ["challenge", "voting"]) {
+      const plan = nowPlan(input({ phase, progress: progress({ teams: 3, teamsUnreviewed: 2 }) }));
+      expect(check(plan, /team names/)).toEqual({ title: "Check team names", state: "doing", meta: "2 not checked", to: "students" });
+    }
+    const allGood = nowPlan(input({ phase: "challenge", progress: progress({ teams: 3, teamsUnreviewed: 0 }) }));
+    expect(check(allGood, /team names/)).toMatchObject({ state: "done", meta: "All checked" });
+    expect(nowPlan(input({ phase: "challenge" })).checks.find((c) => /team names/.test(c.title))).toBeUndefined(); // no teams
+  });
+
+  it("warns, without blocking, that unchecked names show at the ceremony then become labels", () => {
+    const plan = nowPlan(input({ phase: "voting", progress: progress({ teams: 3, teamsUnreviewed: 2 }) }));
+    expect(plan.action!.confirm).toMatch(/2 team names aren't checked: they'll show at the ceremony, then become “Team N” after erasure/);
+    expect(nowPlan(input({ phase: "voting", progress: progress({ teams: 3 }) })).action!.confirm).not.toMatch(/aren't checked/);
+  });
+
+  it("shows how many students have voted — never who", () => {
+    const row = (voters: number) => check(nowPlan(input({ phase: "voting", progress: progress({ students: 22, voters }) })), /voted/);
+    expect(row(14)).toEqual({ title: "Students who voted", state: "doing", meta: "14 of 22" });
+    expect(row(0).state).toBe("todo");
+    expect(row(22).state).toBe("done");
+  });
+
+  it("links roster problems straight to the matching filter", () => {
+    const plan = nowPlan(input({
+      roster: { pending: 0, done: 4, failed: 1, students: 5 },
+      progress: progress({ students: 5, teams: 1, studentsWithoutTeam: 2 }),
+    }));
+    expect(check(plan, /roster/).to).toBe("students?filter=undelivered");
+    expect(check(plan, /teams/).to).toBe("students?filter=no-team");
+  });
+});
+
 describe("reveal, grace, erased", () => {
   it("reveal: run the ceremony, then publish", () => {
     const plan = nowPlan(input({ phase: "reveal", progress: progress({ graceEndsAt: inDays(7) }) }));
