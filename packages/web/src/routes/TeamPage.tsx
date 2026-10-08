@@ -1,15 +1,17 @@
 import { useState } from "react";
 import { Link } from "react-router-dom";
 import { api, HttpError, type TeamView } from "../api.js";
+import { qk, useMe, useMyChallenges, useRefresh, useTeams } from "../query.js";
 import {
-  Button, Card, CheckRow, EmptyState, ErrorCard, Field, Skeleton, Stepper, useAsync, type Step,
+  Button, Card, CheckRow, EmptyState, ErrorCard, Field, Skeleton, Stepper, type Step,
 } from "../ui.js";
 
 export function TeamPage() {
-  const me = useAsync(() => api.me(), []);
-  const teams = useAsync(() => api.listTeams(), []);
+  const me = useMe();
+  const teams = useTeams();
   // Preview only: the team screen works without it.
-  const challenges = useAsync(() => api.myChallenges().catch(() => null), []);
+  const challenges = useMyChallenges();
+  const refresh = useRefresh();
   const [name, setName] = useState("");
   const [err, setErr] = useState("");
 
@@ -26,8 +28,7 @@ export function TeamPage() {
     setErr("");
     try {
       await fn();
-      me.reload();
-      teams.reload();
+      await refresh(qk.student); // my team, the team list, the tab badge
     } catch (e) {
       setErr(e instanceof HttpError ? e.reason : "Something went wrong.");
     }

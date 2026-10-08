@@ -15,8 +15,8 @@ const ch = (id: string, nominated: boolean) => ({
 const tabBar = () => screen.findByRole("navigation", { name: "Main" });
 
 /** Fake student API with request counters and mutable state. */
-function studentApi(over: Partial<typeof ME> = {}) {
-  const s = { me: { ...ME, ...over } as typeof ME & { teamId: string | null }, calls: { me: 0, challenges: 0, teams: 0 },
+function studentApi(over: Partial<Omit<typeof ME, "teamId"> & { teamId: string | null }> = {}) {
+  const s = { me: { ...ME, ...over } as Omit<typeof ME, "teamId"> & { teamId: string | null }, calls: { me: 0, challenges: 0, teams: 0 },
     teams: [] as { id: string; name: string; members: number }[] };
   server.use(
     http.get("/api/student/me", () => { s.calls.me++; return HttpResponse.json(s.me); }),
@@ -62,6 +62,8 @@ describe("live data (student)", () => {
     expect(within(nav).queryByRole("link", { name: /Vote/ })).not.toBeInTheDocument();
 
     api.me = { ...api.me, phase: "voting" };
+    vi.useFakeTimers({ toFake: ["Date"] });
+    vi.setSystemTime(Date.now() + 60_000); // back a minute later: the cache is stale by then
     act(() => { focusManager.setFocused(false); });
     act(() => { focusManager.setFocused(true); });
     expect(await within(nav).findByRole("link", { name: /Vote/ })).toBeInTheDocument();
