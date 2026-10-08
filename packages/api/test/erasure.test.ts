@@ -80,6 +80,45 @@ describe("eraseTrip", () => {
   });
 });
 
+describe("team names in the kept results (#92)", () => {
+  const kept = async (trip: string) =>
+    (await pool.query<{ team_name_vetted: string }>(
+      `SELECT team_name_vetted FROM result WHERE trip_id = $1 ORDER BY is_grand_champion, placement`, [trip],
+    )).rows.map((r) => r.team_name_vetted);
+  const result = (trip: string, title: string, placement: number, name: string, label: string | null, reviewed: boolean, champion = false) =>
+    pool.query(
+      `INSERT INTO result (trip_id, challenge_title, placement, team_name_vetted, points, is_grand_champion, team_label, team_name_reviewed)
+       VALUES ($1,$2,$3,$4,5,$5,$6,$7)`,
+      [trip, title, placement, name, champion, label, reviewed],
+    );
+
+  it("keeps reviewed names and replaces unreviewed ones with their neutral label, grand champion included", async () => {
+    const trip = await makeTrip(owner, { phase: "grace" });
+    await result(trip, "C", 1, "Léa & Tom 4B", "Team 1", false);
+    await result(trip, "C", 2, "Les Renards", "Team 2", true);
+    await result(trip, "Grand Champion", 0, "Léa & Tom 4B", "Team 1", false, true);
+    const bystander = await makeTrip(owner, { phase: "grace" });
+    await result(bystander, "C", 1, "Léa & Tom 4B", "Team 1", false);
+
+    await eraseTrip(trip);
+
+    expect(await kept(trip)).toEqual(["Team 1", "Les Renards", "Team 1"]);
+    expect(await kept(bystander)).toEqual(["Léa & Tom 4B"]); // not erased yet
+  });
+
+  it("numbers unreviewed results that predate labels by name, so one team keeps one label", async () => {
+    const trip = await makeTrip(owner, { phase: "grace" });
+    await result(trip, "C", 1, "Zed", null, false);
+    await result(trip, "D", 2, "Alpha", null, false);
+    await result(trip, "Grand Champion", 0, "Zed", null, false, true);
+
+    await eraseTrip(trip);
+    expect(await kept(trip)).toEqual(["Team 2", "Team 1", "Team 2"]);
+    await eraseTrip(trip); // a rerun (#24) converges on the same labels
+    expect(await kept(trip)).toEqual(["Team 2", "Team 1", "Team 2"]);
+  });
+});
+
 describe("eraseTrip is resumable (#24)", () => {
   // Crypto-erasure is only real once the Vault key is gone. If the key step fails, the
   // trip must stay due so the next scheduler tick finishes it, never marked 'erased'.
