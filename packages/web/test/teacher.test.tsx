@@ -315,7 +315,7 @@ describe("trip admin", () => {
     it("imports pasted emails and reports progress", async () => {
       const api = adminApi();
       const { user } = renderAt("/teacher/trips/t1/students");
-      const box = within(await waitFor(() => card("Roster"))).getByRole("textbox");
+      const box = await screen.findByLabelText(/Student emails/);
       await user.type(box, "a@school.test, b@school.test\nc@school.test");
       await user.click(screen.getByRole("button", { name: "Import + email codes" }));
       expect(await screen.findByText(/Queued 3 of 3/)).toBeInTheDocument();
@@ -334,7 +334,7 @@ describe("trip admin", () => {
       const api = adminApi();
       api.rosterRefusal = true;
       const { user } = renderAt("/teacher/trips/t1/students");
-      await user.type(within(await waitFor(() => card("Roster"))).getByRole("textbox"), "not-an-email");
+      await user.type(await screen.findByLabelText(/Student emails/), "not-an-email");
       await user.click(screen.getByRole("button", { name: "Import + email codes" }));
       expect(await screen.findByText(/Could not import/)).toBeInTheDocument();
     });

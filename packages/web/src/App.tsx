@@ -1,7 +1,7 @@
 import { Outlet, Link, useLocation } from "react-router-dom";
 import type { StudentChallenge } from "@trip/shared";
 import { api, type Me } from "./api.js";
-import { LightboxProvider, TabBar, useAsync, type Tab } from "./ui.js";
+import { ConfirmProvider, LightboxProvider, TabBar, useAsync, type Tab } from "./ui.js";
 import { canVote } from "./routes/vote-progress.js";
 
 // Student screens get the bottom tab bar; teacher screens and /join never do.
@@ -24,7 +24,9 @@ export function App() {
       </header>
       <main>
         <LightboxProvider>
-          <Outlet />
+          <ConfirmProvider>
+            <Outlet />
+          </ConfirmProvider>
         </LightboxProvider>
       </main>
       {tabs && <TabBar tabs={tabs} />}
