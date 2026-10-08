@@ -1,7 +1,7 @@
 // Scanning a challenge QR (/c/:slug): sign-in gate, phase/team gates, upload, nominate.
 import { describe, it, expect } from "vitest";
 import { screen, waitFor } from "@testing-library/react";
-import { http, HttpResponse } from "msw";
+import { delay, http, HttpResponse } from "msw";
 import { server } from "./server.js";
 import { renderAt } from "./render.js";
 
@@ -119,6 +119,38 @@ describe("challenge page", () => {
     await user.click(await screen.findByRole("button", { name: "Nominate" }));
     expect(await screen.findByRole("button", { name: "Nominated ✓" })).toBeInTheDocument();
     expect(nominated).toEqual({ challengeId: "ch1", submissionId: "sub1" });
+  });
+
+  it("marks the pick at once, before the server answers, and moves the mark to the new pick", async () => {
+    const subs = [
+      { id: "sub1", created_at: "2030-01-01", nominated: true },
+      { id: "sub2", created_at: "2030-01-02", nominated: false },
+    ];
+    server.use(
+      challenge(), me(ME),
+      http.get("/api/submissions", () => HttpResponse.json({ submissions: subs })),
+      http.post("/api/nominations", async () => {
+        await delay(400); // a slow network: only an optimistic update shows the pick right away
+        subs[0]!.nominated = false; subs[1]!.nominated = true;
+        return HttpResponse.json({ ok: true }, { status: 201 });
+      }),
+    );
+    const { user } = renderAt("/c/abc");
+    await user.click(await screen.findByRole("button", { name: "Nominate" }));
+    expect(screen.getByRole("button", { name: "Nominated ✓" })).toBeInTheDocument();
+    expect(screen.getAllByRole("button", { name: /Nominat/ }).map((b) => b.textContent)).toEqual(["Nominate", "Nominated ✓"]);
+  });
+
+  it("puts the mark back when a nomination is refused", async () => {
+    server.use(
+      challenge(), me(ME),
+      http.get("/api/submissions", () => HttpResponse.json({ submissions: [{ id: "sub1", created_at: "x", nominated: false }] })),
+      http.post("/api/nominations", () => HttpResponse.json({ error: "closed", message: "nominations are closed" }, { status: 409 })),
+    );
+    const { user } = renderAt("/c/abc");
+    await user.click(await screen.findByRole("button", { name: "Nominate" }));
+    await waitFor(() => expect(screen.getByText(/nominations are closed/)).toBeInTheDocument());
+    expect(screen.getByRole("button", { name: "Nominate" })).toBeInTheDocument();
   });
 
   it("tells the student when a nomination is refused", async () => {

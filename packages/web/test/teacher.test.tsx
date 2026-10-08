@@ -814,6 +814,16 @@ describe("trip admin", () => {
       expect(api.calls).toEqual(["remove sub1"]);
     });
 
+    it("a decision takes the photo off the queue and the badge at once, before the server answers", async () => {
+      adminApi();
+      const { user } = renderAt("/teacher/trips/t1/review");
+      const approve = await within(await loaded()).findByRole("button", { name: "Approve" });
+      server.use(http.post("/api/nominations/:id/:decision", async () => { await delay(400); return HttpResponse.json({ ok: true }); }));
+      await user.click(approve);
+      expect(within(queue()).queryByRole("button", { name: "Approve" })).not.toBeInTheDocument();
+      expect(within(nav()).getByRole("link", { name: "Review" })).toBeInTheDocument();
+    });
+
     it("explains a refused decision and keeps the nomination", async () => {
       const api = adminApi();
       api.moderationRefusal = "Moderation is closed in this phase.";
