@@ -17,20 +17,43 @@ describe("teacher home", () => {
     expect(await screen.findByRole("button", { name: "Sign in with PocketID" })).toBeInTheDocument();
   });
 
-  it("lists the teacher's trips and creates a new one", async () => {
+  const home = (trips: object[]) => server.use(
+    http.get("/api/auth/teacher/me", () => HttpResponse.json(TEACHER)),
+    http.get("/api/trips", () => HttpResponse.json({ trips })),
+  );
+
+  it("shows each trip as a card with its phase and role; erased trips sit apart", async () => {
+    home([
+      { id: "t1", name: "Rome 2030", phase: "challenge", role: "owner", trip_end_date: "2030-01-01" },
+      { id: "t2", name: "Oslo 2030", phase: "voting", role: "co", trip_end_date: "2030-03-01" },
+      { id: "t0", name: "Lyon 2029", phase: "erased", role: "owner", trip_end_date: "2029-05-01" },
+    ]);
+    renderAt("/teacher");
+    const rome = await screen.findByRole("link", { name: /Rome 2030/ });
+    expect(rome).toHaveAttribute("href", "/teacher/trips/t1");
+    expect(rome).toHaveTextContent("Challenge");
+    expect(rome).toHaveTextContent("Owner");
+    expect(screen.getByRole("link", { name: /Oslo 2030/ })).toHaveTextContent("Co-teacher");
+
+    const active = screen.getByRole("region", { name: "Your trips" });
+    const past = screen.getByRole("region", { name: "Past trips" });
+    expect(within(active).queryByText("Lyon 2029")).not.toBeInTheDocument();
+    expect(within(past).getByRole("link", { name: /Lyon 2029/ })).toHaveTextContent("Erased");
+  });
+
+  it("opens the new-trip form on demand and adds the created trip", async () => {
     const trips = [{ id: "t1", name: "Rome 2030", phase: "challenge", role: "owner", trip_end_date: "2030-01-01" }];
     let created: unknown;
-    server.use(
-      http.get("/api/auth/teacher/me", () => HttpResponse.json(TEACHER)),
-      http.get("/api/trips", () => HttpResponse.json({ trips })),
-      http.post("/api/trips", async ({ request }) => {
-        created = await request.json();
-        trips.push({ id: "t2", name: "Paris 2031", phase: "draft", role: "owner", trip_end_date: "2031-01-01" });
-        return HttpResponse.json({ id: "t2" }, { status: 201 });
-      }),
-    );
+    home(trips);
+    server.use(http.post("/api/trips", async ({ request }) => {
+      created = await request.json();
+      trips.unshift({ id: "t2", name: "Paris 2031", phase: "draft", role: "owner", trip_end_date: "2031-01-01" });
+      return HttpResponse.json({ id: "t2" }, { status: 201 });
+    }));
     const { user } = renderAt("/teacher");
-    expect(await screen.findByRole("link", { name: /Rome 2030/ })).toHaveAttribute("href", "/teacher/trips/t1");
+    await screen.findByRole("link", { name: /Rome 2030/ });
+    expect(screen.queryByLabelText("Name")).not.toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "New trip" }));
 
     const create = screen.getByRole("button", { name: "Create trip" });
     expect(create).toBeDisabled();
@@ -42,19 +65,27 @@ describe("teacher home", () => {
 
     expect(await screen.findByRole("link", { name: /Paris 2031/ })).toBeInTheDocument();
     expect(created).toEqual({ name: "Paris 2031", tripEndDate: "2031-01-01", maxTeamSize: 5 });
+    expect(screen.queryByLabelText("Name")).not.toBeInTheDocument();
+  });
+
+  it("starts with the form open when there are no trips yet", async () => {
+    home([]);
+    renderAt("/teacher");
+    expect(await screen.findByText("No trips yet")).toBeInTheDocument();
+    expect(screen.getByLabelText("Name")).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Cancel" })).not.toBeInTheDocument();
   });
 
   it("tells the teacher when a trip can't be created", async () => {
+    home([]);
     server.use(
-      http.get("/api/auth/teacher/me", () => HttpResponse.json(TEACHER)),
-      http.get("/api/trips", () => HttpResponse.json({ trips: [] })),
       http.post("/api/trips", () => HttpResponse.json({ error: "bad_request", message: "maxTeamSize too big" }, { status: 400 })),
     );
     const { user } = renderAt("/teacher");
     await user.type(await screen.findByLabelText("Name"), "Paris");
     await user.type(screen.getByLabelText("Trip end date"), "2031-01-01");
     await user.click(screen.getByRole("button", { name: "Create trip" }));
-    expect(await screen.findByText(/Could not create the trip/)).toBeInTheDocument();
+    expect(await screen.findByRole("alert")).toHaveTextContent("maxTeamSize too big");
   });
 });
 
