@@ -284,7 +284,7 @@ describe("trip admin", () => {
       vi.useFakeTimers({ shouldAdvanceTime: true });
       const api = adminApi();
       renderAt("/teacher/trips/t1/review");
-      expect(await within(nav()).findByRole("link", { name: "Review, 1 pending" })).toBeInTheDocument();
+      expect(await screen.findByRole("link", { name: "Review, 1 pending" })).toBeInTheDocument();
 
       api.nominations.push({ id: "n2", challenge_id: "ch1", team_id: "team2", submission_id: "sub2", state: "pending" });
       api.trip.phase = "challenge"; // the planned date passed

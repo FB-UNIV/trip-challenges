@@ -2,11 +2,12 @@
 import { useState } from "react";
 import { Link } from "react-router-dom";
 import { api, HttpError, type TripSummary } from "../../api.js";
-import { Button, Card, EmptyState, Field, Notice, PhasePill, Skeleton, useAction, useAsync } from "../../ui.js";
+import { qk, useLoad } from "../../query.js";
+import { Button, Card, EmptyState, Field, Notice, PhasePill, Skeleton, useAction } from "../../ui.js";
 
 export function TeacherHome() {
-  const me = useAsync(() => api.teacherMe(), []);
-  const trips = useAsync(() => api.listTrips().catch(() => ({ trips: [] as TripSummary[] })), []);
+  const me = useLoad(qk.teacherMe, api.teacherMe);
+  const trips = useLoad(qk.trips, () => api.listTrips().catch(() => ({ trips: [] as TripSummary[] })));
   const [creating, setCreating] = useState(false);
 
   if (me.loading) return <Skeleton />;

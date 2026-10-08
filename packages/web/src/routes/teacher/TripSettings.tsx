@@ -1,7 +1,8 @@
 // Settings: trip configuration, co-teachers, and erasure (kept apart from everyday controls).
 import { useState } from "react";
 import { api } from "../../api.js";
-import { Button, Card, Field, Notice, Pill, useAction, useAsync, useConfirm } from "../../ui.js";
+import { qk, useLoad, useTripRefresh } from "../../query.js";
+import { Button, Card, Field, Notice, Pill, useAction, useConfirm } from "../../ui.js";
 import { rankOf, useTrip } from "./TripLayout.js";
 
 export function TripSettings() {
@@ -153,13 +154,14 @@ function Settings({ tripId, trip, onSaved }: { tripId: string; trip: any; onSave
 }
 
 function CoTeachers({ tripId }: { tripId: string }) {
-  const teachers = useAsync(() => api.listTripTeachers(tripId), [tripId]);
-  const invites = useAsync(() => api.listInvites(tripId).catch(() => ({ invites: [] })), [tripId]);
+  const teachers = useLoad(qk.tripPart(tripId, "teachers"), () => api.listTripTeachers(tripId));
+  const invites = useLoad(qk.tripPart(tripId, "invites"), () => api.listInvites(tripId).catch(() => ({ invites: [] })));
+  const refreshTrip = useTripRefresh(tripId);
   const [email, setEmail] = useState("");
   const [msg, setMsg] = useState("");
   const [err, setErr] = useState("");
 
-  const reload = () => { teachers.reload(); invites.reload(); };
+  const reload = () => void refreshTrip();
 
   return (
     <Card>

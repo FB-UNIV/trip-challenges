@@ -1,7 +1,8 @@
 // The trip desk: header, phase trail and section nav around the current section (an Outlet).
 import { Navigate, Outlet, useOutletContext, useParams } from "react-router-dom";
 import { api, type NominationRow } from "../../api.js";
-import { PhasePill, PhaseTrail, SectionNav, Skeleton, useAsync, type Section } from "../../ui.js";
+import { qk, useLoad, useTripRefresh } from "../../query.js";
+import { PhasePill, PhaseTrail, SectionNav, Skeleton, type Section } from "../../ui.js";
 
 const PHASES = ["draft", "challenge", "voting", "reveal", "grace", "erased"];
 export const rankOf = (p: string) => PHASES.indexOf(p);
@@ -19,12 +20,15 @@ export const useTrip = () => useOutletContext<TripCtx>();
 
 export function TripLayout() {
   const { id } = useParams();
-  const trip = useAsync(() => api.getTrip(id!), [id]);
+  // Live: the trip moves on by itself at its planned dates, or a co-teacher advances it.
+  const trip = useLoad(qk.tripPart(id!, "info"), () => api.getTrip(id!), { live: true });
+  const refreshTrip = useTripRefresh(id!);
   const phase: string | undefined = trip.data?.phase;
   // Waits for the trip: no point asking about an unknown (or not yet loaded) one.
-  const noms = useAsync(
-    async () => (phase ? api.listNominations(id!, "pending").catch(() => null) : null) ?? { nominations: [] as NominationRow[] },
-    [id, phase],
+  const noms = useLoad(
+    qk.tripPart(id!, "nominations", "pending"),
+    async () => (await api.listNominations(id!, "pending").catch(() => null)) ?? { nominations: [] as NominationRow[] },
+    { live: true, enabled: !!phase },
   );
   // Only the first load blanks the page: a reload after a save must keep the section
   // mounted, or its confirmation ("Saved.") vanishes before anyone sees it (#30).
@@ -42,7 +46,7 @@ export function TripLayout() {
     ...(hasResults(t.phase) ? [{ to: `${base}/results`, label: "Results" }] : []),
     { to: `${base}/settings`, label: "Settings" },
   ];
-  const ctx: TripCtx = { tripId: id!, trip: t, reload: trip.reload, pending, reloadPending: noms.reload };
+  const ctx: TripCtx = { tripId: id!, trip: t, reload: refreshTrip, pending, reloadPending: refreshTrip };
 
   return (
     <div className="stack">

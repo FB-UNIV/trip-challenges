@@ -5,25 +5,26 @@ import { useSearchParams } from "react-router-dom";
 import type { RosterEntry, TripTeam } from "@trip/shared";
 import { api } from "../../api.js";
 import {
-  Button, Card, CopyField, EmptyState, Notice, Pill, Progress, Skeleton, useAction, useAsync, type Tone,
+  Button, Card, CopyField, EmptyState, Notice, Pill, Progress, Skeleton, useAction, type Tone,
 } from "../../ui.js";
+import { qk, useLoad } from "../../query.js";
 import { rankOf, useTrip } from "./TripLayout.js";
 
 export function TripStudents() {
-  const { tripId, trip } = useTrip();
-  const roster = useAsync(() => api.tripStudents(tripId), [tripId]);
-  const teams = useAsync(() => api.tripTeams(tripId).catch(() => null), [tripId]);
-  const reload = () => { roster.reload(); teams.reload(); };
+  const { tripId, trip, reload } = useTrip();
+  // Live: students join and form teams from their phones while this is open.
+  const roster = useLoad(qk.tripPart(tripId, "students"), () => api.tripStudents(tripId), { live: true });
+  const teams = useLoad(qk.tripPart(tripId, "teams"), () => api.tripTeams(tripId).catch(() => null), { live: true });
   const teamName = (id: string | null) => (id && teams.data?.teams.find((t) => t.id === id)?.name) || null;
   const emailOf = (id: string) => roster.data?.students.find((s) => s.id === id)?.email ?? "—";
   return (
     <>
       <Students tripId={tripId} data={roster.data} teamName={teamName} onChange={reload} />
       <Teams
-        tripId={tripId} data={teams.data} emailOf={emailOf} onChange={teams.reload}
+        tripId={tripId} data={teams.data} emailOf={emailOf} onChange={reload}
         editable={rankOf(trip.phase) < rankOf("reveal")}
       />
-      <Roster tripId={tripId} onSettled={roster.reload} />
+      <Roster tripId={tripId} onSettled={reload} />
     </>
   );
 }

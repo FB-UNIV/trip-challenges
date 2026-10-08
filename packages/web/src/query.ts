@@ -35,6 +35,12 @@ export const qk = {
   teams: ["student", "teams"] as const,
   submissions: (challengeId: string) => ["student", "submissions", challengeId] as const,
   challengeBySlug: (slug: string) => ["challenge", slug] as const,
+  // Teacher. Everything about one trip lives under ["trip", id], so one invalidation
+  // after an action refreshes the nav badge, the overview, the lists — all of it.
+  teacherMe: ["teacher", "me"] as const,
+  trips: ["teacher", "trips"] as const,
+  trip: (id: string) => ["trip", id] as const,
+  tripPart: (id: string, ...part: string[]) => ["trip", id, ...part] as const,
 };
 
 /** useQuery in useAsync's shape ({ data, error, loading, reload }), so screens keep their render. */
@@ -49,6 +55,12 @@ export function useLoad<T>(
 export function useRefresh() {
   const qc = useQueryClient();
   return (...keys: QueryKey[]) => Promise.all(keys.map((queryKey) => qc.invalidateQueries({ queryKey }))).then(() => {});
+}
+
+/** After a teacher action: refresh everything about this trip (and the trip list's phase/name). */
+export function useTripRefresh(tripId: string) {
+  const refresh = useRefresh();
+  return () => refresh(qk.trip(tripId), qk.trips);
 }
 
 // ---------- student ----------

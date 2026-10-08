@@ -1,14 +1,15 @@
 // Overview: the trip at a glance, and the "Now" card — what's ready, what's missing, and
 // the one action that moves the trip on.
 import { api, HttpError } from "../../api.js";
-import { Button, Card, CheckRow, ErrorCard, Notice, Skeleton, Stats, useAction, useAsync, useConfirm } from "../../ui.js";
+import { qk, useLoad } from "../../query.js";
+import { Button, Card, CheckRow, ErrorCard, Notice, Skeleton, Stats, useAction, useConfirm } from "../../ui.js";
 import { useTrip } from "./TripLayout.js";
 import { nowPlan, type Plan } from "./now-plan.js";
 
 export function TripOverview() {
   const { tripId, trip, reload, pending } = useTrip();
-  const progress = useAsync(() => api.tripProgress(tripId), [tripId]);
-  const roster = useAsync(() => api.rosterStatus(tripId).catch(() => null), [tripId]);
+  const progress = useLoad(qk.tripPart(tripId, "progress"), () => api.tripProgress(tripId), { live: true });
+  const roster = useLoad(qk.tripPart(tripId, "roster"), () => api.rosterStatus(tripId).catch(() => null), { live: true });
   const p = progress.data;
   return (
     <>

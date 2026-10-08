@@ -2,15 +2,16 @@
 import { useState } from "react";
 import { Link } from "react-router-dom";
 import { api, type ChallengeSummary } from "../../api.js";
-import { Button, Card, EmptyState, Field, Notice, Pill, Skeleton, useAction, useAsync, useConfirm } from "../../ui.js";
+import { qk, useLoad } from "../../query.js";
+import { Button, Card, EmptyState, Field, Notice, Pill, Skeleton, useAction, useConfirm } from "../../ui.js";
 import { rankOf, useTrip } from "./TripLayout.js";
 
 type Draft = { title: string; instructions: string; multiplier: string };
 const toInput = (d: Draft) => ({ title: d.title.trim(), instructions: d.instructions, multiplier: Number(d.multiplier) });
 
 export function TripChallenges() {
-  const { tripId, trip } = useTrip();
-  const list = useAsync(() => api.listChallenges(tripId), [tripId]);
+  const { tripId, trip, reload } = useTrip();
+  const list = useLoad(qk.tripPart(tripId, "challenges"), () => api.listChallenges(tripId));
   const canEdit = rankOf(trip.phase) < rankOf("reveal");
   const canAdd = rankOf(trip.phase) < rankOf("voting");
   const canDelete = trip.phase === "draft";
@@ -28,10 +29,10 @@ export function TripChallenges() {
         {list.loading && !list.data ? <Skeleton />
           : challenges.length === 0 ? <EmptyState icon="📸" title="No challenges yet" />
           : challenges.map((c) => (
-            <ChallengeRow key={c.id} c={c} canEdit={canEdit} canDelete={canDelete} onChange={list.reload} />
+            <ChallengeRow key={c.id} c={c} canEdit={canEdit} canDelete={canDelete} onChange={reload} />
           ))}
       </Card>
-      {canAdd && <NewChallenge tripId={tripId} onAdded={list.reload} />}
+      {canAdd && <NewChallenge tripId={tripId} onAdded={reload} />}
     </>
   );
 }
