@@ -97,7 +97,6 @@ export async function duelRoutes(app: FastifyInstance) {
     if (winner !== pair.lo && winner !== pair.hi) {
       return reply.code(400).send({ error: "bad_request", message: "winner not in pair" });
     }
-    const loser = winner === pair.lo ? pair.hi : pair.lo;
 
     try {
       await tx(async (c) => {
@@ -114,8 +113,9 @@ export async function duelRoutes(app: FastifyInstance) {
            VALUES ($1,$2,$3,$4,$5,$6,$7,$8)`,
           [ctx.tripId, pair.challengeId, ctx.studentId, pair.lo, pair.hi, winner, pair.lo, pair.hi],
         );
-        await bumpStats(c, ctx.tripId, winner, true);
-        await bumpStats(c, ctx.tripId, loser, false);
+        // Lock the two stats rows in one fixed order (low id first), whoever won. Winner-first
+        // let two opposite votes on one pair deadlock and lose a vote (#63 load test).
+        for (const id of [pair.lo, pair.hi]) await bumpStats(c, ctx.tripId, id, id === winner);
       });
     } catch (e: any) {
       if (e?.httpStatus) return reply.code(e.httpStatus).send({ error: e.error, message: e.message });

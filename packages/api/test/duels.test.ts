@@ -160,6 +160,37 @@ describe("POST /api/duels/cast", () => {
     expect(rows).toEqual([{ trip_id: trip, voter_student_id: voter.id, winner_nomination_id: winner }]);
   });
 
+  // Found by the load test (#63): bumping winner then loser locked the two stats rows in vote
+  // order, so two voters picking opposite winners of one pair deadlocked (40P01), and one vote
+  // was lost. PGlite has one connection and can't deadlock, so this pins the lock order: the
+  // low id's row first, whoever won.
+  it("updates both sides' stats low id first, whoever won", async () => {
+    const order: string[][] = [];
+    const connect = pool.connect.bind(pool);
+    vi.spyOn(pool, "connect").mockImplementation(async () => {
+      const client = await connect();
+      const query = client.query.bind(client);
+      const touched: string[] = [];
+      order.push(touched);
+      client.query = ((text: unknown, params?: unknown[]) => {
+        if (typeof text === "string" && /INSERT INTO nomination_stats/.test(text)) touched.push(params![0] as string);
+        return query(text as string, params);
+      }) as typeof client.query;
+      return client;
+    });
+    const other = await makeStudent(trip);
+    try {
+      for (const [who, pick] of [[voter, "lo"], [other, "hi"]] as const) {
+        const { pair } = (await next(who.cookie)).json();
+        const [lo, hi] = [pair.aNominationId, pair.bNominationId].sort();
+        expect((await cast(who.cookie, pair.pairToken, pick === "lo" ? lo : hi)).statusCode).toBe(200);
+        expect(order.at(-1)).toEqual([lo, hi]);
+      }
+    } finally {
+      vi.restoreAllMocks();
+    }
+  });
+
   it("rejects a repeat of the same pair with 409", async () => {
     const { pair } = (await next(voter.cookie)).json();
     await cast(voter.cookie, pair.pairToken, pair.aNominationId);
