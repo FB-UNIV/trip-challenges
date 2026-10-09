@@ -9,8 +9,8 @@ vi.mock("../src/email/mailer.js", () => import("./support/fake-mailer.js"));
 import { healthRoutes } from "../src/routes/health.js";
 import { startErasureScheduler } from "../src/scheduler.js";
 import { enqueueRoster } from "../src/roster-worker.js";
-import { hasKey, faults } from "./support/fake-vault.js";
-import { s3faults } from "./support/fake-s3.js";
+import { hasKey, faults, vaultHealth } from "./support/fake-vault.js";
+import { s3faults, s3health } from "./support/fake-s3.js";
 import { sent } from "./support/fake-mailer.js";
 import { pool, resetAll, buildApp, makeTeacher, makeTrip, addCoTeacher, count } from "./support/harness.js";
 
@@ -22,15 +22,26 @@ beforeEach(async () => {
 afterEach(() => vi.unstubAllGlobals());
 
 describe("health", () => {
-  it("reports liveness and DB readiness", async () => {
+  it("reports liveness, and readiness of each dependency", async () => {
     const app = await buildApp([healthRoutes]);
     expect((await app.inject({ method: "GET", url: "/api/healthz" })).json()).toEqual({ status: "ok" });
-    expect((await app.inject({ method: "GET", url: "/api/readyz" })).json()).toEqual({ status: "ready" });
+    const ready = await app.inject({ method: "GET", url: "/api/readyz" });
+    expect(ready.statusCode).toBe(200);
+    expect(ready.json()).toEqual({ status: "ready", checks: { database: "ok", keystore: "ok", storage: "ok" } });
+  });
 
-    const down = vi.spyOn(pool, "query").mockRejectedValueOnce(new Error("ECONNREFUSED"));
+  // #69: the operator (and the proxy) learn *which* dependency is down, never a secret.
+  it.each([
+    ["database", () => vi.spyOn(pool, "query").mockRejectedValueOnce(new Error("ECONNREFUSED")), { database: "down", keystore: "ok", storage: "ok" }],
+    ["keystore", () => { vaultHealth.status = "sealed"; }, { database: "ok", keystore: "sealed", storage: "ok" }],
+    ["storage", () => { s3health.status = "down"; }, { database: "ok", keystore: "ok", storage: "down" }],
+  ])("is not ready when the %s is down, and says which", async (_label, breakIt, checks) => {
+    const app = await buildApp([healthRoutes]);
+    breakIt();
     const res = await app.inject({ method: "GET", url: "/api/readyz" });
-    down.mockRestore();
+    vi.restoreAllMocks();
     expect(res.statusCode).toBe(503);
+    expect(res.json()).toEqual({ status: "not-ready", checks });
   });
 });
 

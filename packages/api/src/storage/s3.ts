@@ -11,6 +11,7 @@ import {
   ListObjectsV2Command,
   DeleteObjectsCommand,
 } from "@aws-sdk/client-s3";
+import { randomUUID } from "node:crypto";
 import { config } from "../config.js";
 import { tagDependency } from "../lib/errors.js";
 
@@ -99,4 +100,52 @@ export async function deleteTripBlobs(tripId: string): Promise<void> {
     }
     ContinuationToken = list.IsTruncated ? list.NextContinuationToken : undefined;
   } while (ContinuationToken);
+}
+
+// What a failure was, for an operator: the S3 code if there is one, else our own message.
+const reasonOf = (e: unknown) =>
+  (e instanceof Error ? (e.name && e.name !== "Error" ? e.name : e.message) : String(e)).split("\n", 1)[0]!.trim();
+
+/**
+ * Startup self-check (#69, #68): prove these credentials can do everything the app needs,
+ * erasure's delete included, on a probe object outside any trip. Throws a message naming the
+ * missing permission, so a bad bucket policy fails the boot instead of a teacher's "Erase now".
+ */
+export async function probeStorage(): Promise<void> {
+  const key = `_selfcheck/${randomUUID()}`;
+  const step = async (what: string, permission: string, fn: () => Promise<unknown>) => {
+    try {
+      await fn();
+    } catch (e: any) {
+      // Only a refusal is a permission problem; anything else means we aren't talking to
+      // working storage (wrong endpoint, another service on that port, storage down).
+      const denied = e?.$metadata?.httpStatusCode === 403 || /AccessDenied|Forbidden/.test(reasonOf(e));
+      throw new Error(
+        `storage self-check: could not ${what} (${reasonOf(e)}). ` +
+          (denied
+            ? `The S3 credentials need ${permission} on bucket "${Bucket}".`
+            : `Check that S3_ENDPOINT points at your object storage and that it is up.`),
+      );
+    }
+  };
+  await step("write a probe object", "s3:PutObject", () => putBlob(key, Buffer.from("selfcheck")));
+  await step("list objects", "s3:ListBucket", async () => {
+    const list = await s3.send(new ListObjectsV2Command({ Bucket, Prefix: key }));
+    if (!list.Contents?.some((o) => o.Key === key)) throw new Error("the probe object was not listed");
+  });
+  await step("read the probe object back", "s3:GetObject", async () => {
+    if ((await getBlob(key)).toString() !== "selfcheck") throw new Error("the probe object came back different");
+  });
+  // The same list + DeleteObjects path erasure uses, per-object errors included.
+  await step("delete the probe object", "s3:DeleteObject", () => deleteTripBlobs("_selfcheck"));
+}
+
+/** Readiness: is the bucket reachable? A 403 on HEAD still means reachable (see ensureBucket). */
+export async function storageHealth(): Promise<"ok" | "down"> {
+  try {
+    await s3.send(new HeadBucketCommand({ Bucket }));
+    return "ok";
+  } catch (e: any) {
+    return e?.$metadata?.httpStatusCode === 403 ? "ok" : "down";
+  }
 }

@@ -15,7 +15,7 @@ beforeEach(() => {
     calls.push({
       url,
       method: init.method ?? "GET",
-      token: (init.headers as Record<string, string>)["X-Vault-Token"] ?? null,
+      token: ((init.headers ?? {}) as Record<string, string>)["X-Vault-Token"] ?? null,
       body: init.body ? JSON.parse(init.body as string) : undefined,
     });
     return reply(url);
@@ -88,6 +88,73 @@ describe("vault transit client", () => {
     await expect(vault.encrypt("t1", Buffer.from("x"))).rejects.toMatchObject({ dependency: "keystore", status: 503 });
     reply = () => { throw new TypeError("fetch failed"); };
     await expect(vault.encrypt("t1", Buffer.from("x"))).rejects.toMatchObject({ dependency: "keystore" });
+  });
+
+  // #69: boot proves the token can do everything the app does with a trip key, erasure included.
+  describe("probeKeystore (startup self-check)", () => {
+    it("runs a throwaway trip key through every operation, then destroys it", async () => {
+      reply = (url) => url.includes("/encrypt/") ? json({ ciphertext: "vault:v1:x" })
+        : url.includes("/decrypt/") ? json({ plaintext: Buffer.from("selfcheck").toString("base64") })
+        : url.includes("/hmac/") ? json({ hmac: "vault:v1:h" })
+        : url.includes("/datakey/") ? json({ plaintext: "AAAA", ciphertext: "vault:v1:k" })
+        : new Response(null, { status: 204 });
+      await vault.probeKeystore();
+      const paths = calls.map((c) => `${c.method} ${c.url.replace(/trip-selfcheck-[0-9a-f-]+/, "trip-*")}`);
+      expect(paths).toEqual([
+        "POST http://vault.test/v1/transit/keys/trip-*",
+        "POST http://vault.test/v1/transit/encrypt/trip-*",
+        "POST http://vault.test/v1/transit/decrypt/trip-*",
+        "POST http://vault.test/v1/transit/hmac/trip-*/sha2-256",
+        "POST http://vault.test/v1/transit/datakey/plaintext/trip-*",
+        "POST http://vault.test/v1/transit/keys/trip-*/config",
+        "DELETE http://vault.test/v1/transit/keys/trip-*",
+      ]);
+    });
+
+    it("names the operation and the policy path the token lacks", async () => {
+      reply = (url) => url.includes("/hmac/") ? new Response("permission denied", { status: 403 })
+        : url.includes("/encrypt/") ? json({ ciphertext: "vault:v1:x" })
+        : url.includes("/decrypt/") ? json({ plaintext: Buffer.from("selfcheck").toString("base64") })
+        : new Response(null, { status: 204 });
+      await expect(vault.probeKeystore()).rejects.toThrow(/compute an HMAC.*403.*"update" on transit\/hmac\/trip-\*/);
+      // The probe key doesn't outlive a failed check.
+      expect(calls.at(-1)).toMatchObject({ method: "DELETE" });
+    });
+
+    it.each([
+      ["sealed", () => new Response("Vault is sealed", { status: 503 })],
+      ["unreachable", () => { throw new TypeError("fetch failed"); }],
+    ])("points at Vault itself, not the policy, when it is %s", async (_label, r) => {
+      reply = r as any;
+      const e = await vault.probeKeystore().catch((x: Error) => x);
+      expect((e as Error).message).toMatch(/could not create a key.*Check that VAULT_ADDR/);
+      expect((e as Error).message).not.toMatch(/token needs/);
+    });
+
+    it("says so when the token can't destroy keys (erasure would fail)", async () => {
+      reply = (url) => url.endsWith("/config") ? new Response("permission denied", { status: 403 })
+        : url.includes("/encrypt/") ? json({ ciphertext: "vault:v1:x" })
+        : url.includes("/decrypt/") ? json({ plaintext: Buffer.from("selfcheck").toString("base64") })
+        : url.includes("/hmac/") ? json({ hmac: "h" })
+        : url.includes("/datakey/") ? json({ plaintext: "AAAA", ciphertext: "k" })
+        : new Response(null, { status: 204 });
+      await expect(vault.probeKeystore()).rejects.toThrow(/destroy a key.*403.*transit\/keys\/trip-\*\/config/);
+    });
+  });
+
+  describe("keystoreHealth (readiness)", () => {
+    it.each([
+      [200, "ok"], [429, "ok"], [503, "sealed"], [501, "down"],
+    ])("sys/health %i → %s", async (status, want) => {
+      reply = () => new Response("{}", { status });
+      expect(await vault.keystoreHealth()).toBe(want);
+      expect(calls[0]!.url).toBe("http://vault.test/v1/sys/health?standbyok=true");
+    });
+
+    it("is down when Vault can't be reached", async () => {
+      reply = () => { throw new TypeError("fetch failed"); };
+      expect(await vault.keystoreHealth()).toBe("down");
+    });
   });
 
   it("enables the transit engine idempotently", async () => {

@@ -176,6 +176,21 @@ on AWS/R2), pre-create the bucket and the app logs a clear message rather than f
 cryptically. Grant the app credential `Get/Put/List/DeleteObject` on the bucket —
 `DeleteObject` is required so erasure can sweep a trip's blobs.
 
+**Boot self-checks.** Before serving, the API proves its credentials can do everything the
+app needs, so a missing permission fails the boot instead of a teacher's request or an
+erasure (#69):
+
+- **Storage:** writes, lists, reads back and deletes a probe object under `_selfcheck/`, using
+  the same delete path as erasure.
+- **Vault:** creates a throwaway `trip-selfcheck-…` key, encrypts, decrypts, computes an HMAC,
+  issues a data key, then destroys it. The key is removed even when a step fails.
+
+A failure stops the API with the missing piece, for example
+`keystore self-check: could not compute an HMAC (vault 403). The Vault token needs "update" on
+transit/hmac/trip-*`. A 403 names the permission or policy line to add. Anything else
+(unreachable, sealed, or another service answering on the S3 port) says to check
+`S3_ENDPOINT` / `VAULT_ADDR`.
+
 ---
 
 ## 5. Verify
@@ -183,7 +198,13 @@ cryptically. Grant the app credential `Get/Put/List/DeleteObject` on the bucket 
 ```bash
 curl -s http://127.0.0.1:3000/api/healthz          # {"status":"ok"} (direct)
 curl -sk https://<PUBLIC_HOST>/api/healthz          # via the edge/proxy
+curl -s http://127.0.0.1:3000/api/readyz           # {"status":"ready","checks":{"database":"ok","keystore":"ok","storage":"ok"}}
 ```
+
+`/api/healthz` only says the process is up. `/api/readyz` answers 503 `not-ready` when a
+dependency is down and says which one: `database` (ok/down), `keystore` (ok/sealed/down) or
+`storage` (ok/down). Point the proxy's or orchestrator's health check at `/readyz`, and
+alert on it.
 
 - Open `https://<PUBLIC_HOST>/teacher` and sign in with PocketID.
 - Confirm the dev backdoor is off in prod: `curl -s https://<host>/api/auth/teacher/dev-login`

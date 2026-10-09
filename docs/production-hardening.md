@@ -192,6 +192,9 @@ Enforced in code and tests (`packages/api/src/lib/logging.ts`, `test/logging.tes
 
 ### Errors and request ids (#69)
 
+(Boot self-checks and `/api/readyz` are described in `docs/deployment.md` §4–5. A sealed
+Vault shows as `"keystore":"sealed"` there.)
+
 Every API error answers `{ error, message, requestId }`; the same id is in the `X-Request-Id`
 response header and on every log line as `reqId`. The API reuses the edge's `X-Request-Id`
 when it is short and plain (`[A-Za-z0-9._:-]`, at most 64 characters), otherwise it generates

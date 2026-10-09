@@ -10,9 +10,12 @@ export const hasKey = (tripId: string) => keys.has(tripId);
 export const keyCount = () => keys.size;
 /** Fault injection: the next `destroyKeyFailures` calls to destroyTripKey throw. */
 export const faults = { destroyKeyFailures: 0 };
+/** What keystoreHealth() answers (readiness). */
+export const vaultHealth = { status: "ok" as "ok" | "sealed" | "down" };
 export const resetVault = () => {
   keys.clear();
   faults.destroyKeyFailures = 0;
+  vaultHealth.status = "ok";
 };
 
 function key(tripId: string): Buffer {
@@ -22,6 +25,10 @@ function key(tripId: string): Buffer {
 }
 
 export async function ensureTransitEngine(): Promise<void> {}
+export async function probeKeystore(): Promise<void> {}
+export async function keystoreHealth(): Promise<"ok" | "sealed" | "down"> {
+  return vaultHealth.status;
+}
 
 export async function createTripKey(tripId: string): Promise<void> {
   keys.set(tripId, randomBytes(32));
