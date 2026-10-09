@@ -307,6 +307,11 @@ node loadtest/report.mjs
 docker compose exec -e SEED_DEMO=staging api node packages/api/dist/scripts/seed-demo.js --erase
 ```
 
+- **Heavier runs:** seed more uploaders (`--uploaders 50`; locally `UPLOADERS=50 npx tsx loadtest/seed.mts`)
+  and pass the same knobs to k6, e.g. `k6 run -e UPLOADERS=50 -e THINK=1 -e VOTERS=100 loadtest/voting.k6.js`
+  (all knobs are listed at the top of `voting.k6.js`). From a single machine everything shares
+  one IP: past ~6000 requests/min (`RATE_LIMIT_MAX`) the 429s are the per-IP limit doing its
+  job, not a capacity problem. 50 uploaders with the default think time stays under it.
 - `.state.json` holds **session cookies** of the demo students: bearer secrets for fake
   accounts that die at `--erase`. It's git-ignored; delete it afterwards.
 - The rate limits stay as configured, on purpose. All the virtual students share your IP,

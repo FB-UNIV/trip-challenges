@@ -13,7 +13,8 @@ import { seedDemo, seedLoadtest, eraseDemo } from "../demo/seed.js";
 const USAGE = [
   "Usage (staging only — creates fake students, photos and votes):",
   "  SEED_DEMO=staging node packages/api/dist/scripts/seed-demo.js --teacher <email> [--small]",
-  "  SEED_DEMO=staging node packages/api/dist/scripts/seed-demo.js --teacher <email> --loadtest   (prints k6 state JSON)",
+  "  SEED_DEMO=staging node packages/api/dist/scripts/seed-demo.js --teacher <email> --loadtest [--students 50] [--uploaders 5]",
+  "    (prints the k6 state JSON)",
   "  SEED_DEMO=staging node packages/api/dist/scripts/seed-demo.js --erase",
 ].join("\n");
 
@@ -41,7 +42,13 @@ export async function run(
       return 1;
     }
     if (argv.includes("--loadtest")) {
-      log(JSON.stringify(await seedLoadtest({ teacherEmail })));
+      const count = (flag: string) => {
+        const i = argv.indexOf(flag);
+        const n = i >= 0 ? Number(argv[i + 1]) : undefined;
+        if (n !== undefined && !(Number.isInteger(n) && n > 0)) throw new Error(`${flag} needs a positive whole number`);
+        return n;
+      };
+      log(JSON.stringify(await seedLoadtest({ teacherEmail, students: count("--students"), uploaders: count("--uploaders") })));
       return 0;
     }
     const { trips } = await seedDemo({ teacherEmail, ...(argv.includes("--small") ? SMALL : {}) });
