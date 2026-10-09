@@ -53,6 +53,32 @@ describe("behind the proxy (#67)", () => {
   });
 });
 
+// Staging load test (#63): a class voting together shares one school IP, so the per-IP limit
+// must fit a class, while each signed-in student gets their own, smaller budget.
+describe("per-student limit", () => {
+  const me = (cookie: string, ip = "203.0.113.50") =>
+    app.inject({ method: "GET", url: "/api/student/me", remoteAddress: TRAEFIK, headers: { "x-forwarded-for": ip, cookie } });
+
+  // Each request from its own address, so only the per-student budget can trip.
+  it("throttles one student, from whatever address, without touching classmates", async () => {
+    const owner = await makeTeacher();
+    const trip = await makeTrip(owner);
+    const [noisy, classmate] = [await makeStudent(trip), await makeStudent(trip)];
+    for (let i = 0; i < config.RATE_LIMIT_STUDENT_MAX; i++) expect((await me(noisy.cookie, `198.18.0.${i + 1}`)).statusCode).toBe(200);
+    const limited = await me(noisy.cookie, "198.18.1.1");
+    expect(limited.statusCode).toBe(429);
+    expect(limited.json()).toMatchObject({ error: "rate_limited", message: expect.stringMatching(/try again/i), requestId: expect.any(String) });
+    expect((await me(classmate.cookie, "198.18.1.1")).statusCode).toBe(200);
+  });
+
+  it("can't be dodged with made-up session cookies: those still count against the IP", async () => {
+    for (let i = 0; i < config.RATE_LIMIT_MAX; i++) {
+      expect((await me(`student_session=00000000-0000-0000-0000-${String(i).padStart(12, "0")}.fake`)).statusCode).toBe(401);
+    }
+    expect((await me("student_session=00000000-0000-0000-0000-999999999999.fake")).statusCode).toBe(429);
+  });
+});
+
 describe("access-code redemption limits (#67)", () => {
   const redeem = (code: string, ip = "203.0.113.9") =>
     app.inject({

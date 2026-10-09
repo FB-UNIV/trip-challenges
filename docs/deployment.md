@@ -311,7 +311,10 @@ docker compose exec -e SEED_DEMO=staging api node packages/api/dist/scripts/seed
   accounts that die at `--erase`. It's git-ignored; delete it afterwards.
 - The rate limits stay as configured, on purpose. All the virtual students share your IP,
   just as a class on school Wi-Fi shares one NAT address. A run full of **429**s means a real
-  class voting together would be throttled too.
+  class voting together would be throttled too. That happened on staging at the old
+  `RATE_LIMIT_MAX=600`: 43 % of requests were 429s. The default is now 6000/min per IP, plus
+  600/min per signed-in student (`RATE_LIMIT_STUDENT_MAX`). If your `.env` still pins
+  `RATE_LIMIT_MAX=600`, remove it.
 
 In CI, `.github/workflows/loadtest.yml` runs weekly, on PRs that change `loadtest/`, and on
 demand. **Run workflow** takes a `ref`, which builds and runs the API from that tag or branch
