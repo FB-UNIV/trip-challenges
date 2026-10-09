@@ -264,6 +264,43 @@ The script refuses to run without `SEED_DEMO=staging`. Never run it on productio
 
 ---
 
+## 6b. Load test (#63)
+
+The target load is ~50 students active at once, with everyone voting as the worst case.
+`loadtest/` reproduces that against the real API, Postgres, MinIO, Vault and Mailpit:
+- **Seed:** 50 students sign in through real emailed access codes and form 10 teams, with a
+  ~500 KB photo per team per challenge, approved, then the trip moves to voting. A second
+  trip stays in the challenge phase for uploads.
+- **k6:** 50 virtual students loop next duel → both photos → cast (1–3 s to look), while
+  5 others upload photos.
+
+```bash
+npm run e2e:services                       # the e2e compose stack
+npm run build -w @trip/shared && npm run build -w @trip/api
+eval "$(npx tsx loadtest/api-env.ts)" && (cd packages/api && node dist/server.js &)
+npx tsx loadtest/seed.mts
+k6 run loadtest/voting.k6.js               # or: docker run --rm --network host -v "$PWD":/repo -w /repo grafana/k6 run loadtest/voting.k6.js
+node loadtest/report.mjs                   # Markdown table from loadtest/summary.json
+```
+
+Thresholds fail the run: <1 % failed requests, p95 < 500 ms for `me`, `next` and `cast`,
+< 1.5 s for photos, < 3 s for uploads. A refused cast (409, e.g. the pair was already judged)
+counts as an answer, not a failure. Read the **p99 and max** too: a fast median can hide a
+locking problem (see #122).
+
+In CI, `.github/workflows/loadtest.yml` runs weekly, on PRs that change `loadtest/`, and on
+demand. **Run workflow** takes a `ref`, which builds and runs the API from that tag or branch
+with today's scenario, so two versions can be compared. Shared runners give **relative**
+numbers. Compare runs; don't read them as a VPS's capacity.
+
+Recorded on one 12-core laptop, with the same scenario for each build:
+
+| build | median (vote calls) | p99 cast | max cast | throughput | failed |
+|---|---|---|---|---|---|
+| v0.7.0: argon2 per request | ~1.5 s | 1.9 s | 12.9 s | 28 req/s | 0 % (everything slow) |
+| v0.8.0: SHA-256 sessions (#64) | 6–19 ms | 2.6 s | 5.4 s | 83 req/s | 0.14 % (deadlocked votes) |
+| main: + fixed lock order (#122) | 6–19 ms | 62 ms | 134 ms | 85 req/s | 0 % |
+
 ## 7. CI/CD (GitHub Actions)
 
 Workflows in [`.github/workflows/`](../.github/workflows): `ci.yml` runs typecheck → test
