@@ -51,7 +51,8 @@ function studentTabs(me: Me, challenges: StudentChallenge[]): Tab[] {
   return [
     { to: "/", label: "Home", icon: "🏠" },
     { to: "/challenges", label: "Challenges", icon: "📸", badge: toEnter, also: ["/c"] },
-    { to: "/team", label: "Team", icon: "🧑‍🤝‍🧑", badge: me.phase === "draft" && !me.teamId ? 1 : 0 },
+    // Teams are optional (#79): having none is not a to-do.
+    { to: "/team", label: "Team", icon: "🧑‍🤝‍🧑" },
     { to: "/vote", label: "Vote", icon: "⚖️", badge: toVote, disabled: beforeVoting },
   ];
 }

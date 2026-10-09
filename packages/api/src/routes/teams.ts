@@ -1,5 +1,6 @@
 // Teams. Rules (CONTEXT: Team): exclusive membership, solo allowed, bounded by the
-// Trip's maxTeamSize, and formation locks once the challenge period starts.
+// Trip's maxTeamSize, and joining/leaving locks once the challenge period starts (creating
+// a team of one to play solo stays open until voting, #79).
 // Team names are 🔒 (may contain real names).
 import type { FastifyInstance } from "fastify";
 import { CreateTeam, JoinTeam } from "@trip/shared";
@@ -35,8 +36,16 @@ export async function teamRoutes(app: FastifyInstance) {
     return { teams };
   });
 
-  // Create a team (creator becomes its first member).
-  app.post("/", { preHandler: formable }, async (req, reply) => {
+  // Teams are optional (#79): once they lock, a student without one can still play solo by
+  // creating one during photo time. Nobody can join it any more, so it stays a team of one.
+  const creatable = guard({
+    role: "student",
+    phases: ["draft", "challenge"],
+    closed: { status: 409, body: { error: "locked", message: "teams are locked" } },
+  });
+
+  // Create a team (creator becomes its first member). After draft: playing solo.
+  app.post("/", { preHandler: creatable }, async (req, reply) => {
     const ctx = studentOf(req);
     if (ctx.teamId) return reply.code(409).send({ error: "in_team", message: "leave your team first" });
     const parsed = CreateTeam.safeParse(req.body);

@@ -96,11 +96,11 @@ describe("challenge checklist", () => {
     expect(screen.queryByRole("link", { name: /Go vote/ })).not.toBeInTheDocument();
   });
 
-  it("sends a student without a team to the teams page", async () => {
+  it("offers a student without a team to play solo right here (#79)", async () => {
     server.use(meIs({ ...ME, teamId: null }), listIs(THREE));
     renderAt("/challenges");
-    expect(await screen.findByText("No team yet")).toBeInTheDocument();
-    expect(screen.getByRole("link", { name: /Go to teams/ })).toHaveAttribute("href", "/team");
+    expect(await screen.findByRole("heading", { name: "Play solo" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Play solo" })).toBeDisabled(); // until named
   });
 
   it("shows an empty state when the trip has no challenges", async () => {

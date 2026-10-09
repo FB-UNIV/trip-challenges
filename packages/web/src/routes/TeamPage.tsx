@@ -2,6 +2,7 @@ import { useState } from "react";
 import { Link } from "react-router-dom";
 import { api, HttpError, type TeamView } from "../api.js";
 import { qk, useMe, useMyChallenges, useRefresh, useTeams } from "../query.js";
+import { PlaySolo } from "./PlaySolo.js";
 import {
   Button, Card, CheckRow, EmptyState, ErrorCard, Field, Skeleton, Stepper, type Step,
 } from "../ui.js";
@@ -59,6 +60,10 @@ export function TeamPage() {
     );
   }
 
+  // Teams locked, none joined: during photo time the student plays solo (#79).
+  if (locked && phase === "challenge") {
+    return <Card hero><PlaySolo /></Card>;
+  }
   if (locked) {
     return (
       <Card>
@@ -78,6 +83,7 @@ export function TeamPage() {
         <h2>Pick your team</h2>
         <Field label="New team name" value={name} onChange={(e) => setName(e.target.value)} />
         <Button size="block" disabled={!name.trim()} onClick={act(() => api.createTeam(name.trim()))}>Create team</Button>
+        <p className="muted tiny" style={{ marginBottom: 0 }}>Playing solo? Create a team just for you.</p>
         {err && <p className="err tiny" style={{ marginBottom: 0 }}>{err}</p>}
       </Card>
       <Card>

@@ -27,11 +27,11 @@ describe("student tab bar", () => {
     expect(within(nav).getByText("Vote").closest("[aria-disabled]")).toHaveAttribute("aria-disabled", "true");
   });
 
-  it("draft without a team: the Team tab carries the badge", async () => {
+  it("draft without a team: no badge, teams are optional (#79)", async () => {
     server.use(meIs({ ...ME, phase: "draft", teamId: null }), listIs([ch("c1", false)]), teams());
     renderAt("/team");
     const nav = await tabBar();
-    expect(await within(nav).findByRole("link", { name: "Team, 1 to do" })).toHaveAttribute("aria-current", "page");
+    expect(await within(nav).findByRole("link", { name: "Team" })).toHaveAttribute("aria-current", "page");
     expect(within(nav).getByRole("link", { name: "Challenges" })).toBeInTheDocument();
   });
 

@@ -44,7 +44,7 @@ Every table below carries `trip_id uuid` (FK -> trip) and is filtered by it on e
 | vault_key_name | text | `trip-<id>`; reference only, key lives in Vault |
 | created_at | timestamptz | |
 
-`teams_locked` derives from `phase >= challenge` (membership freezes at challenge start).
+`teams_locked` derives from `phase >= challenge` (joining and leaving freeze at challenge start). Creating a team stays open through `challenge`, so a student without one can play solo as a team of one (#79). From `voting` on, nothing changes.
 
 ### trip_teacher — co-teacher membership
 | column | type | notes |

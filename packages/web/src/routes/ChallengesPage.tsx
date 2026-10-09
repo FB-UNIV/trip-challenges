@@ -3,6 +3,7 @@
 import { Link } from "react-router-dom";
 import type { StudentChallenge } from "@trip/shared";
 import { useMe, useMyChallenges } from "../query.js";
+import { PlaySolo } from "./PlaySolo.js";
 import {
   Card, Celebrate, CheckRow, EmptyState, ErrorCard, PhaseTrail, Progress, Skeleton, type CheckState,
 } from "../ui.js";
@@ -59,7 +60,7 @@ export function ChallengesPage() {
   if (!teamId) {
     return (
       <Card>
-        <EmptyState icon="🧭" title="No team yet"><Link to="/team" className="btn">Go to teams</Link></EmptyState>
+        <PlaySolo />
       </Card>
     );
   }

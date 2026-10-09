@@ -22,10 +22,10 @@ _Avoid_: registered, signed up, active (a joined Student may not have opened the
 List of student emails bulk-imported by a Teacher. School holds parental consent offline and is the data **controller**; this system is a **processor**. Roster emails are wiped at Erasure.
 
 ### Team
-A voluntary grouping of Students, formed by Students themselves. Unit credited for Submissions. Rules:
+A voluntary grouping of Students, formed by Students themselves. Unit credited for Submissions. Teams are **optional** for the Student: one who plays alone is a Team of one (#79). Rules:
 - **Exclusive**: a Student is in exactly one Team at a time.
-- **Solo allowed**: a Team may have a single member.
-- **Fixed**: membership locks when the challenge period starts; free to form/join/leave only before lock.
+- **Solo allowed**: a Team may have a single member. A Student without a Team can **play solo** during the challenge period by creating a Team of one (naming it as for any Team). Nobody can join it, since joining is locked by then.
+- **Fixed**: joining and leaving lock when the challenge period starts. Creating a Team stays open until voting, so a Student without one can still play solo.
 - **Bounded**: 1..maxTeamSize, where maxTeamSize is set per Trip by the Teacher (default 4).
 - **Named by Students, reviewed by a Teacher**: a Team name is free text and may identify Students. A Teacher may rename a Team at any time before the reveal and marks its name **reviewed** (renaming counts as reviewing). Unreviewed names are shown during the Trip and the ceremony, but never survive Erasure.
 

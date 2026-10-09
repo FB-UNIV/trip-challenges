@@ -74,10 +74,24 @@ describe("challenge page", () => {
     expect(await screen.findByText("Uploads are closed (phase: voting).")).toBeInTheDocument();
   });
 
-  it("sends a student without a team to the teams page first", async () => {
-    server.use(challenge(), me({ ...ME, teamId: null }));
-    renderAt("/c/abc");
-    expect(await screen.findByRole("link", { name: "Go to teams →" })).toHaveAttribute("href", "/team");
+  it("lets a student without a team play solo, then upload (#79)", async () => {
+    let teamId: string | null = null;
+    server.use(
+      challenge(),
+      http.get("/api/student/me", () => HttpResponse.json({ ...ME, teamId })),
+      http.post("/api/teams", async ({ request }) => {
+        expect(await request.json()).toEqual({ name: "Lone wolf" });
+        teamId = "solo1";
+        return HttpResponse.json({ teamId }, { status: 201 });
+      }),
+      http.get("/api/teams", () => HttpResponse.json({ teams: [] })),
+      http.get("/api/submissions", () => HttpResponse.json({ submissions: [] })),
+      http.get("/api/challenges/for-student", () => HttpResponse.json({ challenges: [] })),
+    );
+    const { user } = renderAt("/c/abc");
+    await user.type(await screen.findByLabelText("Your player name"), "Lone wolf");
+    await user.click(screen.getByRole("button", { name: "Play solo" }));
+    expect(await screen.findByRole("button", { name: "Upload" })).toBeInTheDocument();
   });
 
   it("uploads the chosen photo to this challenge and lists it", async () => {

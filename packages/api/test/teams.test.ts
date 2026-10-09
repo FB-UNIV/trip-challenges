@@ -48,15 +48,32 @@ describe("teams", () => {
     expect(rows[0]!.name_enc.toString()).not.toContain("Owls");
   });
 
-  it("refuses to create when already in a team, with a bad name, or once teams lock", async () => {
+  it("refuses to create when already in a team, with a bad name, or once photo time is over", async () => {
     const s = await makeStudent(trip);
     expect((await call("POST", "", s.cookie, { name: "" })).statusCode).toBe(400);
     await makeTeam(trip, "Foxes", [s.id]);
     expect((await call("POST", "", s.cookie, { name: "Owls" })).json().error).toBe("in_team");
 
-    const locked = await makeTrip(await makeTeacher(), { phase: "challenge" });
-    const late = await makeStudent(locked);
+    const over = await makeTrip(await makeTeacher(), { phase: "voting" });
+    const late = await makeStudent(over);
     expect((await call("POST", "", late.cookie, { name: "Owls" })).json().error).toBe("locked");
+  });
+
+  // #79: teams are optional. Once teams lock, a student without one can still play solo:
+  // creating a team is allowed (a team of one, since nobody can join any more).
+  it("lets a student without a team play solo during photo time, as a team of one nobody can join", async () => {
+    const t = await makeTrip(await makeTeacher(), { phase: "challenge" });
+    const solo = await makeStudent(t);
+    const res = await call("POST", "", solo.cookie, { name: "Lone wolf" });
+    expect(res.statusCode).toBe(201);
+    const { teamId } = res.json();
+    expect(await count("team_member", "team_id = $1", [teamId])).toBe(1);
+    // Its name goes through the teacher's review like any other (ADR 0007).
+    expect((await pool.query(`SELECT name_reviewed FROM team WHERE id = $1`, [teamId])).rows[0]).toEqual({ name_reviewed: false });
+
+    const other = await makeStudent(t);
+    expect((await call("POST", "/join", other.cookie, { teamId })).json().error).toBe("locked");
+    expect((await call("POST", "/leave", solo.cookie)).json().error).toBe("locked");
   });
 
   it("joins a team up to maxTeamSize", async () => {
