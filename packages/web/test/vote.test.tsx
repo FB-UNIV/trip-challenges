@@ -153,6 +153,46 @@ describe("duel screen", () => {
     expect(await screen.findByText("Voting is closed")).toBeInTheDocument();
   });
 
+  // #69: a failure must not look like "nothing happened" (or an endless skeleton).
+  it("explains a duel that fails to load, and retries", async () => {
+    let down = true;
+    server.use(
+      listIs([ch("ch1", "Gelato", 0, 1, "todo")]),
+      http.get("/api/duels/next", () => down
+        ? HttpResponse.json({ error: "database_unavailable", message: "The database is unavailable right now.", requestId: "r-9" }, { status: 503 })
+        : HttpResponse.json({ pair: pair(1) })),
+    );
+    const { user } = renderAt("/vote/ch1");
+    expect(await screen.findByText("The database is unavailable right now.")).toBeInTheDocument();
+    expect(screen.getByText(/^Reference:/)).toHaveTextContent("r-9");
+    down = false;
+    await user.click(screen.getByRole("button", { name: "Try again" }));
+    expect(await screen.findAllByRole("button", { name: "Pick this photo" })).toHaveLength(2);
+  });
+
+  it("keeps the pair and says so when a vote can't be saved, so it can be cast again", async () => {
+    const casts: unknown[] = [];
+    let down = true;
+    server.use(
+      listIs([ch("ch1", "Gelato", 0, 1, "todo")]),
+      http.get("/api/duels/next", () => HttpResponse.json(casts.length ? { pair: null, reason: "exhausted" } : { pair: pair(1) })),
+      http.post("/api/duels/cast", async ({ request }) => {
+        if (down) return HttpResponse.json({ error: "internal_error", message: "Something went wrong on our side.", requestId: "r-7" }, { status: 500 });
+        casts.push(await request.json());
+        return HttpResponse.json({ ok: true });
+      }),
+    );
+    const { user } = renderAt("/vote/ch1");
+    await user.click((await screen.findAllByRole("button", { name: "Pick this photo" }))[0]!);
+    expect(await screen.findByRole("alert")).toHaveTextContent("Your vote wasn't saved. Something went wrong on our side. Reference: r-7");
+    expect(screen.getAllByRole("button", { name: "Pick this photo" })).toHaveLength(2);
+
+    down = false;
+    await user.click(screen.getAllByRole("button", { name: "Pick this photo" })[0]!);
+    expect(await screen.findByText("All voted!")).toBeInTheDocument();
+    expect(casts).toHaveLength(1);
+  });
+
   it("still lets you vote if the progress list fails to load", async () => {
     server.use(
       http.get("/api/challenges/for-student", () => HttpResponse.json({ error: "boom" }, { status: 500 })),

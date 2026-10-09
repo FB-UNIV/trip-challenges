@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { Link } from "react-router-dom";
-import { api, HttpError } from "../api.js";
+import { api, errorText, HttpError, isBadCode } from "../api.js";
 import { qk, useMe, useRefresh, useTeams } from "../query.js";
 import { Button, Card, ErrorCard, Field, PhasePill, PhaseTrail } from "../ui.js";
 
@@ -29,7 +29,7 @@ export function StudentHome() {
           size="block" style={{ marginTop: 4 }}
           onClick={async () => {
             try { await api.redeemCode(code.trim()); await refresh(qk.student); }
-            catch { setMsg("That code is invalid or has already been used."); }
+            catch (e) { setMsg(isBadCode(e) ? "That code is invalid or has already been used." : errorText(e)); }
           }}
         >
           Continue

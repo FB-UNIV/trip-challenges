@@ -1,6 +1,6 @@
 import { useRef, useState } from "react";
 import { Link, useParams } from "react-router-dom";
-import { api, HttpError } from "../api.js";
+import { api, errorText, HttpError, isBadCode } from "../api.js";
 import { qk, useLoad, useMe, useOptimistic, useRefresh } from "../query.js";
 import { Button, Card, Field, PhasePill } from "../ui.js";
 
@@ -33,7 +33,8 @@ export function ChallengePage() {
           <Field label="Access code" className="input-mono" placeholder="FOX-7Q2K" value={code} onChange={(e) => setCode(e.target.value)} />
           <Button
             onClick={async () => {
-              try { await api.redeemCode(code.trim()); await refresh(qk.student); } catch { setErr("Invalid code."); }
+              try { await api.redeemCode(code.trim()); await refresh(qk.student); }
+              catch (e) { setErr(isBadCode(e) ? "Invalid code." : errorText(e)); }
             }}
           >Continue</Button>
           {err && <p className="err tiny" style={{ marginBottom: 0 }}>{err}</p>}

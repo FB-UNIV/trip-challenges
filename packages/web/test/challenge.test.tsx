@@ -21,10 +21,12 @@ describe("challenge page", () => {
 
   it("shows the challenge to anyone, and asks for an access code before uploading", async () => {
     let signedIn = false;
+    let offline = false;
     server.use(
       challenge(),
       http.get("/api/student/me", () => (signedIn ? HttpResponse.json(ME) : HttpResponse.json({}, { status: 401 }))),
       http.post("/api/student/redeem", async ({ request }) => {
+        if (offline) return HttpResponse.error();
         const { code } = (await request.json()) as { code: string };
         if (code !== "GOOD") return HttpResponse.json({}, { status: 400 });
         signedIn = true;
@@ -37,6 +39,12 @@ describe("challenge page", () => {
     await user.type(screen.getByLabelText("Access code"), "BAD");
     await user.click(screen.getByRole("button", { name: "Continue" }));
     expect(await screen.findByText("Invalid code.")).toBeInTheDocument();
+
+    // #69: an outage is not an invalid code.
+    offline = true;
+    await user.click(screen.getByRole("button", { name: "Continue" }));
+    expect(await screen.findByText(/Can't reach the server/)).toBeInTheDocument();
+    offline = false;
 
     await user.clear(screen.getByLabelText("Access code"));
     await user.type(screen.getByLabelText("Access code"), "GOOD");

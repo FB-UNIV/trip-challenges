@@ -2,31 +2,76 @@
 import type { DuelPair, CastDuel, RosterList, StudentChallengeList, TripProgress, TripTeamList } from "@trip/shared";
 
 async function req<T>(path: string, init?: RequestInit): Promise<T> {
-  const res = await fetch(path, {
+  const res = await send(path, {
     credentials: "include",
     headers: init?.body ? { "content-type": "application/json" } : undefined,
     ...init,
   });
-  if (res.status === 401) throw new HttpError(401, "unauthorized");
-  if (!res.ok) throw new HttpError(res.status, await res.text().catch(() => res.statusText));
+  if (res.status === 401) throw new HttpError(401, "unauthorized", res.headers.get("x-request-id"));
+  if (!res.ok) throw await failure(res);
   return res.status === 204 ? (undefined as T) : ((await res.json()) as T);
 }
 
+/** fetch, but an unreachable server is an HttpError too (status 0), with its own reason. */
+const send = (path: string, init: RequestInit) =>
+  fetch(path, init).catch(() => { throw new HttpError(0, ""); });
+
+const failure = async (res: Response) =>
+  new HttpError(res.status, await res.text().catch(() => res.statusText), res.headers.get("x-request-id"));
+
 const GENERIC = "Something went wrong.";
 
+// When the API gave no message (a proxy error page, an empty body), say what kind of failure it was.
+function defaultReason(status: number): string {
+  if (status === 0) return "Can't reach the server. Check your connection and try again.";
+  if (status === 429) return "The server is busy. Try again in a minute.";
+  if (status === 502 || status === 503 || status === 504) return "The service is temporarily unavailable. Try again in a moment.";
+  return GENERIC;
+}
+
+/**
+ * A failed API call. `message` is the raw body; the API's bodies are
+ * `{ error, message, requestId }` (#69), read through `code`, `reason` and `requestId`.
+ */
 export class HttpError extends Error {
-  constructor(public status: number, message: string) {
+  private readonly body: { error?: unknown; message?: unknown; requestId?: unknown } | null;
+
+  constructor(public status: number, message: string, private readonly headerId: string | null = null) {
     super(message);
+    let body = null;
+    try { body = JSON.parse(message); } catch { /* not JSON */ }
+    this.body = body && typeof body === "object" ? body : null;
   }
 
-  /** The API's human-readable `message` (bodies are `{ error, message }`), else the raw text. */
-  get reason(): string {
-    try {
-      const body = JSON.parse(this.message) as { message?: unknown };
-      return typeof body.message === "string" && body.message ? body.message : GENERIC;
-    } catch { /* not JSON */ }
-    return this.message.trim() || GENERIC;
+  /** The API's error code (`locked`, `storage_unavailable`…), for screens that branch on it. */
+  get code(): string | null {
+    return typeof this.body?.error === "string" ? this.body.error : null;
   }
+
+  /** The API's human-readable `message`, else the raw text, else a reason for the status. */
+  get reason(): string {
+    if (this.body) return typeof this.body.message === "string" && this.body.message ? this.body.message : defaultReason(this.status);
+    const text = this.message.trim();
+    return text && text !== "unauthorized" ? text : defaultReason(this.status);
+  }
+
+  /** The reference to quote in a report: the API's, or the edge's header. */
+  get requestId(): string | null {
+    return typeof this.body?.requestId === "string" ? this.body.requestId : this.headerId;
+  }
+}
+
+/** The access code itself was refused (vs. the server failing to check it). */
+export const isBadCode = (e: unknown) => e instanceof HttpError && (e.status === 400 || e.status === 401);
+
+/**
+ * What to tell the user about a failure: the reason, plus a reference when something broke
+ * on our side (5xx), so the operator can find it in the logs. Refusals (4xx) need none.
+ */
+export function errorText(e: unknown, fallback = GENERIC): string {
+  if (!(e instanceof HttpError)) return fallback;
+  const ref = e.status >= 500 && e.requestId ? ` Reference: ${e.requestId}` : "";
+  return e.reason + ref;
 }
 
 export type Me = { studentId: string; tripId: string; tripName: string; phase: string; teamId: string | null };
@@ -55,12 +100,12 @@ export const api = {
   uploadSubmission: async (challengeId: string, file: File) => {
     const fd = new FormData();
     fd.append("file", file);
-    const res = await fetch(`/api/submissions?challengeId=${challengeId}`, {
+    const res = await send(`/api/submissions?challengeId=${challengeId}`, {
       method: "POST",
       credentials: "include",
       body: fd,
     });
-    if (!res.ok) throw new HttpError(res.status, await res.text().catch(() => res.statusText));
+    if (!res.ok) throw await failure(res);
     return (await res.json()) as { id: string };
   },
   myChallenges: () => req<StudentChallengeList>("/api/challenges/for-student"),

@@ -7,6 +7,9 @@ import { renderAt } from "./render.js";
 import { LIVE_MS } from "../src/query.js";
 
 const TEACHER = { id: "tch1", email: "owner@school.test", display_name: "Owner" };
+/** An outage answer, as the API gives it (#69). */
+const down = (requestId = "r-1") =>
+  HttpResponse.json({ error: "database_unavailable", message: "The database is unavailable right now.", requestId }, { status: 503 });
 
 describe("teacher home", () => {
   it("asks a signed-out teacher to sign in", async () => {
@@ -16,6 +19,32 @@ describe("teacher home", () => {
     );
     renderAt("/teacher");
     expect(await screen.findByRole("button", { name: "Sign in with PocketID" })).toBeInTheDocument();
+  });
+
+  // #69: an outage must never read as "you have no trips".
+  it("explains a trip list that failed to load, and retries", async () => {
+    let failing = true;
+    server.use(
+      http.get("/api/auth/teacher/me", () => HttpResponse.json(TEACHER)),
+      http.get("/api/trips", () => failing ? down("r-trips") : HttpResponse.json({ trips: [] })),
+    );
+    const { user } = renderAt("/teacher");
+    expect(await screen.findByText("The database is unavailable right now.")).toBeInTheDocument();
+    expect(screen.getByText(/^Reference:/)).toHaveTextContent("r-trips");
+    expect(screen.queryByText("No trips yet")).not.toBeInTheDocument();
+    failing = false;
+    await user.click(screen.getByRole("button", { name: "Try again" }));
+    expect(await screen.findByText("No trips yet")).toBeInTheDocument();
+  });
+
+  it("explains a failed sign-in check instead of showing an empty home", async () => {
+    server.use(
+      http.get("/api/auth/teacher/me", () => down()),
+      http.get("/api/trips", () => down()),
+    );
+    renderAt("/teacher");
+    expect((await screen.findAllByText("The database is unavailable right now.")).length).toBeGreaterThan(0);
+    expect(screen.queryByRole("button", { name: "Sign in with PocketID" })).not.toBeInTheDocument();
   });
 
   const home = (trips: object[]) => server.use(
@@ -788,6 +817,47 @@ describe("trip admin", () => {
       server.use(http.get("/api/trips/zzz", () => HttpResponse.json({}, { status: 404 })));
       renderAt("/qr/zzz");
       expect(await screen.findByText("Not found.")).toBeInTheDocument();
+    });
+  });
+
+  // #69: none of these may turn an outage into "nothing here".
+  describe("when a section's data fails to load", () => {
+    it("review says so instead of “Nothing to review”", async () => {
+      adminApi();
+      server.use(http.get("/api/nominations/trip/t1", () => down("r-noms")));
+      renderAt("/teacher/trips/t1/review");
+      expect((await screen.findAllByText("The database is unavailable right now.")).length).toBeGreaterThan(0);
+      expect(screen.queryByText("Nothing to review")).not.toBeInTheDocument();
+    });
+
+    it("results say so instead of an empty board", async () => {
+      adminApi({ phase: "reveal" });
+      server.use(http.get("/api/trips/t1/results", () => down("r-res")));
+      renderAt("/teacher/trips/t1/results");
+      expect(await screen.findByText("The database is unavailable right now.")).toBeInTheDocument();
+      expect(screen.getByText(/^Reference:/)).toHaveTextContent("r-res");
+    });
+
+    it("the overview says so instead of planning from a missing roster", async () => {
+      adminApi();
+      server.use(http.get("/api/trips/t1/roster/status", () => down("r-roster")));
+      renderAt("/teacher/trips/t1/overview");
+      expect(await screen.findByText("The database is unavailable right now.")).toBeInTheDocument();
+      expect(screen.queryByText("Paste the students' emails")).not.toBeInTheDocument();
+    });
+
+    it("teams say so", async () => {
+      adminApi();
+      server.use(http.get("/api/trips/t1/teams", () => down("r-teams")));
+      renderAt("/teacher/trips/t1/students");
+      expect(await screen.findByText("The database is unavailable right now.")).toBeInTheDocument();
+    });
+
+    it("pending invites say so", async () => {
+      adminApi();
+      server.use(http.get("/api/trips/t1/invites", () => down("r-inv")));
+      renderAt("/teacher/trips/t1/settings");
+      expect(await screen.findByText("The database is unavailable right now.")).toBeInTheDocument();
     });
   });
 

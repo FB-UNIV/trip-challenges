@@ -29,6 +29,14 @@ describe("join link (/join?code=…)", () => {
     expect(await screen.findByText(/invalid or has already been used/)).toBeInTheDocument();
   });
 
+  it("doesn't call the link invalid when the server is down (#69)", async () => {
+    server.use(http.post("/api/student/redeem", () =>
+      HttpResponse.json({ error: "database_unavailable", message: "The database is unavailable right now.", requestId: "r-1" }, { status: 503 })));
+    renderAt("/join?code=s1.secret");
+    expect(await screen.findByText("The database is unavailable right now. Reference: r-1")).toBeInTheDocument();
+    expect(screen.queryByText(/invalid/)).not.toBeInTheDocument();
+  });
+
   it("says so when the link has no code", () => {
     renderAt("/join");
     expect(screen.getByText("Missing code.")).toBeInTheDocument();
@@ -52,6 +60,18 @@ describe("recovery link (/join?trip=…)", () => {
   });
 });
 
+describe("recovery link when offline", () => {
+  it("says the request didn't go out instead of confirming it (#69)", async () => {
+    server.use(http.post("/api/student/reissue", () => HttpResponse.error()));
+    const { user } = renderAt("/join?trip=t1");
+    await user.type(screen.getByLabelText("Email"), "kid@school.test");
+    await user.click(screen.getByRole("button", { name: "Send me a new code" }));
+    expect(await screen.findByText(/Can't reach the server/)).toBeInTheDocument();
+    expect(screen.queryByText("Check your inbox")).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Send me a new code" })).toBeEnabled();
+  });
+});
+
 describe("student home", () => {
   it("offers manual code entry when signed out, then shows the trip once redeemed", async () => {
     let signedIn = false;
@@ -72,6 +92,15 @@ describe("student home", () => {
     await user.type(await screen.findByLabelText("Access code"), "BAD");
     await user.click(screen.getByRole("button", { name: "Continue" }));
     expect(await screen.findByText("That code is invalid or has already been used.")).toBeInTheDocument();
+  });
+
+  it("doesn't call a code invalid when the server failed (#69)", async () => {
+    server.use(meIs(null), teams(), http.post("/api/student/redeem", () => new HttpResponse(null, { status: 429 })));
+    const { user } = renderAt("/");
+    await user.type(await screen.findByLabelText("Access code"), "FOX-7Q2K");
+    await user.click(screen.getByRole("button", { name: "Continue" }));
+    expect(await screen.findByText(/server is busy/)).toBeInTheDocument();
+    expect(screen.queryByText(/invalid/)).not.toBeInTheDocument();
   });
 
   it("reports an unexpected failure instead of a blank screen", async () => {

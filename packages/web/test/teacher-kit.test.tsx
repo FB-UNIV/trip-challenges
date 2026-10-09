@@ -76,6 +76,14 @@ describe("useAction", () => {
     expect(await screen.findByRole("alert")).toHaveTextContent("Too many requests.");
   });
 
+  it("adds the reference when the server failed (#69)", async () => {
+    const fn = () => Promise.reject(new HttpError(500, JSON.stringify({ error: "internal_error", message: "Something went wrong on our side.", requestId: "abc-123" })));
+    const user = userEvent.setup();
+    render(<Harness fn={fn} />);
+    await user.click(screen.getByRole("button", { name: "Go" }));
+    expect(await screen.findByRole("alert")).toHaveTextContent("Something went wrong on our side. Reference: abc-123");
+  });
+
   it("falls back to a plain message for non-HTTP failures", async () => {
     const user = userEvent.setup();
     render(<Harness fn={() => Promise.reject(new Error("boom"))} fallback="Could not approve." />);

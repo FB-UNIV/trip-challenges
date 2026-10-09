@@ -3,11 +3,11 @@ import { useState } from "react";
 import { Link } from "react-router-dom";
 import { api, HttpError, type TripSummary } from "../../api.js";
 import { qk, useLoad } from "../../query.js";
-import { Button, Card, EmptyState, Field, Notice, PhasePill, Skeleton, useAction } from "../../ui.js";
+import { Button, Card, EmptyState, ErrorCard, Field, Notice, PhasePill, Skeleton, useAction } from "../../ui.js";
 
 export function TeacherHome() {
   const me = useLoad(qk.teacherMe, api.teacherMe);
-  const trips = useLoad(qk.trips, () => api.listTrips().catch(() => ({ trips: [] as TripSummary[] })));
+  const trips = useLoad(qk.trips, api.listTrips);
   const [creating, setCreating] = useState(false);
 
   if (me.loading) return <Skeleton />;
@@ -23,6 +23,8 @@ export function TeacherHome() {
       </Card>
     );
   }
+  // Anything else is an outage: never show it as "no trips" (#69).
+  if (me.error) return <ErrorCard error={me.error} onRetry={me.reload} />;
 
   const all = trips.data?.trips ?? [];
   const active = all.filter((t) => t.phase !== "erased");
@@ -36,7 +38,8 @@ export function TeacherHome() {
           <h2 id="trips-h" className="grow">Your trips</h2>
           {trips.data && !empty && !creating && <Button variant="soft" onClick={() => setCreating(true)}>New trip</Button>}
         </div>
-        {trips.loading && !trips.data ? <Card><Skeleton /></Card>
+        {trips.error && !trips.data ? <ErrorCard error={trips.error} onRetry={trips.reload} />
+          : trips.loading && !trips.data ? <Card><Skeleton /></Card>
           : empty ? <Card><EmptyState icon="🧳" title="No trips yet" /></Card>
           : <div className="trip-cards">{active.map((t) => <TripCard key={t.id} t={t} />)}</div>}
       </section>

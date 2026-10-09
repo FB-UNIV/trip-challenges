@@ -5,7 +5,7 @@ import { useSearchParams } from "react-router-dom";
 import type { RosterEntry, TripTeam } from "@trip/shared";
 import { api } from "../../api.js";
 import {
-  Button, Card, CopyField, EmptyState, Notice, Pill, Progress, Skeleton, useAction, type Tone,
+  Button, Card, CopyField, EmptyState, ErrorCard, Notice, Pill, Progress, Skeleton, useAction, type Tone,
 } from "../../ui.js";
 import { qk, useLoad } from "../../query.js";
 import { rankOf, useTrip } from "./TripLayout.js";
@@ -14,7 +14,7 @@ export function TripStudents() {
   const { tripId, trip, reload } = useTrip();
   // Live: students join and form teams from their phones while this is open.
   const roster = useLoad(qk.tripPart(tripId, "students"), () => api.tripStudents(tripId), { live: true });
-  const teams = useLoad(qk.tripPart(tripId, "teams"), () => api.tripTeams(tripId).catch(() => null), { live: true });
+  const teams = useLoad(qk.tripPart(tripId, "teams"), () => api.tripTeams(tripId), { live: true });
   const teamName = (id: string | null) => (id && teams.data?.teams.find((t) => t.id === id)?.name) || null;
   const emailOf = (id: string) => roster.data?.students.find((s) => s.id === id)?.email ?? "—";
   return (
@@ -22,6 +22,7 @@ export function TripStudents() {
       <Students tripId={tripId} data={roster.data} teamName={teamName} onChange={reload} />
       <Teams
         tripId={tripId} data={teams.data} emailOf={emailOf} onChange={reload}
+        error={teams.error && !teams.data ? teams.error : null} onRetry={teams.reload}
         editable={rankOf(trip.phase) < rankOf("reveal")}
       />
       <Roster tripId={tripId} onSettled={reload} />
@@ -143,10 +144,10 @@ function StudentRow({ tripId, s, team, onChange }: { tripId: string; s: RosterEn
 
 // ---------- teams, with their names to check before they can outlive the trip ----------
 function Teams({
-  tripId, data, emailOf, onChange, editable,
+  tripId, data, emailOf, onChange, editable, error, onRetry,
 }: {
   tripId: string; data: Awaited<ReturnType<typeof api.tripTeams>> | null; emailOf: (id: string) => string;
-  onChange: () => void; editable: boolean;
+  onChange: () => void; editable: boolean; error: unknown; onRetry: () => void;
 }) {
   const teams = data?.teams ?? [];
   return (
@@ -160,7 +161,8 @@ function Teams({
           ? <>Team names are kept after the trip only if you've checked them. Unchecked names become “Team 1”, “Team 2”… when the trip's data is erased.</>
           : <>Names are final: results have been computed. Unchecked names become their “Team N” label when the trip's data is erased.</>}
       </p>
-      {!data ? <Skeleton /> : teams.length === 0 ? <EmptyState icon="🧑‍🤝‍🧑" title="No teams yet" /> : (
+      {error ? <ErrorCard inline error={error} onRetry={onRetry} />
+        : !data ? <Skeleton /> : teams.length === 0 ? <EmptyState icon="🧑‍🤝‍🧑" title="No teams yet" /> : (
         <div className="team-grid">
           {teams.map((t) => (
             <TeamCard key={t.id} tripId={tripId} t={t} max={data.maxTeamSize} emailOf={emailOf} editable={editable} onChange={onChange} />

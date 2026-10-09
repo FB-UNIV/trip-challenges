@@ -4,7 +4,7 @@ import { fireEvent, screen } from "@testing-library/react";
 import { http, HttpResponse } from "msw";
 import { server } from "./server.js";
 import { renderAt } from "./render.js";
-import { api, HttpError } from "../src/api.js";
+import { api, HttpError, errorText } from "../src/api.js";
 
 describe("accept invite (/teacher/accept?token=…)", () => {
   const preview = (body: object, status = 200) =>
@@ -170,6 +170,47 @@ describe("api client", () => {
 
     const raw = await err(api.joinTeam("t"));
     expect([raw.status, raw.reason]).toEqual([502, "upstream down"]);
+  });
+
+  // #69: the API answers { error, message, requestId }; screens show the reason and, when
+  // something broke on our side, a reference the user can report.
+  it("exposes the error code and the request id (body first, then the header)", async () => {
+    server.use(
+      http.get("/api/teams", () => HttpResponse.json(
+        { error: "storage_unavailable", message: "Photo storage is unavailable right now.", requestId: "req-body" },
+        { status: 503, headers: { "x-request-id": "req-header" } },
+      )),
+      http.post("/api/teams/join", () => new HttpResponse("Bad Gateway", { status: 502, headers: { "x-request-id": "req-edge" } })),
+    );
+    const err = (p: Promise<unknown>) => p.then(() => { throw new Error("resolved"); }, (e: HttpError) => e);
+
+    const down = await err(api.listTeams());
+    expect([down.status, down.code, down.requestId]).toEqual([503, "storage_unavailable", "req-body"]);
+    expect(errorText(down)).toBe("Photo storage is unavailable right now. Reference: req-body");
+
+    const edge = await err(api.joinTeam("t"));
+    expect([edge.code, edge.requestId]).toEqual([null, "req-edge"]);
+  });
+
+  it("gives each failure kind a plain reason when the body has none", async () => {
+    server.use(
+      http.get("/api/teams", () => new HttpResponse(null, { status: 503 })),
+      http.post("/api/teams/join", () => new HttpResponse(null, { status: 429 })),
+      http.post("/api/teams/leave", () => HttpResponse.error()),
+    );
+    const err = (p: Promise<unknown>) => p.then(() => { throw new Error("resolved"); }, (e: HttpError) => e);
+
+    expect((await err(api.listTeams())).reason).toMatch(/temporarily unavailable/);
+    expect((await err(api.joinTeam("t"))).reason).toMatch(/busy/);
+    const offline = await err(api.leaveTeam());
+    expect(offline).toBeInstanceOf(HttpError);
+    expect([offline.status, offline.reason]).toEqual([0, "Can't reach the server. Check your connection and try again."]);
+  });
+
+  it("shows a reference only when something broke on our side", () => {
+    const refused = new HttpError(409, JSON.stringify({ error: "locked", message: "Teams are locked.", requestId: "r1" }));
+    expect(errorText(refused)).toBe("Teams are locked.");
+    expect(errorText(new Error("boom"), "Could not save.")).toBe("Could not save.");
   });
 
   it("builds photo and QR URLs", () => {

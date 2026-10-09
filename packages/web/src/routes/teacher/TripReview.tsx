@@ -3,15 +3,15 @@
 import { useState } from "react";
 import { api, HttpError, type NominationRow } from "../../api.js";
 import { qk, useLoad, useOptimistic } from "../../query.js";
-import { Button, EmptyState, Notice, Pill, useAction, useConfirm, useLightbox } from "../../ui.js";
+import { Button, EmptyState, ErrorCard, Notice, Pill, useAction, useConfirm, useLightbox } from "../../ui.js";
 import { useTrip } from "./TripLayout.js";
 
 export function TripReview() {
-  const { tripId, pending, reloadPending } = useTrip();
+  const { tripId, pending, reloadPending, pendingError } = useTrip();
   const challenges = useLoad(qk.tripPart(tripId, "challenges"), () => api.listChallenges(tripId)); // titles only
   const approved = useLoad(
     qk.tripPart(tripId, "nominations", "approved"),
-    () => api.listNominations(tripId, "approved").catch(() => ({ nominations: [] as NominationRow[] })),
+    () => api.listNominations(tripId, "approved"),
     { live: true },
   );
   const titleOf = (id: string) => challenges.data?.challenges.find((c) => c.id === id)?.title ?? "Challenge";
@@ -28,7 +28,8 @@ export function TripReview() {
           <h3 id="review-queue" className="grow">Waiting for review</h3>
           {pending.length > 0 && <Pill tone="warn">{pending.length} waiting</Pill>}
         </div>
-        {pending.length === 0
+        {pendingError ? <ErrorCard inline error={pendingError} onRetry={changed} />
+          : pending.length === 0
           ? <EmptyState icon="✅" title="Nothing to review" />
           : <Groups noms={pending} titleOf={titleOf} decide onChange={changed} errors={errors} setError={setError} />}
         <p className="muted tiny mb-0">
@@ -36,6 +37,12 @@ export function TripReview() {
         </p>
       </section>
 
+      {approved.error && !approved.data && (
+        <section className="card" aria-labelledby="review-approved">
+          <h3 id="review-approved">Approved — votable</h3>
+          <ErrorCard inline error={approved.error} onRetry={approved.reload} />
+        </section>
+      )}
       {votable.length > 0 && (
         <section className="card" aria-labelledby="review-approved">
           <h3 id="review-approved">Approved — votable</h3>

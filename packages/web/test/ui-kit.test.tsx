@@ -4,9 +4,11 @@ import { describe, it, expect } from "vitest";
 import { render, screen, within } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
 import type { ReactNode } from "react";
+import userEvent from "@testing-library/user-event";
 import {
-  CheckRow, Celebrate, EmptyState, Progress, ProgressRing, Skeleton, Stepper, TabBar,
+  CheckRow, Celebrate, EmptyState, ErrorCard, Progress, ProgressRing, Skeleton, Stepper, TabBar,
 } from "../src/ui.js";
+import { HttpError } from "../src/api.js";
 
 const at = (path: string, ui: ReactNode) => render(<MemoryRouter initialEntries={[path]}>{ui}</MemoryRouter>);
 
@@ -128,5 +130,27 @@ describe("Celebrate / EmptyState / Skeleton", () => {
     const s = screen.getByRole("status", { name: "Loading" });
     expect(s).toHaveAttribute("aria-busy", "true");
     expect(container.querySelectorAll(".sk-line")).toHaveLength(4);
+  });
+});
+
+// #69: a failed load says why, gives a reference to report when the server broke, and retries.
+describe("ErrorCard", () => {
+  it("shows the reason, the reference and a retry", async () => {
+    let retried = 0;
+    const err = new HttpError(503, JSON.stringify({ error: "database_unavailable", message: "The database is unavailable right now.", requestId: "req-42" }));
+    render(<ErrorCard error={err} onRetry={() => retried++} />);
+    expect(screen.getByText("The database is unavailable right now.")).toBeInTheDocument();
+    expect(screen.getByText(/^Reference:/)).toHaveTextContent("Reference: req-42");
+    await userEvent.setup().click(screen.getByRole("button", { name: "Try again" }));
+    expect(retried).toBe(1);
+  });
+
+  it("has no reference for a refusal, and a plain reason for unknown failures", () => {
+    const { unmount } = render(<ErrorCard error={new HttpError(429, "")} onRetry={() => {}} />);
+    expect(screen.getByText(/busy/)).toBeInTheDocument();
+    expect(screen.queryByText(/Reference/)).not.toBeInTheDocument();
+    unmount();
+    render(<ErrorCard error={new Error("x")} onRetry={() => {}} />);
+    expect(screen.getByText("Something went wrong.")).toBeInTheDocument();
   });
 });
