@@ -242,6 +242,22 @@ input[type="date"]::-webkit-date-and-time-value, input[type="datetime-local"]::-
 .duel .pick:disabled { cursor: default; }
 .duel .pick:focus-visible { outline: 3px solid var(--accent); outline-offset: 3px; }
 .duel .vs { position: absolute; left: 50%; top: 50%; transform: translate(-50%,-50%); z-index: 2; width: 40px; height: 40px; border-radius: 999px; background: var(--ink); color: var(--surface); display: grid; place-items: center; font: 850 13px var(--mono); box-shadow: var(--shadow-2); }
+.duel-opt { position: relative; min-width: 0; }
+.duel-opt .pick { display: block; width: 100%; }
+/* 🔍: view full screen without voting (#82). ≥ 44px to tap; sits on the photo's corner. */
+.duel .zoom { position: absolute; top: 8px; right: 8px; z-index: 3; width: 44px; height: 44px; border: none; border-radius: 999px; background: rgba(0,0,0,.55); color: #fff; font-size: 18px; display: grid; place-items: center; cursor: pointer; }
+.duel .zoom:focus-visible { outline: 3px solid var(--accent); outline-offset: 2px; }
+/* Phones: stack the two photos, each full width and about half the space left between the
+   heading and the tab bar, so they are big enough to judge (#82). The VS badge stays centred,
+   now between them. */
+@media (max-width: 699px) {
+  .duel { grid-template-columns: minmax(0, 1fr); gap: 10px; }
+  .duel .pick img {
+    aspect-ratio: auto;
+    height: max(200px, calc((100vh - 290px) / 2));
+    height: max(200px, calc((100dvh - 290px) / 2));
+  }
+}
 .duel-foot { text-align: center; margin-top: 14px; font: 600 11px var(--mono); letter-spacing: .06em; color: var(--muted); text-transform: uppercase; }
 
 /* ---------- teacher desk ---------- */

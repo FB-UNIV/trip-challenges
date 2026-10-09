@@ -4,7 +4,7 @@ import { Link, useParams } from "react-router-dom";
 import type { DuelPair } from "@trip/shared";
 import { api, errorText, HttpError } from "../api.js";
 import { qk, useMyChallenges, useRefresh } from "../query.js";
-import { Card, Celebrate, EmptyState, ErrorCard, Notice, Progress, Skeleton } from "../ui.js";
+import { Card, Celebrate, EmptyState, ErrorCard, Notice, Progress, Skeleton, useLightbox } from "../ui.js";
 import { byVotingOrder, canVote } from "./vote-progress.js";
 
 export function VotePage() {
@@ -24,6 +24,7 @@ function Duels({ challengeId }: { challengeId: string }) {
   // Progress is a nice-to-have: voting works without it.
   const list = useMyChallenges();
   const refresh = useRefresh();
+  const openLightbox = useLightbox();
 
   const load = useCallback(async () => {
     setLoadError(null);
@@ -91,10 +92,18 @@ function Duels({ challengeId }: { challengeId: string }) {
   const vote = challenges.find((c) => c.id === challengeId)?.vote;
   const total = vote?.total ?? 0;
   const voted = Math.min((vote?.voted ?? 0) + judged, total);
-  const side = (nominationId: string, submissionId: string) => (
-    <button className="pick" onClick={() => pick(nominationId)} disabled={busy} aria-label="Pick this photo">
-      <img src={api.photoUrl(submissionId)} alt="option" />
-    </button>
+  // Tapping a photo votes for it; the 🔍 (a sibling: buttons can't nest) only shows it full
+  // screen, so a small phone photo can be judged before picking (#82).
+  const side = (label: "A" | "B", nominationId: string, submissionId: string) => (
+    <div className="duel-opt">
+      <button className="pick" onClick={() => pick(nominationId)} disabled={busy} aria-label="Pick this photo">
+        <img src={api.photoUrl(submissionId)} alt="option" />
+      </button>
+      <button
+        type="button" className="zoom" aria-label={`View photo ${label} full screen`}
+        onClick={() => openLightbox({ src: api.photoUrl(submissionId), title: `Photo ${label}` })}
+      >🔍</button>
+    </div>
   );
 
   return (
@@ -109,9 +118,9 @@ function Duels({ challengeId }: { challengeId: string }) {
         )}
       </div>
       <div className="duel">
-        {side(pair.aNominationId, pair.aSubmissionId)}
+        {side("A", pair.aNominationId, pair.aSubmissionId)}
         <span className="vs">VS</span>
-        {side(pair.bNominationId, pair.bSubmissionId)}
+        {side("B", pair.bNominationId, pair.bSubmissionId)}
       </div>
       <div className="duel-foot">Tap a photo · never your own team</div>
       <Notice tone="err">{castError}</Notice>
