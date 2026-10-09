@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.9.1](https://github.com/FB-UNIV/trip-challenges/compare/v0.9.0...v0.9.1) (2026-10-09)
+
+
+### Bug Fixes
+
+* **api:** concurrent opposite votes on a pair no longer deadlock and lose a vote ([#122](https://github.com/FB-UNIV/trip-challenges/issues/122)) ([60157be](https://github.com/FB-UNIV/trip-challenges/commit/60157bee4ae1be7675845bd3290c5fc98577d29b))
+
 ## [0.9.0](https://github.com/FB-UNIV/trip-challenges/compare/v0.8.0...v0.9.0) (2026-10-09)
 
 
