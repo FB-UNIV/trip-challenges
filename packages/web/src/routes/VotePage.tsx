@@ -2,9 +2,9 @@
 import { useCallback, useEffect, useState } from "react";
 import { Link, useParams } from "react-router-dom";
 import type { DuelPair } from "@trip/shared";
-import { api } from "../api.js";
+import { api, errorText, HttpError } from "../api.js";
 import { qk, useMyChallenges, useRefresh } from "../query.js";
-import { Card, Celebrate, EmptyState, Progress, Skeleton } from "../ui.js";
+import { Card, Celebrate, EmptyState, ErrorCard, Notice, Progress, Skeleton } from "../ui.js";
 import { byVotingOrder, canVote } from "./vote-progress.js";
 
 export function VotePage() {
@@ -19,12 +19,16 @@ function Duels({ challengeId }: { challengeId: string }) {
   const [reason, setReason] = useState<"not_enough" | "exhausted" | "closed" | undefined>();
   const [busy, setBusy] = useState(false);
   const [judged, setJudged] = useState(0);
+  const [loadError, setLoadError] = useState<unknown>(null);
+  const [castError, setCastError] = useState("");
   // Progress is a nice-to-have: voting works without it.
   const list = useMyChallenges();
   const refresh = useRefresh();
 
   const load = useCallback(async () => {
-    const next = await api.nextDuel(challengeId);
+    setLoadError(null);
+    let next;
+    try { next = await api.nextDuel(challengeId); } catch (e) { setLoadError(e); return; }
     if (!next.pair) { setReason(next.reason); setDone(true); }
     else { setPair(next.pair); setDone(false); }
   }, [challengeId]);
@@ -33,12 +37,17 @@ function Duels({ challengeId }: { challengeId: string }) {
 
   async function pick(winnerNominationId: string) {
     if (!pair || busy) return;
-    setBusy(true);
+    setBusy(true); setCastError("");
     try {
       try {
         await api.castDuel({ pairToken: pair.pairToken, winnerNominationId });
         setJudged((n) => n + 1);
-      } catch {
+      } catch (e) {
+        // The server (or the network) failed: keep this pair so the vote can be cast again (#69).
+        if (!(e instanceof HttpError) || e.status === 0 || e.status === 429 || e.status >= 500) {
+          setCastError(`Your vote wasn't saved. ${errorText(e)}`);
+          return;
+        }
         // Refused (voting just closed, pair already cast…): the next load says what's going on.
       }
       setPair(null);
@@ -76,6 +85,7 @@ function Duels({ challengeId }: { challengeId: string }) {
       </Card>
     );
   }
+  if (loadError) return <ErrorCard error={loadError} onRetry={() => void load()} />;
   if (!pair) return <Card><Skeleton lines={3} /></Card>;
 
   const vote = challenges.find((c) => c.id === challengeId)?.vote;
@@ -104,6 +114,7 @@ function Duels({ challengeId }: { challengeId: string }) {
         {side(pair.bNominationId, pair.bSubmissionId)}
       </div>
       <div className="duel-foot">Tap a photo · never your own team</div>
+      <Notice tone="err">{castError}</Notice>
     </div>
   );
 }

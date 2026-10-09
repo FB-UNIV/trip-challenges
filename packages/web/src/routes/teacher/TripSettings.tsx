@@ -1,8 +1,8 @@
 // Settings: trip configuration, co-teachers, and erasure (kept apart from everyday controls).
 import { useState } from "react";
-import { api } from "../../api.js";
+import { api, errorText, HttpError } from "../../api.js";
 import { qk, useLoad, useTripRefresh } from "../../query.js";
-import { Button, Card, Field, Notice, Pill, useAction, useConfirm } from "../../ui.js";
+import { Button, Card, ErrorCard, Field, Notice, Pill, useAction, useConfirm } from "../../ui.js";
 import { rankOf, useTrip } from "./TripLayout.js";
 
 export function TripSettings() {
@@ -96,7 +96,7 @@ function Settings({ tripId, trip, onSaved }: { tripId: string; trip: any; onSave
       setMsg("Saved.");
       onSaved();
     } catch (e: any) {
-      setErr(e?.message?.includes("locked_in_phase") ? "Some fields aren't editable in this phase." : "Could not save.");
+      setErr(e instanceof HttpError && e.code === "locked_in_phase" ? "Some fields aren't editable in this phase." : errorText(e, "Could not save."));
     }
   };
 
@@ -157,7 +157,7 @@ function Settings({ tripId, trip, onSaved }: { tripId: string; trip: any; onSave
 
 function CoTeachers({ tripId }: { tripId: string }) {
   const teachers = useLoad(qk.tripPart(tripId, "teachers"), () => api.listTripTeachers(tripId));
-  const invites = useLoad(qk.tripPart(tripId, "invites"), () => api.listInvites(tripId).catch(() => ({ invites: [] })));
+  const invites = useLoad(qk.tripPart(tripId, "invites"), () => api.listInvites(tripId));
   const refreshTrip = useTripRefresh(tripId);
   const [email, setEmail] = useState("");
   const [msg, setMsg] = useState("");
@@ -175,6 +175,7 @@ function CoTeachers({ tripId }: { tripId: string }) {
         </div>
       ))}
 
+      {invites.error && !invites.data && <ErrorCard inline error={invites.error} onRetry={invites.reload} />}
       {invites.data && invites.data.invites.length > 0 && (
         <div className="mt-2">
           <div className="muted tiny">Pending invites</div>
@@ -193,9 +194,10 @@ function CoTeachers({ tripId }: { tripId: string }) {
               setMsg(`Invite emailed to ${r.invited}.`);
               setEmail(""); reload();
             } catch (e: any) {
-              setErr(e?.message?.includes("already_member") ? "Already a teacher on this trip."
-                : e?.message?.includes("forbidden") ? "Only the trip owner can invite co-teachers."
-                : "Could not send invite.");
+              const code = e instanceof HttpError ? e.code : null;
+              setErr(code === "already_member" ? "Already a teacher on this trip."
+                : code === "forbidden" ? "Only the trip owner can invite co-teachers."
+                : errorText(e, "Could not send invite."));
             }
           }}
         >Send invite</Button>

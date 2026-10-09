@@ -11,7 +11,7 @@ import {
 } from "react";
 
 import { Link, NavLink, useLocation } from "react-router-dom";
-import { HttpError } from "./api.js";
+import { HttpError, errorText } from "./api.js";
 
 const cx = (...parts: (string | false | undefined)[]) => parts.filter(Boolean).join(" ");
 
@@ -53,14 +53,19 @@ export function Field({
 
 // ---------- ErrorCard ----------
 /** A failed load: the API's reason (e.g. "Too many requests — try again in 1 minute.") + retry. */
-export function ErrorCard({ error, onRetry }: { error: unknown; onRetry: () => void }) {
+export function ErrorCard({ error, onRetry, inline }: { error: unknown; onRetry: () => void; inline?: boolean }) {
   const reason = error instanceof HttpError ? error.reason : "Something went wrong.";
-  return (
-    <Card>
-      <p className="err" style={{ marginTop: 0 }}>{reason}</p>
+  // A reference only when the server broke (5xx): it's what the operator searches the logs for.
+  const ref = error instanceof HttpError && error.status >= 500 ? error.requestId : null;
+  const body = (
+    <>
+      <p className="err" style={{ marginTop: inline ? undefined : 0 }}>{reason}</p>
+      {ref && <p className="muted tiny">Reference: <span className="mono-tag">{ref}</span></p>}
       <Button variant="ghost" onClick={onRetry}>Try again</Button>
-    </Card>
+    </>
   );
+  // Inline: inside a card or section that already frames it.
+  return inline ? <div role="group" aria-label="Could not load">{body}</div> : <Card>{body}</Card>;
 }
 
 // ---------- Pill ----------
@@ -329,7 +334,7 @@ export function useAction(fn: () => Promise<unknown>, fallback = "Something went
       await latest.current();
       setDone(true);
     } catch (e) {
-      setError(e instanceof HttpError ? e.reason : fallback);
+      setError(errorText(e, fallback));
     } finally {
       inFlight.current = false;
       setBusy(false);

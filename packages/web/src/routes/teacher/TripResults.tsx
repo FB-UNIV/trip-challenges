@@ -2,7 +2,7 @@
 import { Navigate } from "react-router-dom";
 import { api, type ResultRow } from "../../api.js";
 import { qk, useLoad, useTripRefresh } from "../../query.js";
-import { Button, Card, EmptyState, Notice, useAction } from "../../ui.js";
+import { Button, Card, EmptyState, ErrorCard, Notice, useAction } from "../../ui.js";
 import { hasResults, useTrip } from "./TripLayout.js";
 
 export function TripResults() {
@@ -12,10 +12,11 @@ export function TripResults() {
 }
 
 function Results({ tripId, phase }: { tripId: string; phase: string }) {
-  const res = useLoad(qk.tripPart(tripId, "results"), () => api.results(tripId).catch(() => ({ results: [] as ResultRow[] })));
+  const res = useLoad(qk.tripPart(tripId, "results"), () => api.results(tripId));
   const refreshTrip = useTripRefresh(tripId);
   const results = res.data?.results ?? [];
   const champions = results.filter((r) => r.is_grand_champion);
+  if (res.error && !res.data) return <ErrorCard error={res.error} onRetry={res.reload} />;
 
   return (
     <Card>

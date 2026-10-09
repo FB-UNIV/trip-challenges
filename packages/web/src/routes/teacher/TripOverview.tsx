@@ -9,7 +9,7 @@ import { nowPlan, type Plan } from "./now-plan.js";
 export function TripOverview() {
   const { tripId, trip, reload, pending } = useTrip();
   const progress = useLoad(qk.tripPart(tripId, "progress"), () => api.tripProgress(tripId), { live: true });
-  const roster = useLoad(qk.tripPart(tripId, "roster"), () => api.rosterStatus(tripId).catch(() => null), { live: true });
+  const roster = useLoad(qk.tripPart(tripId, "roster"), () => api.rosterStatus(tripId), { live: true });
   const p = progress.data;
   return (
     <>
@@ -20,13 +20,14 @@ export function TripOverview() {
         { label: "To review", value: pending.length, flag: pending.length > 0, to: `/teacher/trips/${tripId}/review` },
       ]} />
       {progress.error ? <ErrorCard error={progress.error} onRetry={progress.reload} />
-        : !p || roster.loading ? <Card><Skeleton /></Card>
+        : roster.error && !roster.data ? <ErrorCard error={roster.error} onRetry={roster.reload} />
+        : !p || !roster.data ? <Card><Skeleton /></Card>
         : (
           <NowCard
             tripId={tripId} onMoved={reload}
             plan={nowPlan({
               phase: trip.phase, trip, progress: p, pending: pending.length,
-              roster: roster.data ?? { pending: 0, done: 0, failed: 0, students: p.students },
+              roster: roster.data,
             })}
           />
         )}

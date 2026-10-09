@@ -15,6 +15,8 @@ export type TripCtx = {
   /** Nominations awaiting review; shared by the nav badge, the overview and the review section. */
   pending: NominationRow[];
   reloadPending: () => void;
+  /** Set when the queue never loaded: the Review section must not show it as empty (#69). */
+  pendingError: unknown;
 };
 export const useTrip = () => useOutletContext<TripCtx>();
 
@@ -27,7 +29,7 @@ export function TripLayout() {
   // Waits for the trip: no point asking about an unknown (or not yet loaded) one.
   const noms = useLoad(
     qk.tripPart(id!, "nominations", "pending"),
-    async () => (await api.listNominations(id!, "pending").catch(() => null)) ?? { nominations: [] as NominationRow[] },
+    () => api.listNominations(id!, "pending"),
     { live: true, enabled: !!phase },
   );
   // Only the first load blanks the page: a reload after a save must keep the section
@@ -48,7 +50,8 @@ export function TripLayout() {
   ];
   // Due but not erased yet: an "Erase now" or scheduled run failed and is being retried (#68).
   const erasurePending = t.phase !== "erased" && !!t.hard_erase_at && new Date(t.hard_erase_at) <= new Date();
-  const ctx: TripCtx = { tripId: id!, trip: t, reload: refreshTrip, pending, reloadPending: refreshTrip };
+  const pendingError = noms.error && !noms.data ? noms.error : null;
+  const ctx: TripCtx = { tripId: id!, trip: t, reload: refreshTrip, pending, reloadPending: refreshTrip, pendingError };
 
   return (
     <div className="stack">
