@@ -1,0 +1,97 @@
+# Load test (#63): 50 students voting at once + 5 uploading, against the real API, Postgres,
+# MinIO, Vault and Mailpit (the e2e compose stack). Weekly, on demand, and on PRs that
+# change the load test itself. Shared runners make the numbers relative: compare runs (e.g.
+# `ref: v0.7.0` against `main`), don't read them as the capacity of a production VPS.
+name: loadtest
+
+on:
+  workflow_dispatch:
+    inputs:
+      ref:
+        description: "Build and run the API from this ref (tag/branch/sha). Empty = this checkout."
+        required: false
+        default: ""
+  schedule:
+    - cron: "41 4 * * 1" # Mondays
+  pull_request:
+    paths:
+      - "loadtest/**"
+      - ".github/workflows/loadtest.yml"
+
+concurrency:
+  group: loadtest-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  loadtest:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      API_REF: ${{ inputs.ref }}
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Install (load test tooling)
+        run: npm ci
+
+      # The API under test: this checkout, or another ref built side by side, so an old
+      # release runs the very same scenario (the seed only uses the HTTP API).
+      - name: Check out the API under test
+        if: env.API_REF != ''
+        uses: actions/checkout@v7
+        with:
+          ref: ${{ env.API_REF }}
+          path: target
+
+      - name: Build the API under test
+        run: |
+          dir=.; [ -n "$API_REF" ] && dir=target
+          (cd "$dir" && { [ "$dir" = . ] || npm ci; } && npm run build --workspace @trip/shared && npm run build --workspace @trip/api)
+          echo "API_DIR=$dir/packages/api" >> "$GITHUB_ENV"
+
+      - name: Start data services
+        run: npm run e2e:services
+
+      - name: Start the API
+        run: |
+          eval "$(npx tsx loadtest/api-env.ts)"
+          (cd "$API_DIR" && nohup node dist/server.js > "$GITHUB_WORKSPACE/api.log" 2>&1 &)
+          for i in $(seq 1 60); do curl -sf "http://localhost:3101/api/readyz" && exit 0; sleep 2; done
+          tail -50 api.log; exit 1
+
+      - name: Seed (50 students via real access-code mails)
+        run: npx tsx loadtest/seed.mts
+
+      - uses: grafana/setup-k6-action@v1
+
+      - name: Run k6
+        run: k6 run --quiet loadtest/voting.k6.js || echo "K6_FAILED=1" >> "$GITHUB_ENV"
+
+      - name: Report
+        if: always()
+        run: |
+          title="API at ${API_REF:-$GITHUB_SHA} (shared runner: compare runs, not absolute capacity)"
+          [ -f loadtest/summary.json ] && node loadtest/report.mjs loadtest/summary.json "$title" >> "$GITHUB_STEP_SUMMARY"
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+          echo "API 5xx logged: $(grep -c '"level":50' api.log || true)" >> "$GITHUB_STEP_SUMMARY"
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: loadtest
+          path: |
+            loadtest/summary.json
+            api.log
+          retention-days: 30
+
+      - name: Fail on broken thresholds
+        if: env.K6_FAILED == '1'
+        run: echo "k6 thresholds failed, see the report above" && exit 1
