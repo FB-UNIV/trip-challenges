@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.9.2](https://github.com/FB-UNIV/trip-challenges/compare/v0.9.1...v0.9.2) (2026-10-09)
+
+
+### Bug Fixes
+
+* **api:** a class voting on one school network is no longer rate-limited ([#126](https://github.com/FB-UNIV/trip-challenges/issues/126)) ([979e121](https://github.com/FB-UNIV/trip-challenges/commit/979e121b3214f1348a6ae81d3cf659e70e2e1766))
+
 ## [0.9.1](https://github.com/FB-UNIV/trip-challenges/compare/v0.9.0...v0.9.1) (2026-10-09)
 
 
