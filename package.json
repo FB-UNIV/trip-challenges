@@ -1,7 +1,7 @@
 {
   "name": "trip-challenges",
   "private": true,
-  "version": "0.9.1",
+  "version": "0.9.2",
   "description": "PWA for photo-challenge school trips. Strict data erasure for minors' data.",
   "workspaces": [
     "packages/shared",
