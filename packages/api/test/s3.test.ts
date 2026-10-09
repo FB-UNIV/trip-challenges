@@ -28,7 +28,7 @@ vi.mock("@aws-sdk/client-s3", () => {
   };
 });
 
-import { ensureBucket, blobKey, putBlob, getBlob, deleteTripBlobs } from "../src/storage/s3.js";
+import { ensureBucket, blobKey, putBlob, getBlob, deleteTripBlobs, probeStorage, storageHealth } from "../src/storage/s3.js";
 
 const err = (name: string, status?: number) =>
   Object.assign(new Error(name), { name, $metadata: { httpStatusCode: status } });
@@ -133,5 +133,79 @@ describe("errors", () => {
   it("are tagged as storage failures, network ones included (#69)", async () => {
     s3.handler = () => { throw Object.assign(new Error("connect ECONNREFUSED"), { code: "ECONNREFUSED" }); };
     await expect(getBlob("t/s")).rejects.toMatchObject({ dependency: "storage", code: "ECONNREFUSED" });
+  });
+});
+
+// #69/#68: boot proves the credentials can do everything erasure needs, before anyone
+// presses "Erase now"; readiness says whether storage is reachable.
+describe("probeStorage (startup self-check)", () => {
+  /** A bucket that stores, lists, returns and deletes for real, unless a command is denied. */
+  function bucket(denied?: string) {
+    const store = new Map<string, Buffer>();
+    s3.handler = (c, input) => {
+      if (c === denied) throw err("AccessDenied", 403);
+      switch (c) {
+        case "PutObject": store.set(input.Key, input.Body); return {};
+        case "ListObjectsV2":
+          return { Contents: [...store.keys()].filter((k) => k.startsWith(input.Prefix)).map((Key) => ({ Key })), IsTruncated: false };
+        case "GetObject": {
+          const b = store.get(input.Key)!;
+          return { Body: { transformToByteArray: async () => new Uint8Array(b) } };
+        }
+        case "DeleteObjects":
+          for (const o of input.Delete.Objects) store.delete(o.Key);
+          return {};
+      }
+      return {};
+    };
+    return store;
+  }
+
+  it("writes, lists, reads back and deletes a probe object outside any trip", async () => {
+    const store = bucket();
+    await probeStorage();
+    expect(cmds()).toEqual(["PutObject", "ListObjectsV2", "GetObject", "ListObjectsV2", "DeleteObjects"]);
+    expect(s3.sent[0]!.input.Key).toMatch(/^_selfcheck\//);
+    expect(store.size).toBe(0);
+  });
+
+  it.each([
+    ["PutObject", /write a probe object.*AccessDenied.*s3:PutObject/],
+    ["ListObjectsV2", /list.*AccessDenied.*s3:ListBucket/],
+    ["GetObject", /read.*AccessDenied.*s3:GetObject/],
+    ["DeleteObjects", /delete.*AccessDenied.*s3:DeleteObject/],
+  ])("names the missing permission when %s is denied", async (denied, message) => {
+    bucket(denied);
+    await expect(probeStorage()).rejects.toThrow(message);
+  });
+
+  // Seen in dev: another service answered on the S3 port. Blaming a permission would mislead.
+  it("points at the endpoint, not a permission, when it isn't talking to working storage", async () => {
+    s3.handler = () => { throw Object.assign(new Error("XML parse error"), { name: "Error", $metadata: { httpStatusCode: 405 } }); };
+    const e = await probeStorage().catch((x: Error) => x);
+    expect((e as Error).message).toMatch(/could not write a probe object.*Check that S3_ENDPOINT/);
+    expect((e as Error).message).not.toMatch(/need s3:/);
+  });
+
+  it("catches a per-object delete refusal hidden in a 200", async () => {
+    const store = bucket();
+    const ok = s3.handler;
+    s3.handler = (c, input) => c === "DeleteObjects"
+      ? { Errors: input.Delete.Objects.map((o: any) => ({ Key: o.Key, Code: "AccessDenied" })) }
+      : ok(c, input);
+    await expect(probeStorage()).rejects.toThrow(/delete.*AccessDenied.*s3:DeleteObject/);
+    expect(store.size).toBe(1);
+  });
+});
+
+describe("storageHealth (readiness)", () => {
+  it.each([
+    ["reachable", () => ({}), "ok"],
+    ["reachable but HEAD forbidden", () => { throw err("Forbidden", 403); }, "ok"],
+    ["missing bucket", () => { throw err("NotFound", 404); }, "down"],
+    ["unreachable", () => { throw Object.assign(new Error("connect ECONNREFUSED"), { code: "ECONNREFUSED" }); }, "down"],
+  ])("%s → %s", async (_label, handler, want) => {
+    s3.handler = handler as any;
+    expect(await storageHealth()).toBe(want);
   });
 });

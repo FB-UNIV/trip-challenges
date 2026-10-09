@@ -4,7 +4,14 @@ export const objects = new Map<string, Buffer>();
 /** Fault injection: the next `deleteFailures` calls to deleteTripBlobs throw. */
 export const s3faults = { deleteFailures: 0 };
 
+/** What storageHealth() answers (readiness). */
+export const s3health = { status: "ok" as "ok" | "down" };
+
 export async function ensureBucket(): Promise<void> {}
+export async function probeStorage(): Promise<void> {}
+export async function storageHealth(): Promise<"ok" | "down"> {
+  return s3health.status;
+}
 
 export const blobKey = (tripId: string, submissionId: string) => `${tripId}/${submissionId}`;
 
