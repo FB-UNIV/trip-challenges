@@ -64,14 +64,7 @@ export async function seedDemo(opts: SeedOptions): Promise<{ trips: SeededTrip[]
     teams: 4, studentsPerTeam: 3, joinLinks: 5, photosPerTeam: 2, votesPerStudent: 4,
     ...opts,
   };
-  const { rows } = await pool.query<{ id: string }>(
-    `SELECT id FROM teacher WHERE email = $1 ORDER BY created_at DESC LIMIT 1`,
-    [o.teacherEmail],
-  );
-  const teacherId = rows[0]?.id;
-  if (!teacherId) {
-    throw new Error(`No teacher with email ${o.teacherEmail}: sign in once via PocketID on this server first.`);
-  }
+  const teacherId = await teacherIdOf(o.teacherEmail);
 
   const app = await demoApp();
   try {
@@ -82,6 +75,76 @@ export async function seedDemo(opts: SeedOptions): Promise<{ trips: SeededTrip[]
       trips.push(await seedTrip(app, teacher, `${DEMO_PREFIX}${target} — ${stamp}`, target, o));
     }
     return { trips };
+  } finally {
+    await app.close();
+  }
+}
+
+/** What k6 needs (loadtest/voting.k6.js): same shape as the local load test's state. */
+export type LoadtestState = {
+  baseUrl: string;
+  tripId: string;
+  challenges: string[];
+  /** Session cookies ("student_session=…") of signed-in demo students: bearer secrets, valid until --erase. */
+  students: string[];
+  upload: { challengeId: string; students: string[] };
+};
+
+/**
+ * Load test data on a staging stack (#63), without sending any email: a voting trip with
+ * `students` demo students in teams of `teamSize`, two challenges with a phone-sized photo per
+ * team, all approved; and an upload trip in the challenge phase with `uploaders` solo players.
+ * Both are [DEMO] trips, so --erase removes them through the real erasure path.
+ */
+export async function seedLoadtest(opts: {
+  teacherEmail: string; students?: number; teamSize?: number; uploaders?: number;
+}): Promise<LoadtestState> {
+  const o = { students: 50, teamSize: 5, uploaders: 5, ...opts };
+  const teacherId = await teacherIdOf(o.teacherEmail);
+  const app = await demoApp();
+  try {
+    const call = caller(app);
+    const teacher = `teacher_session=${app.signCookie(teacherId)}`;
+    const stamp = new Date().toISOString().slice(0, 16).replace("T", " ");
+    const end = new Date(Date.now() + 30 * 86_400_000).toISOString().slice(0, 10);
+    const newTrip = async (label: string) =>
+      (await call("POST", "/api/trips", teacher, { name: `${DEMO_PREFIX}loadtest ${label} — ${stamp}`, tripEndDate: end, maxTeamSize: o.teamSize })).json().id as string;
+
+    // Voting trip: teams of teamSize, one photo per team per challenge, approved, voting open.
+    const tripId = await newTrip("voting");
+    const challenges: string[] = [];
+    for (const ch of CHALLENGES.slice(0, 2)) challenges.push((await call("POST", "/api/challenges", teacher, { tripId, ...ch })).json().id);
+    const students: string[] = [];
+    for (let i = 0; i < o.students; i++) students.push(await sessionFor(app, await demoStudent(tripId)));
+    for (let t = 0; t * o.teamSize < students.length; t++) {
+      const members = students.slice(t * o.teamSize, (t + 1) * o.teamSize);
+      const teamId: string = (await call("POST", "/api/teams", members[0]!, { name: `${TEAM_NAMES[t % TEAM_NAMES.length]} ${t + 1}` })).json().teamId;
+      for (const m of members.slice(1)) await call("POST", "/api/teams/join", m, { teamId });
+    }
+    await call("POST", `/api/trips/${tripId}/advance`, teacher, { to: "challenge" });
+    let n = 0;
+    for (let t = 0; t * o.teamSize < students.length; t++) {
+      for (const challengeId of challenges) {
+        const id = await upload(app, students[t * o.teamSize]!, challengeId, await phoneLikePhoto(++n));
+        await call("POST", "/api/nominations", students[t * o.teamSize]!, { challengeId, submissionId: id });
+      }
+    }
+    const pending = (await call("GET", `/api/nominations/trip/${tripId}?state=pending`, teacher)).json().nominations;
+    for (const nom of pending as { id: string }[]) await call("POST", `/api/nominations/${nom.id}/approve`, teacher);
+    await call("POST", `/api/trips/${tripId}/advance`, teacher, { to: "voting" });
+
+    // Upload trip: solo players during photo time.
+    const upTrip = await newTrip("uploads");
+    const upChallenge: string = (await call("POST", "/api/challenges", teacher, { tripId: upTrip, ...CHALLENGES[0]! })).json().id;
+    await call("POST", `/api/trips/${upTrip}/advance`, teacher, { to: "challenge" });
+    const uploaders: string[] = [];
+    for (let i = 0; i < o.uploaders; i++) {
+      const cookieOf = await sessionFor(app, await demoStudent(upTrip));
+      await call("POST", "/api/teams", cookieOf, { name: `Solo ${i + 1}` });
+      uploaders.push(cookieOf);
+    }
+
+    return { baseUrl: config.PUBLIC_BASE_URL, tripId, challenges, students, upload: { challengeId: upChallenge, students: uploaders } };
   } finally {
     await app.close();
   }
@@ -172,6 +235,25 @@ async function seedTrip(
     ceremonyUrl: `${config.PUBLIC_BASE_URL}/ceremony/${tripId}`,
     joinLinks,
   };
+}
+
+async function teacherIdOf(email: string): Promise<string> {
+  const { rows } = await pool.query<{ id: string }>(
+    `SELECT id FROM teacher WHERE email = $1 ORDER BY created_at DESC LIMIT 1`,
+    [email],
+  );
+  const teacherId = rows[0]?.id;
+  if (!teacherId) throw new Error(`No teacher with email ${email}: sign in once via PocketID on this server first.`);
+  return teacherId;
+}
+
+/** A phone-sized JPEG (1600×1200, ~500 KB) with real entropy, so decode/re-encode/encrypt cost is realistic. */
+async function phoneLikePhoto(seed: number): Promise<Buffer> {
+  const [w, h] = [1600, 1200];
+  const raw = Buffer.alloc(w * h * 3);
+  let x = (seed * 2654435761) >>> 0 || 1;
+  for (let i = 0; i < raw.length; i++) { x ^= x << 13; x ^= x >>> 17; x ^= x << 5; raw[i] = (x >>> 0) & 0xff; }
+  return sharp(raw, { raw: { width: w, height: h, channels: 3 } }).blur(1.2).jpeg({ quality: 85 }).toBuffer();
 }
 
 /** An unredeemed demo student; returns their access code ("<id>.<secret>"). */

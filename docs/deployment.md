@@ -288,6 +288,31 @@ Thresholds fail the run: <1 % failed requests, p95 < 500 ms for `me`, `next` and
 counts as an answer, not a failure. Read the **p99 and max** too: a fast median can hide a
 locking problem (see #122).
 
+**On staging**, k6 runs from your machine against the real edge, the way phones reach it. The
+data is seeded inside the API container with no email sent: demo students with real sessions,
+all `[DEMO]` trips.
+
+```bash
+# On the staging host (teacher = an account that signed in once via PocketID):
+docker compose exec -T -e SEED_DEMO=staging api \
+  node packages/api/dist/scripts/seed-demo.js --teacher you@school.org --loadtest > loadtest-state.json
+
+# On your machine, from the repo:
+scp <staging-host>:<compose-dir>/loadtest-state.json loadtest/.state.json
+npx tsx loadtest/photo.mts                       # the photo the upload scenario sends
+k6 run loadtest/voting.k6.js                     # or: docker run --rm -v "$PWD":/repo -w /repo grafana/k6 run loadtest/voting.k6.js
+node loadtest/report.mjs
+
+# Afterwards, on the staging host: erase every [DEMO] trip (the click-through demo ones too)
+docker compose exec -e SEED_DEMO=staging api node packages/api/dist/scripts/seed-demo.js --erase
+```
+
+- `.state.json` holds **session cookies** of the demo students: bearer secrets for fake
+  accounts that die at `--erase`. It's git-ignored; delete it afterwards.
+- The rate limits stay as configured, on purpose. All the virtual students share your IP,
+  just as a class on school Wi-Fi shares one NAT address. A run full of **429**s means a real
+  class voting together would be throttled too.
+
 In CI, `.github/workflows/loadtest.yml` runs weekly, on PRs that change `loadtest/`, and on
 demand. **Run workflow** takes a `ref`, which builds and runs the API from that tag or branch
 with today's scenario, so two versions can be compared. Shared runners give **relative**
