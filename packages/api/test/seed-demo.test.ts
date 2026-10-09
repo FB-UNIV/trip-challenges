@@ -6,7 +6,7 @@ vi.mock("../src/crypto/vault.js", () => import("./support/fake-vault.js"));
 vi.mock("../src/storage/s3.js", () => import("./support/fake-s3.js"));
 vi.mock("../src/email/mailer.js", () => import("./support/fake-mailer.js"));
 
-import { seedDemo, eraseDemo, DEMO_PREFIX } from "../src/demo/seed.js";
+import { seedDemo, seedLoadtest, eraseDemo, DEMO_PREFIX } from "../src/demo/seed.js";
 import { run } from "../src/scripts/seed-demo.js";
 import { studentAuthRoutes } from "../src/routes/student-auth.js";
 import { duelRoutes } from "../src/routes/duels.js";
@@ -108,6 +108,39 @@ describe("seedDemo", () => {
   it("refuses a teacher who has never signed in", async () => {
     await expect(seedDemo({ teacherEmail: "nobody@school.test", ...SMALL })).rejects.toThrow(/sign in once/);
     expect(await trips()).toEqual([]);
+  });
+});
+
+// #63: load test data on staging, no email sent; k6 reads the printed state.
+describe("seedLoadtest", () => {
+  it("seeds signed-in voters in teams, approved entries in voting, and solo uploaders in photo time", { timeout: 120_000 }, async () => {
+    const state = await seedLoadtest({ teacherEmail: "staging-teacher@school.test", students: 9, teamSize: 3, uploaders: 2 });
+    expect(state.baseUrl).toBe(BASE);
+    expect(state.students).toHaveLength(9);
+    expect(state.challenges).toHaveLength(2);
+    expect(state.upload.students).toHaveLength(2);
+
+    const phases = await trips();
+    expect(phases.map((t) => [t.name.startsWith(`${DEMO_PREFIX}loadtest`), t.phase])).toEqual([[true, "voting"], [true, "challenge"]]);
+    const { rows } = await pool.query<{ n: number }>(
+      `SELECT count(*)::int AS n FROM nomination WHERE trip_id = $1 AND active AND state = 'approved'`, [state.tripId],
+    );
+    expect(rows[0]!.n).toBe(6); // 3 teams × 2 challenges (a duel needs 3 entrants)
+    expect(sent).toEqual([]);
+
+    // The cookies are real sessions: a voter gets a pair, an uploader is in a team.
+    const next = await app.inject({ method: "GET", url: `/api/duels/next?challengeId=${state.challenges[0]}`, headers: { cookie: state.students[0]! } });
+    expect(next.json().pair).not.toBeNull();
+    const me = await app.inject({ method: "GET", url: "/api/student/me", headers: { cookie: state.upload.students[0]! } });
+    expect(me.json()).toMatchObject({ phase: "challenge", teamId: expect.any(String) });
+  });
+
+  it("prints only the state JSON from the script", { timeout: 120_000 }, async () => {
+    const lines: string[] = [];
+    const code = await run(["--teacher", "staging-teacher@school.test", "--loadtest"], { SEED_DEMO: "staging" }, (l) => lines.push(l));
+    expect(code).toBe(0);
+    expect(lines).toHaveLength(1);
+    expect(JSON.parse(lines[0]!)).toMatchObject({ students: expect.any(Array), upload: expect.any(Object) });
   });
 });
 

@@ -2,14 +2,18 @@
 //   docker compose exec -e SEED_DEMO=staging api \
 //     node packages/api/dist/scripts/seed-demo.js --teacher you@school.org
 //   docker compose exec -e SEED_DEMO=staging api node packages/api/dist/scripts/seed-demo.js --erase
+// Load test data (#63): add --loadtest; stdout is then only the JSON k6 reads, e.g.
+//   docker compose exec -T -e SEED_DEMO=staging api \
+//     node packages/api/dist/scripts/seed-demo.js --teacher you@school.org --loadtest > .state.json
 // The teacher must have signed in once (PocketID) so their account exists.
 import { pathToFileURL } from "node:url";
 import { pool } from "../db.js";
-import { seedDemo, eraseDemo } from "../demo/seed.js";
+import { seedDemo, seedLoadtest, eraseDemo } from "../demo/seed.js";
 
 const USAGE = [
   "Usage (staging only — creates fake students, photos and votes):",
   "  SEED_DEMO=staging node packages/api/dist/scripts/seed-demo.js --teacher <email> [--small]",
+  "  SEED_DEMO=staging node packages/api/dist/scripts/seed-demo.js --teacher <email> --loadtest   (prints k6 state JSON)",
   "  SEED_DEMO=staging node packages/api/dist/scripts/seed-demo.js --erase",
 ].join("\n");
 
@@ -35,6 +39,10 @@ export async function run(
     if (!teacherEmail) {
       log(USAGE);
       return 1;
+    }
+    if (argv.includes("--loadtest")) {
+      log(JSON.stringify(await seedLoadtest({ teacherEmail })));
+      return 0;
     }
     const { trips } = await seedDemo({ teacherEmail, ...(argv.includes("--small") ? SMALL : {}) });
     for (const t of trips) {

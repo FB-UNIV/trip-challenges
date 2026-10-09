@@ -8,8 +8,8 @@
 //
 //   npx tsx loadtest/seed.mts
 import { writeFile } from "node:fs/promises";
-import sharp from "sharp";
 import { API_URL, MAILPIT_URL } from "../e2e/support/env.js";
+import { phoneLikeJpeg, writeUploadPhoto } from "./photo.mjs";
 
 const STUDENTS = 50;
 const TEAM_SIZE = 5;
@@ -27,15 +27,6 @@ async function call(jar: Jar | null, method: string, path: string, body?: unknow
   const set = res.headers.getSetCookie().map((c) => c.split(";", 1)[0]!).filter(Boolean);
   if (jar && set.length) jar.cookie = set.join("; ");
   return res.status === 204 ? null : res.json();
-}
-
-/** A photo-sized JPEG with real entropy, so decode/re-encode/encrypt cost is realistic. */
-async function phoneLikeJpeg(seed: number): Promise<Buffer> {
-  const [w, h] = [1600, 1200];
-  const raw = Buffer.alloc(w * h * 3);
-  let x = (seed * 2654435761) >>> 0 || 1;
-  for (let i = 0; i < raw.length; i++) { x ^= x << 13; x ^= x >>> 17; x ^= x << 5; raw[i] = (x >>> 0) & 0xff; }
-  return sharp(raw, { raw: { width: w, height: h, channels: 3 } }).blur(1.2).jpeg({ quality: 85 }).toBuffer();
 }
 
 function multipart(file: Buffer) {
@@ -114,7 +105,7 @@ const uploaders = await enroll(teacher, upTrip, 5, "up");
 for (const [i, u] of uploaders.entries()) await call(u, "POST", "/api/teams", { name: `Upload team ${i + 1}` });
 await call(teacher, "POST", `/api/trips/${upTrip}/advance`, { to: "challenge" });
 
-await writeFile(new URL("./.photo.jpg", import.meta.url), await phoneLikeJpeg(999));
+await writeUploadPhoto();
 await writeFile(new URL("./.state.json", import.meta.url), JSON.stringify({
   baseUrl: API_URL,
   tripId,
