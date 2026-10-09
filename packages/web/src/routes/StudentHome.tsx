@@ -3,6 +3,7 @@ import { Link } from "react-router-dom";
 import { api, errorText, HttpError, isBadCode } from "../api.js";
 import { qk, useMe, useRefresh, useTeams } from "../query.js";
 import { Button, Card, ErrorCard, Field, PhasePill, PhaseTrail, Skeleton } from "../ui.js";
+import { PlaySolo } from "./PlaySolo.js";
 
 export function StudentHome() {
   const { data: me, error, loading, reload } = useMe();
@@ -71,7 +72,7 @@ function NextAction({ phase, inTeam }: { phase: string; inTeam: boolean }) {
   if (phase === "draft") {
     return (
       <Card>
-        <Action icon="🧑‍🤝‍🧑" title="Form or join your team" body="Teams lock when the challenge period starts — sort yours now." />
+        <Action icon="🧑‍🤝‍🧑" title="Team up or play solo" body="Join or create a team before the challenge period starts. Playing solo? Create a team just for you." />
         <Link to="/team"><Button size="block" style={{ marginTop: 12 }}>Go to teams</Button></Link>
       </Card>
     );
@@ -79,10 +80,10 @@ function NextAction({ phase, inTeam }: { phase: string; inTeam: boolean }) {
   if (phase === "challenge") {
     return (
       <Card>
-        <Action icon="📸" title="Snap the challenges" body={inTeam ? "Snap a photo for each one, then enter your best shot." : "Join a team first."} />
+        <Action icon="📸" title="Snap the challenges" body="Snap a photo for each one, then enter your best shot." />
         {inTeam
           ? <Link to="/challenges"><Button size="block" style={{ marginTop: 12 }}>See your challenges</Button></Link>
-          : <Link to="/team"><Button size="block" style={{ marginTop: 12 }}>Join a team</Button></Link>}
+          : <div className="mt-3"><PlaySolo heading={false} /></div>}
       </Card>
     );
   }

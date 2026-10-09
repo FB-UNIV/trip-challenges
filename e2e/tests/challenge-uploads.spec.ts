@@ -47,7 +47,7 @@ test("a scanned QR shows the challenge; team members upload, photos are cleaned,
   await closeAll(teacher, ana!, ben!);
 });
 
-test("students without a team are sent to join one, and uploads close when voting starts", async ({ browser }) => {
+test("a student without a team plays solo from the QR page, and uploads close when voting starts", async ({ browser }) => {
   const teacher = await signInTeacher(browser);
   const tripId = await teacher.api.createTrip(unique("Rome"));
   const challenge = await teacher.api.addChallenge(tripId, "Best gelato");
@@ -55,8 +55,14 @@ test("students without a team are sent to join one, and uploads close when votin
   await ana!.api.createTeam("Foxes");
   await teacher.api.advance(tripId, "challenge");
 
-  await new ChallengePage(loner!.page).goto(challenge.qrSlug);
-  await expect(loner!.page.getByText("Join a team first")).toBeVisible();
+  await test.step("teams are optional (#79): play solo, then upload and nominate like a team", async () => {
+    const ch = new ChallengePage(loner!.page);
+    await ch.goto(challenge.qrSlug);
+    await loner!.page.getByLabel("Your player name").fill("Lone wolf");
+    await loner!.page.getByRole("button", { name: "Play solo" }).click();
+    await ch.upload(asFile(await photo("#3a7d44")));
+    await ch.nominate(0);
+  });
 
   await teacher.api.advance(tripId, "voting");
   await new ChallengePage(ana!.page).goto(challenge.qrSlug);

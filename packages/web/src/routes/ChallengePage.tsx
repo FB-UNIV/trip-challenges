@@ -1,9 +1,10 @@
 import { useRef, useState } from "react";
-import { Link, useParams } from "react-router-dom";
+import { useParams } from "react-router-dom";
 import type { EntryState } from "@trip/shared";
 import { api, errorText, HttpError, isBadCode } from "../api.js";
 import { qk, useLoad, useMe, useOptimistic, useRefresh } from "../query.js";
 import { Button, Card, Field, PhasePill, Skeleton } from "../ui.js";
+import { PlaySolo } from "./PlaySolo.js";
 
 export function ChallengePage() {
   const { qrSlug } = useParams();
@@ -43,7 +44,7 @@ export function ChallengePage() {
       ) : me.data!.phase !== "challenge" ? (
         <Card><p className="muted" style={{ margin: 0 }}>Uploads are closed (phase: {me.data!.phase}).</p></Card>
       ) : !me.data!.teamId ? (
-        <Card><p style={{ margin: 0 }}>Join a team first, then come back to upload. <Link to="/team">Go to teams →</Link></p></Card>
+        <Card><PlaySolo /></Card>
       ) : (
         <UploadAndNominate challengeId={ch.id} />
       )}

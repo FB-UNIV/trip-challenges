@@ -117,7 +117,7 @@ describe("outside its phases", () => {
       { error: "closed", message: "nominations are closed" }],
     ["student", "POST", "/api/submissions?challengeId={ch}", () => undefined, "voting",
       { error: "closed", message: "submissions are closed" }],
-    ["student", "POST", "/api/teams", () => ({ name: "Late" }), "challenge",
+    ["student", "POST", "/api/teams", () => ({ name: "Late" }), "voting",
       { error: "locked", message: "teams are locked" }],
     ["student", "POST", "/api/teams/join", (i) => ({ teamId: i.trip }), "challenge",
       { error: "locked", message: "teams are locked" }],

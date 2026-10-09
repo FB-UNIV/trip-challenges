@@ -117,8 +117,8 @@ describe("student home", () => {
   });
 
   it.each([
-    ["draft", null, "Form or join your team", "Go to teams"],
-    ["challenge", null, "Snap the challenges", "Join a team"],
+    ["draft", null, "Team up or play solo", "Go to teams"],
+    ["challenge", null, "Snap the challenges", "Play solo"],
     ["challenge", "team1", "Snap the challenges", "See your challenges"],
     ["voting", "team1", "Vote on the duels", "Start voting"],
     ["reveal", "team1", "Results are in", null],

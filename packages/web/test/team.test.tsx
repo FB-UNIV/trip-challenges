@@ -1,6 +1,6 @@
 // Team formation (CONTEXT: Team): create / join / leave while the trip is in draft.
 import { describe, it, expect } from "vitest";
-import { screen, within } from "@testing-library/react";
+import { screen, waitFor, within } from "@testing-library/react";
 import { http, HttpResponse } from "msw";
 import { server } from "./server.js";
 import { renderAt } from "./render.js";
@@ -43,11 +43,16 @@ function teamApi(start: {
 }
 
 describe("teams page", () => {
-  it("is locked once the challenge period has started — a student without a team can still vote", async () => {
-    teamApi({ phase: "challenge" });
-    renderAt("/team");
-    expect(await screen.findByText("Teams are locked")).toBeInTheDocument();
-    expect(screen.getByText("You can still vote when voting opens.")).toBeInTheDocument();
+  // #79: once teams lock, a student without one plays solo (a team of one).
+  it("during photo time, a student without a team can still play solo", async () => {
+    const api = teamApi({ phase: "challenge" });
+    const { user } = renderAt("/team");
+    expect(await screen.findByRole("heading", { name: "Play solo" })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Join" })).not.toBeInTheDocument();
+    await user.type(screen.getByLabelText("Your player name"), "  Lone wolf ");
+    await user.click(screen.getByRole("button", { name: "Play solo" }));
+    await waitFor(() => expect(api.calls).toEqual(["create Lone wolf"]));
+    expect(await screen.findByRole("heading", { name: "Lone wolf" })).toBeInTheDocument();
   });
 
   it("locked without a team during voting points straight to the vote", async () => {

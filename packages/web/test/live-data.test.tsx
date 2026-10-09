@@ -44,14 +44,13 @@ describe("live data (student)", () => {
     expect(api.calls.challenges).toBe(1);
   });
 
-  it("joining a team clears the Team badge without a reload", async () => {
+  // #79: teams are optional, so having none is not a to-do.
+  it("never badges the Team tab for a student without a team", async () => {
     studentApi({ phase: "draft", teamId: null });
-    const { user } = renderAt("/team");
+    renderAt("/team");
     const nav = await tabBar();
-    expect(await within(nav).findByRole("link", { name: "Team, 1 to do" })).toBeInTheDocument();
-    await user.type(await screen.findByLabelText("New team name"), "Foxes");
-    await user.click(screen.getByRole("button", { name: "Create team" }));
     expect(await within(nav).findByRole("link", { name: "Team" })).toBeInTheDocument();
+    expect(within(nav).queryByRole("link", { name: /Team, / })).not.toBeInTheDocument();
   });
 
   it("coming back to the app picks up what changed meanwhile (the teacher opened voting)", async () => {
