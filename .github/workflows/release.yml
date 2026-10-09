@@ -13,6 +13,9 @@ name: release
 on:
   push:
     branches: [main]
+  # Re-run release-please by hand, e.g. after adding a BEGIN_COMMIT_OVERRIDE to a merged PR
+  # whose squash message the conventional-commit parser skipped (happened with #117).
+  workflow_dispatch:
 
 concurrency:
   group: release
