@@ -1,5 +1,17 @@
 # Changelog
 
+## [0.9.0](https://github.com/FB-UNIV/trip-challenges/compare/v0.8.0...v0.9.0) (2026-10-09)
+
+
+### Features
+
+* **api:** boot self-checks for storage and Vault; /readyz says which dependency is down ([#116](https://github.com/FB-UNIV/trip-challenges/issues/116)) ([2b2ff2a](https://github.com/FB-UNIV/trip-challenges/commit/2b2ff2a7f7bb9af7063668333920750ecb775ca8))
+* students can play solo, a team is no longer required ([#120](https://github.com/FB-UNIV/trip-challenges/issues/120)) ([b709850](https://github.com/FB-UNIV/trip-challenges/commit/b7098501cafed2e668f9834a0d65c891f8a017f3))
+* students see whether their entry is pending, approved or not accepted ([#119](https://github.com/FB-UNIV/trip-challenges/issues/119)) ([0504b91](https://github.com/FB-UNIV/trip-challenges/commit/0504b918028912985736538cbc5e9bedb94965f7))
+* **web:** bigger duel photos on phones, with full-screen zoom ([#117](https://github.com/FB-UNIV/trip-challenges/issues/117)) ([7ce6fc4](https://github.com/FB-UNIV/trip-challenges/commit/7ce6fc4bd58357443f77b989fdaebf32d0295a7e))
+* **web:** failures say what went wrong, with a reference to report ([#114](https://github.com/FB-UNIV/trip-challenges/issues/114)) ([e9f4735](https://github.com/FB-UNIV/trip-challenges/commit/e9f47353ddad47ad8f3d812d1a2be280c10ac1b0))
+* **web:** skeleton placeholders instead of the last "Loading…" texts ([#118](https://github.com/FB-UNIV/trip-challenges/issues/118)) ([2251c03](https://github.com/FB-UNIV/trip-challenges/commit/2251c03e6623478f2e5e875bc2e682094ded8d32))
+
 ## [0.8.0](https://github.com/FB-UNIV/trip-challenges/compare/v0.7.0...v0.8.0) (2026-10-08)
 
 
