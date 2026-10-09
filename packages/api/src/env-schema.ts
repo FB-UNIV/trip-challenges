@@ -44,10 +44,12 @@ export const Env = z.object({
   // is only reachable through the edge proxy on the internal network, so private ranges by
   // default; without this every client looks like the proxy and shares one bucket (#67).
   TRUST_PROXY: z.string().default("loopback,linklocal,uniquelocal"),
-  // Requests per minute: per client IP for everything (a voting phone makes ~4 per duel),
-  // per ACCESS CODE for redemption (anti brute-force; a whole class shares one school IP),
-  // and per client IP for reissue (sends email).
-  RATE_LIMIT_MAX: z.coerce.number().int().positive().default(600),
+  // Requests per minute: per client IP for everything, sized for a class voting together on
+  // one school NAT address (~3-5k/min; 600 turned 43 % of a class's requests into 429s on
+  // staging, #63); per signed-in student, so one student's script can't hog it; per ACCESS
+  // CODE for redemption (anti brute-force); and per client IP for reissue (sends email).
+  RATE_LIMIT_MAX: z.coerce.number().int().positive().default(6000),
+  RATE_LIMIT_STUDENT_MAX: z.coerce.number().int().positive().default(600),
   RATE_LIMIT_AUTH_MAX: z.coerce.number().int().positive().default(5),
   RATE_LIMIT_REISSUE_MAX: z.coerce.number().int().positive().default(20),
 

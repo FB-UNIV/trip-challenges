@@ -20,6 +20,7 @@ export const config = Env.parse({
   SESSION_SECRET: "test-session-secret-at-least-32-chars",
   RATE_LIMIT_MAX: "8", // small, so the limits are cheap to hit in tests
   RATE_LIMIT_AUTH_MAX: "3",
+  RATE_LIMIT_STUDENT_MAX: "40", // above any single test's use of one student
   ALERT_EMAIL: "ops@school.test",
   HEARTBEAT_URL: "http://heartbeat.test/ping",
 });

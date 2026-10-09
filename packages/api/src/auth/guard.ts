@@ -9,6 +9,8 @@ import type { FastifyReply, FastifyRequest, preHandlerAsyncHookHandler } from "f
 import type { ZodTypeAny } from "zod";
 import { pool } from "../db.js";
 import { requireStudent, type StudentCtx } from "./student.js";
+import { overStudentBudget } from "../lib/student-rate.js";
+import { config } from "../config.js";
 import { assertTripAccess, readTeacher, type TeacherCtx } from "./teacher.js";
 
 export type Phase = "draft" | "challenge" | "voting" | "reveal" | "grace" | "erased";
@@ -91,6 +93,9 @@ export function guard(opts: GuardOpts): preHandlerAsyncHookHandler {
     } else if (opts.role === "student") {
       const student = await requireStudent(req);
       if (!student) return reply.code(401).send({ error: "unauthorized", message: "no session" });
+      if (overStudentBudget(student.studentId, config.RATE_LIMIT_STUDENT_MAX)) {
+        return reply.code(429).send({ error: "rate_limited", message: "Too many requests — try again in a minute." });
+      }
       req.student = student;
     }
 

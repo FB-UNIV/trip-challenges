@@ -41,9 +41,12 @@ describe("env schema", () => {
     expect(Env.safeParse({ ...base, PUBLIC_BASE_URL: "not-a-url" }).success).toBe(false);
   });
 
-  it("defaults: 600/min per client, 5/min per access code, 20/min reissue, trusting private proxies (#67)", () => {
+  // 6000/min per IP: a class voting on school Wi-Fi shares one NAT address and needs ~3-5k/min
+  // (measured on staging: 600/min turned 43 % of a class's requests into 429s).
+  it("defaults: 6000/min per client IP, 600/min per student, 5/min per access code, 20/min reissue, trusting private proxies", () => {
     const parsed = Env.parse(base);
-    expect(parsed.RATE_LIMIT_MAX).toBe(600);
+    expect(parsed.RATE_LIMIT_MAX).toBe(6000);
+    expect(parsed.RATE_LIMIT_STUDENT_MAX).toBe(600);
     expect(parsed.RATE_LIMIT_AUTH_MAX).toBe(5);
     expect(parsed.RATE_LIMIT_REISSUE_MAX).toBe(20);
     expect(parsed.TRUST_PROXY).toBe("loopback,linklocal,uniquelocal");
