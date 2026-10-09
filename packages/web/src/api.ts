@@ -1,5 +1,5 @@
 // API client. Cookies (student_session / teacher_session) ride along automatically.
-import type { DuelPair, CastDuel, RosterList, StudentChallengeList, TripProgress, TripTeamList } from "@trip/shared";
+import type { DuelPair, CastDuel, EntryState, RosterList, StudentChallengeList, TripProgress, TripTeamList } from "@trip/shared";
 
 async function req<T>(path: string, init?: RequestInit): Promise<T> {
   const res = await send(path, {
@@ -110,7 +110,7 @@ export const api = {
   },
   myChallenges: () => req<StudentChallengeList>("/api/challenges/for-student"),
   listSubmissions: (challengeId: string) =>
-    req<{ submissions: { id: string; created_at: string; nominated: boolean }[] }>(
+    req<{ submissions: { id: string; created_at: string; nominated: boolean; entry: EntryState | null }[] }>(
       `/api/submissions?challengeId=${challengeId}`,
     ),
   nominate: (challengeId: string, submissionId: string) =>

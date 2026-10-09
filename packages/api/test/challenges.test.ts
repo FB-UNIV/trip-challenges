@@ -153,6 +153,37 @@ describe("GET /api/challenges/for-student — progress", () => {
     expect(await one(me.cookie)).toMatchObject({ photos: 1, nominated: true });
   });
 
+  // #81: the team learns what happened to its entry, rejection included.
+  it("tells the team where its entry stands: none, pending, approved, rejected, then pending again", async () => {
+    await setPhase("challenge");
+    const ch = await makeChallenge(trip);
+    const me = await makeStudent(trip);
+    const mine = await makeTeam(trip, "Foxes", [me.id]);
+    const first = await makeSubmission(trip, ch, mine, me.id);
+    expect((await one(me.cookie)).entry).toBeNull();
+
+    const nom = await makeNomination(trip, ch, mine, first, "pending");
+    expect(await one(me.cookie)).toMatchObject({ nominated: true, entry: "pending" });
+    await pool.query(`UPDATE nomination SET state = 'approved' WHERE id = $1`, [nom]);
+    expect((await one(me.cookie)).entry).toBe("approved");
+    await pool.query(`UPDATE nomination SET state = 'rejected', active = false WHERE id = $1`, [nom]);
+    expect(await one(me.cookie)).toMatchObject({ nominated: false, entry: "rejected" });
+
+    // Picking another photo starts over.
+    await makeNomination(trip, ch, mine, await makeSubmission(trip, ch, mine, me.id), "pending");
+    expect((await one(me.cookie)).entry).toBe("pending");
+  });
+
+  it("never shows another team's rejection", async () => {
+    await setPhase("challenge");
+    const ch = await makeChallenge(trip);
+    const me = await makeStudent(trip);
+    await makeTeam(trip, "Foxes", [me.id]);
+    const other = await entrant(ch, "Owls", "pending");
+    await pool.query(`UPDATE nomination SET state = 'rejected', active = false WHERE id = $1`, [other]);
+    expect((await one(me.cookie)).entry).toBeNull();
+  });
+
   it("a student without a team has no photos and nothing entered", async () => {
     await setPhase("challenge");
     await makeChallenge(trip);

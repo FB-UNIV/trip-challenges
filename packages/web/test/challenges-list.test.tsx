@@ -6,8 +6,8 @@ import { server } from "./server.js";
 import { renderAt } from "./render.js";
 
 const ME = { studentId: "s1", tripId: "t1", tripName: "Rome 2030", phase: "challenge", teamId: "team1" };
-const ch = (id: string, title: string, photos: number, nominated: boolean) => ({
-  id, title, instructions: "", qrSlug: `slug-${id}`, photos, nominated, vote: null,
+const ch = (id: string, title: string, photos: number, nominated: boolean, entry: string | null = nominated ? "pending" : null) => ({
+  id, title, instructions: "", qrSlug: `slug-${id}`, photos, nominated, entry, vote: null,
 });
 const meIs = (me: object) => http.get("/api/student/me", () => HttpResponse.json(me));
 const listIs = (challenges: object[]) => http.get("/api/challenges/for-student", () => HttpResponse.json({ challenges }));
@@ -28,6 +28,29 @@ describe("challenge checklist", () => {
     expect(screen.getByRole("link", { name: /Pyramid/ })).toHaveTextContent("No photo yet");
     expect(screen.getByRole("link", { name: /Statue selfie/ })).toHaveTextContent("Entered");
     expect(screen.getByRole("link", { name: /Statue selfie/ })).toHaveAttribute("href", "/c/slug-c1");
+  });
+
+  // #81: the team sees where each entry stands, and a rejected one is back on the to-do list.
+  it("shows each entry's state; a rejected entry is a to-do again", async () => {
+    server.use(meIs(ME), listIs([
+      ch("c1", "Statue selfie", 1, true, "approved"),
+      ch("c2", "Gelato", 2, true, "pending"),
+      ch("c3", "Pyramid", 2, false, "rejected"),
+    ]));
+    const { container } = renderAt("/challenges");
+    expect(await screen.findByRole("link", { name: /Pyramid/ })).toHaveTextContent("Not accepted · pick another photo");
+    expect(screen.getByRole("link", { name: /Pyramid/ })).toContainElement(screen.getByLabelText("In progress"));
+    expect(screen.getByRole("link", { name: /Gelato/ })).toHaveTextContent("Waiting for your teacher");
+    expect(screen.getByRole("link", { name: /Statue selfie/ })).toHaveTextContent("Approved");
+    expect(titlesInOrder(container)[0]).toBe("Pyramid");
+    expect(screen.getByRole("link", { name: "Challenges, 1 to do" })).toBeInTheDocument();
+  });
+
+  it("after photo time, a rejected entry just says so", async () => {
+    server.use(meIs({ ...ME, phase: "voting" }), listIs([ch("c3", "Pyramid", 2, false, "rejected")]));
+    renderAt("/challenges");
+    expect(await screen.findByText("Not accepted")).toBeInTheDocument();
+    expect(screen.queryByText(/pick another/)).not.toBeInTheDocument();
   });
 
   it("shows overall progress as challenges entered", async () => {

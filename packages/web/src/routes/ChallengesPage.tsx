@@ -7,14 +7,18 @@ import {
   Card, Celebrate, CheckRow, EmptyState, ErrorCard, PhaseTrail, Progress, Skeleton, type CheckState,
 } from "../ui.js";
 
-const stateOf = (c: StudentChallenge): CheckState => (c.nominated ? "done" : c.photos > 0 ? "doing" : "todo");
+// A rejected entry (#81) is a to-do again: the team picks another photo while it still can.
+const rejected = (c: StudentChallenge) => !c.nominated && c.entry === "rejected";
+const stateOf = (c: StudentChallenge): CheckState =>
+  c.nominated ? "done" : c.photos > 0 || rejected(c) ? "doing" : "todo";
 const ORDER: Record<CheckState, number> = { doing: 0, todo: 1, done: 2 };
 const photos = (n: number) => `${n} ${n === 1 ? "photo" : "photos"}`;
-const META: Record<CheckState, (c: StudentChallenge) => string> = {
-  todo: () => "No photo yet",
-  doing: (c) => `${photos(c.photos)} · pick one`,
-  done: () => "Entered ⭐",
-};
+/** `open`: photos can still be nominated (challenge phase). */
+function metaOf(c: StudentChallenge, open: boolean): string {
+  if (c.nominated) return c.entry === "approved" ? "Entered ⭐ · Approved ✅" : "Entered ⭐ · Waiting for your teacher ⏳";
+  if (rejected(c)) return open ? "Not accepted · pick another photo" : "Not accepted";
+  return c.photos > 0 ? `${photos(c.photos)} · pick one` : "No photo yet";
+}
 
 export function ChallengesPage() {
   const me = useMe();
@@ -48,7 +52,7 @@ export function ChallengesPage() {
             {phase === "voting" && <Link to="/vote" className="btn">Go vote →</Link>}
           </EmptyState>
         </Card>
-        <Card>{challenges.map((c) => <CheckRow key={c.id} state={stateOf(c)} title={c.title} meta={META[stateOf(c)](c)} />)}</Card>
+        <Card>{challenges.map((c) => <CheckRow key={c.id} state={stateOf(c)} title={c.title} meta={metaOf(c, false)} />)}</Card>
       </div>
     );
   }
@@ -79,7 +83,7 @@ export function ChallengesPage() {
       )}
       <Card>
         {sorted.map((c) => (
-          <CheckRow key={c.id} state={stateOf(c)} title={c.title} meta={META[stateOf(c)](c)} to={`/c/${c.qrSlug}`} />
+          <CheckRow key={c.id} state={stateOf(c)} title={c.title} meta={metaOf(c, true)} to={`/c/${c.qrSlug}`} />
         ))}
       </Card>
     </div>

@@ -165,6 +165,30 @@ describe("challenge page", () => {
     expect(screen.getAllByRole("button", { name: /Nominat/ }).map((b) => b.textContent)).toEqual(["Nominate", "Nominated ✓"]);
   });
 
+  // #81
+  it("marks each photo's entry state and explains a rejection", async () => {
+    server.use(
+      challenge(), me(ME),
+      http.get("/api/submissions", () => HttpResponse.json({ submissions: [
+        { id: "s1", created_at: "x", nominated: false, entry: null },
+        { id: "s2", created_at: "x", nominated: false, entry: "rejected" },
+      ] })),
+    );
+    renderAt("/c/abc");
+    expect(await screen.findByText(/Your teacher didn't accept your entry/)).toBeInTheDocument();
+    expect(screen.getByText("❌ Not accepted")).toBeInTheDocument();
+  });
+
+  it.each([["pending", "⏳ Waiting for your teacher"], ["approved", "✅ Approved"]])("shows a %s entry", async (entry, text) => {
+    server.use(
+      challenge(), me(ME),
+      http.get("/api/submissions", () => HttpResponse.json({ submissions: [{ id: "s1", created_at: "x", nominated: true, entry }] })),
+    );
+    renderAt("/c/abc");
+    expect(await screen.findByText(text)).toBeInTheDocument();
+    expect(screen.queryByText(/didn't accept/)).not.toBeInTheDocument();
+  });
+
   it("puts the mark back when a nomination is refused", async () => {
     server.use(
       challenge(), me(ME),

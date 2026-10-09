@@ -161,6 +161,9 @@ export const VoteProgress = z.object({
 });
 export type VoteProgress = z.infer<typeof VoteProgress>;
 
+export const EntryState = z.enum(["pending", "approved", "rejected"]);
+export type EntryState = z.infer<typeof EntryState>;
+
 export const StudentChallenge = z.object({
   id: Uuid,
   title: z.string(),
@@ -168,6 +171,9 @@ export const StudentChallenge = z.object({
   qrSlug: z.string(),
   photos: z.number().int().nonnegative(), // my Team's live (not removed) Submissions
   nominated: z.boolean(), // my Team has an active Nomination
+  // Where my Team's entry stands (#81): its active Nomination's state, else "rejected" if a
+  // Teacher turned one down, else null (nothing entered yet).
+  entry: EntryState.nullable(),
   vote: VoteProgress.nullable(), // null unless the Voting Period is open
 });
 export type StudentChallenge = z.infer<typeof StudentChallenge>;

@@ -64,6 +64,7 @@ export async function autoAdvanceDue(now = new Date()): Promise<string[]> {
 
 // For every (team, challenge) with submissions but no active nomination, nominate the
 // latest submission (CONTEXT: Nomination). Stays 'pending' so the Teacher still moderates.
+// A team whose entry a Teacher rejected is skipped: the reject sticks (#81, owner decision).
 async function autoNominateLatest(c: PoolClient, tripId: string): Promise<void> {
   await c.query(
     `INSERT INTO nomination (trip_id, challenge_id, team_id, submission_id, state, active, auto_nominated)
@@ -73,7 +74,8 @@ async function autoNominateLatest(c: PoolClient, tripId: string): Promise<void> 
       WHERE s.trip_id = $1 AND s.removed_by_teacher_id IS NULL
         AND NOT EXISTS (
           SELECT 1 FROM nomination n
-           WHERE n.team_id = s.team_id AND n.challenge_id = s.challenge_id AND n.active)
+           WHERE n.team_id = s.team_id AND n.challenge_id = s.challenge_id
+             AND (n.active OR n.state = 'rejected'))
       ORDER BY s.team_id, s.challenge_id, s.created_at DESC`,
     [tripId],
   );
