@@ -136,6 +136,21 @@ describe("GET /api/submissions (my team's photos)", () => {
     expect(res.json().submissions.map((s: any) => [s.id, s.nominated])).toEqual([[b, false], [a, true]]);
   });
 
+  // #81: each photo says where it stands, so the rejected one can be marked.
+  it("gives each photo its entry state, a rejected one included", async () => {
+    const a = await makeSubmission(trip, ch, team, kid.id, { createdAt: new Date("2030-01-01T10:00:00Z") });
+    const b = await makeSubmission(trip, ch, team, kid.id, { createdAt: new Date("2030-01-01T11:00:00Z") });
+    const c = await makeSubmission(trip, ch, team, kid.id, { createdAt: new Date("2030-01-01T12:00:00Z") });
+    const rejected = await makeNomination(trip, ch, team, a, "pending");
+    await pool.query(`UPDATE nomination SET state = 'rejected', active = false WHERE id = $1`, [rejected]);
+    await makeNomination(trip, ch, team, b, "approved");
+
+    const res = await app.inject({ method: "GET", url: `/api/submissions?challengeId=${ch}`, headers: { cookie: kid.cookie } });
+    expect(res.json().submissions.map((s: any) => [s.id, s.nominated, s.entry])).toEqual([
+      [c, false, null], [b, true, "approved"], [a, false, "rejected"],
+    ]);
+  });
+
   it("is empty without a team; needs a session and challengeId", async () => {
     const loner = await makeStudent(trip);
     expect((await app.inject({ method: "GET", url: `/api/submissions?challengeId=${ch}`, headers: { cookie: loner.cookie } })).json())

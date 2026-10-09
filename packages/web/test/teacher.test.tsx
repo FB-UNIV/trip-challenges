@@ -891,6 +891,22 @@ describe("trip admin", () => {
       expect(api.calls).toEqual([call]);
     });
 
+    // #81 (owner decision): rejecting after voting opened is allowed, with a warning.
+    it("warns before rejecting once voting has opened: the team can't replace its entry", async () => {
+      const api = adminApi({ phase: "voting" });
+      const { user } = renderAt("/teacher/trips/t1/review");
+      await user.click(await within(await loaded()).findByRole("button", { name: "Reject" }));
+      let dialog = screen.getByRole("alertdialog", { name: "Reject this entry?" });
+      expect(dialog).toHaveTextContent(/can't nominate another photo/);
+      await user.click(within(dialog).getByRole("button", { name: "Cancel" }));
+      expect(api.calls).toEqual([]);
+
+      await user.click(within(queue()).getByRole("button", { name: "Reject" }));
+      dialog = screen.getByRole("alertdialog", { name: "Reject this entry?" });
+      await user.click(within(dialog).getByRole("button", { name: "Reject" }));
+      await waitFor(() => expect(api.calls).toEqual(["reject n1"]));
+    });
+
     it("lists approved photos, which can still be removed", async () => {
       adminApi();
       const { user } = renderAt("/teacher/trips/t1/review");

@@ -4,7 +4,7 @@ import { useState } from "react";
 import { api, HttpError, type NominationRow } from "../../api.js";
 import { qk, useLoad, useOptimistic } from "../../query.js";
 import { Button, EmptyState, ErrorCard, Notice, Pill, useAction, useConfirm, useLightbox } from "../../ui.js";
-import { useTrip } from "./TripLayout.js";
+import { rankOf, useTrip } from "./TripLayout.js";
 
 export function TripReview() {
   const { tripId, pending, reloadPending, pendingError } = useTrip();
@@ -84,12 +84,21 @@ function Groups({
 function Nomination({
   n, title, decide, onChange, error, setError,
 }: { n: NominationRow; title: string; decide?: boolean; onChange: () => void; error?: string; setError: Errors["setError"] }) {
-  const { tripId } = useTrip();
+  const { tripId, trip } = useTrip();
   const openLightbox = useLightbox();
   const confirm = useConfirm();
   const optimistic = useOptimistic();
   // Optimistic: the photo leaves the queue (and the badge) at once; back with the reason if refused.
   const decideAs = (decision: "approve" | "reject") => async () => {
+    // Once voting opened the team can't nominate another photo: say so first (#81, owner decision).
+    if (decision === "reject" && rankOf(trip.phase) >= rankOf("voting")) {
+      const ok = await confirm({
+        title: "Reject this entry?",
+        body: "Voting has started, so this team can't nominate another photo: their entry leaves the vote for this challenge.",
+        confirmLabel: "Reject", danger: true,
+      });
+      if (!ok) return;
+    }
     setError(n.id, "");
     try {
       await optimistic<{ nominations: NominationRow[] }>(

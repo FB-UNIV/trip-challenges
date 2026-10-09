@@ -4,7 +4,7 @@ import type { FastifyInstance } from "fastify";
 import { randomBytes } from "node:crypto";
 import QRCode from "qrcode";
 import { z } from "zod";
-import { ChallengeInput, ChallengePatch, type StudentChallengeList, type VoteProgress } from "@trip/shared";
+import { ChallengeInput, ChallengePatch, type EntryState, type StudentChallengeList, type VoteProgress } from "@trip/shared";
 import { config } from "../config.js";
 import { pool } from "../db.js";
 import { guard, tripFrom, studentOf, tripOf, type Phase } from "../auth/guard.js";
@@ -84,7 +84,7 @@ export async function challengeRoutes(app: FastifyInstance) {
     // A duel only counts while both its Nominations are still eligible.
     const { rows } = await pool.query<{
       id: string; title: string; instructions: string; qr_slug: string;
-      photos: number; nominated: boolean; eligible: number; voted: number;
+      photos: number; nominated: boolean; entry: EntryState | null; eligible: number; voted: number;
     }>(
       `WITH eligible AS (
          SELECT id, challenge_id FROM nomination
@@ -95,6 +95,12 @@ export async function challengeRoutes(app: FastifyInstance) {
                 WHERE s.challenge_id = c.id AND s.team_id = $2 AND s.removed_by_teacher_id IS NULL) AS photos,
               EXISTS (SELECT 1 FROM nomination n
                        WHERE n.challenge_id = c.id AND n.team_id = $2 AND n.active) AS nominated,
+              COALESCE(
+                (SELECT n.state FROM nomination n
+                  WHERE n.challenge_id = c.id AND n.team_id = $2 AND n.active),
+                (SELECT 'rejected' FROM nomination n
+                  WHERE n.challenge_id = c.id AND n.team_id = $2 AND n.state = 'rejected' LIMIT 1)
+              ) AS entry,
               (SELECT count(*)::int FROM eligible e WHERE e.challenge_id = c.id) AS eligible,
               (SELECT count(*)::int FROM duel d
                 WHERE d.challenge_id = c.id AND d.voter_student_id = $3
@@ -114,6 +120,7 @@ export async function challengeRoutes(app: FastifyInstance) {
         qrSlug: r.qr_slug,
         photos: r.photos,
         nominated: r.nominated,
+        entry: r.entry,
         vote: votingOpen ? voteProgress(r.eligible, r.voted) : null,
       })),
     };

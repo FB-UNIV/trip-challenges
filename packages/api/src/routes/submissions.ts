@@ -75,7 +75,13 @@ export async function submissionRoutes(app: FastifyInstance) {
     if (!ctx.teamId) return { submissions: [] };
     const { rows } = await pool.query(
       `SELECT s.id, s.created_at,
-              EXISTS (SELECT 1 FROM nomination n WHERE n.submission_id = s.id AND n.active) AS nominated
+              EXISTS (SELECT 1 FROM nomination n WHERE n.submission_id = s.id AND n.active) AS nominated,
+              -- #81: this photo's entry state; a rejected one stays marked.
+              COALESCE(
+                (SELECT n.state FROM nomination n WHERE n.submission_id = s.id AND n.active),
+                (SELECT 'rejected' FROM nomination n
+                  WHERE n.submission_id = s.id AND n.state = 'rejected' LIMIT 1)
+              ) AS entry
          FROM submission s
         WHERE s.challenge_id = $1 AND s.team_id = $2 AND s.removed_by_teacher_id IS NULL
         ORDER BY s.created_at DESC`,

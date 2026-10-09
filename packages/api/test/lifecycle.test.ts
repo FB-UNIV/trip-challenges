@@ -9,7 +9,7 @@ vi.mock("../src/email/mailer.js", () => import("./support/fake-mailer.js"));
 import { advanceTrip, computeResults, autoAdvanceDue } from "../src/lifecycle.js";
 import {
   pool, resetAll, makeTeacher, makeTrip, makeStudent, makeTeam, makeChallenge,
-  makeSubmission, makeNomination, setStats,
+  makeSubmission, makeNomination, setStats, count,
 } from "./support/harness.js";
 
 let owner: string;
@@ -34,6 +34,21 @@ describe("advanceTrip", () => {
   it("flags illegal transitions", async () => {
     const trip = await makeTrip(owner, { phase: "grace" });
     await expect(advanceTrip(trip, "erased")).rejects.toMatchObject({ illegal: true });
+  });
+
+  // #81 (owner decision): a teacher's reject sticks; opening voting doesn't bring the team back.
+  it("doesn't auto-nominate for a team whose entry was rejected", async () => {
+    const trip = await makeTrip(owner, { phase: "challenge" });
+    const ch = await makeChallenge(trip);
+    const a = await makeStudent(trip);
+    const team = await makeTeam(trip, "A", [a.id]);
+    const sub = await makeSubmission(trip, ch, team, a.id);
+    await makeSubmission(trip, ch, team, a.id); // another photo it could fall back to
+    const nom = await makeNomination(trip, ch, team, sub, "pending");
+    await pool.query(`UPDATE nomination SET state = 'rejected', active = false WHERE id = $1`, [nom]);
+
+    await advanceTrip(trip, "voting");
+    expect(await count("nomination", "trip_id = $1 AND active", [trip])).toBe(0);
   });
 
   it("auto-nominates each team's latest submission when voting opens", async () => {

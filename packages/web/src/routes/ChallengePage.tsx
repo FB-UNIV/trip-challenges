@@ -1,5 +1,6 @@
 import { useRef, useState } from "react";
 import { Link, useParams } from "react-router-dom";
+import type { EntryState } from "@trip/shared";
 import { api, errorText, HttpError, isBadCode } from "../api.js";
 import { qk, useLoad, useMe, useOptimistic, useRefresh } from "../query.js";
 import { Button, Card, Field, PhasePill, Skeleton } from "../ui.js";
@@ -50,6 +51,12 @@ export function ChallengePage() {
   );
 }
 
+const ENTRY_LABEL: Record<EntryState, string> = {
+  pending: "⏳ Waiting for your teacher",
+  approved: "✅ Approved",
+  rejected: "❌ Not accepted",
+};
+
 function UploadAndNominate({ challengeId }: { challengeId: string }) {
   // Live: teammates upload to the same challenge from their own phones.
   const subs = useLoad(qk.submissions(challengeId), () => api.listSubmissions(challengeId), { live: true });
@@ -92,10 +99,15 @@ function UploadAndNominate({ challengeId }: { challengeId: string }) {
         </h3>
         {subs.loading && <Skeleton photos={2} />}
         {subs.data?.submissions.length === 0 && <p className="muted">No photos yet.</p>}
+        {/* #81: say why the entry is gone, instead of the mark just vanishing. */}
+        {subs.data && !subs.data.submissions.some((s) => s.nominated) && subs.data.submissions.some((s) => s.entry === "rejected") && (
+          <p className="warncard">Your teacher didn't accept your entry. Pick another photo.</p>
+        )}
         <div className="grid2" style={{ marginTop: 10 }}>
           {subs.data?.submissions.map((s) => (
             <div key={s.id} className="photo-cell">
               <img src={api.photoUrl(s.id)} alt="" className="photo" style={{ aspectRatio: "1" }} />
+              {s.entry && <span className={`entry-badge entry-${s.entry}`}>{ENTRY_LABEL[s.entry]}</span>}
               <Button
                 variant={s.nominated ? "gold" : "ghost"} size="mini"
                 onClick={async () => {
@@ -104,7 +116,11 @@ function UploadAndNominate({ challengeId }: { challengeId: string }) {
                     // Optimistic: the mark moves to this photo at once (a team has one nomination per challenge).
                     await optimistic<Subs>(
                       qk.submissions(challengeId),
-                      (old) => ({ submissions: old.submissions.map((x) => ({ ...x, nominated: x.id === s.id })) }),
+                      // The new entry is pending; the one it replaces is retired (a rejection stays marked).
+                      (old) => ({ submissions: old.submissions.map((x) => ({
+                        ...x, nominated: x.id === s.id,
+                        entry: x.id === s.id ? "pending" : x.entry === "rejected" ? "rejected" : null,
+                      })) }),
                       () => api.nominate(challengeId, s.id),
                     );
                     await changed();

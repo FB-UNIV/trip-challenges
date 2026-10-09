@@ -221,6 +221,10 @@ input[type="date"]::-webkit-date-and-time-value, input[type="datetime-local"]::-
 /* ---------- photos ---------- */
 .photo { width: 100%; aspect-ratio: 1; object-fit: cover; border-radius: 12px; display: block; background: var(--surface-2); }
 .photo-cell { display: flex; flex-direction: column; gap: 7px; }
+/* Where this photo's entry stands (#81). */
+.entry-badge { font: 600 11.5px var(--mono); padding: 3px 8px; border-radius: 999px; align-self: flex-start; background: var(--line-2); color: var(--ink); }
+.entry-approved { background: var(--good-wash); }
+.entry-rejected { background: var(--crit-wash); }
 .zoom { cursor: zoom-in; transition: transform .12s ease, box-shadow .12s ease; }
 .zoom:hover { transform: scale(1.015); box-shadow: var(--shadow-2); }
 .zoom:focus-visible { outline: 3px solid var(--accent); outline-offset: 2px; }
