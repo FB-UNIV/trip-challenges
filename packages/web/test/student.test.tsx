@@ -1,7 +1,7 @@
 // Student entry: join link, manual code entry, recovery, and the home screen per phase.
 import { describe, it, expect } from "vitest";
 import { screen, waitFor } from "@testing-library/react";
-import { http, HttpResponse } from "msw";
+import { delay, http, HttpResponse } from "msw";
 import { server } from "./server.js";
 import { renderAt } from "./render.js";
 
@@ -73,6 +73,13 @@ describe("recovery link when offline", () => {
 });
 
 describe("student home", () => {
+  it("shows a placeholder while it loads (#80)", async () => {
+    server.use(http.get("/api/student/me", async () => { await delay("infinite"); return HttpResponse.json(ME); }), teams());
+    renderAt("/");
+    expect(screen.getByRole("status", { name: "Loading" })).toBeInTheDocument();
+    expect(screen.queryByText("Loading…")).not.toBeInTheDocument();
+  });
+
   it("offers manual code entry when signed out, then shows the trip once redeemed", async () => {
     let signedIn = false;
     server.use(

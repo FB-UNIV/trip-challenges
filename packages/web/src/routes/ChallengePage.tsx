@@ -2,7 +2,7 @@ import { useRef, useState } from "react";
 import { Link, useParams } from "react-router-dom";
 import { api, errorText, HttpError, isBadCode } from "../api.js";
 import { qk, useLoad, useMe, useOptimistic, useRefresh } from "../query.js";
-import { Button, Card, Field, PhasePill } from "../ui.js";
+import { Button, Card, Field, PhasePill, Skeleton } from "../ui.js";
 
 export function ChallengePage() {
   const { qrSlug } = useParams();
@@ -12,7 +12,7 @@ export function ChallengePage() {
   const [code, setCode] = useState("");
   const [err, setErr] = useState("");
 
-  if (challenge.loading) return <p className="muted">Loading…</p>;
+  if (challenge.loading) return <Card><Skeleton /></Card>;
   if (challenge.error) return <Card><p style={{ margin: 0 }}>Challenge not found.</p></Card>;
   const ch = challenge.data!;
   const authed = !!me.data;
@@ -90,7 +90,7 @@ function UploadAndNominate({ challengeId }: { challengeId: string }) {
           Your team's photos
           <span className="muted tiny" style={{ fontWeight: 600, marginLeft: "auto" }}>pick one to enter</span>
         </h3>
-        {subs.loading && <p className="muted">Loading…</p>}
+        {subs.loading && <Skeleton photos={2} />}
         {subs.data?.submissions.length === 0 && <p className="muted">No photos yet.</p>}
         <div className="grid2" style={{ marginTop: 10 }}>
           {subs.data?.submissions.map((s) => (
