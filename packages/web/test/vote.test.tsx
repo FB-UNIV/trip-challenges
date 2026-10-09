@@ -1,6 +1,6 @@
 // Voting (ADR-0002): the challenge list (with my progress) and the duel screen.
 import { describe, it, expect } from "vitest";
-import { screen, within } from "@testing-library/react";
+import { screen, waitFor, within } from "@testing-library/react";
 import { http, HttpResponse } from "msw";
 import { server } from "./server.js";
 import { renderAt } from "./render.js";
@@ -119,6 +119,26 @@ describe("duel screen", () => {
       { pairToken: "token1", winnerNominationId: "a1" },
       { pairToken: "token2", winnerNominationId: "b2" },
     ]);
+  });
+
+  // #82: photos are small on phones; a 🔍 shows one full screen without voting.
+  it("zooms a photo full screen without voting, and picking still votes", async () => {
+    const casts: unknown[] = [];
+    server.use(
+      listIs([ch("ch1", "Gelato", 0, 1, "todo")]),
+      http.get("/api/duels/next", () => HttpResponse.json(casts.length ? { pair: null, reason: "exhausted" } : { pair: pair(1) })),
+      http.post("/api/duels/cast", async ({ request }) => { casts.push(await request.json()); return HttpResponse.json({ ok: true }); }),
+    );
+    const { user } = renderAt("/vote/ch1");
+    await user.click(await screen.findByRole("button", { name: "View photo B full screen" }));
+    const dialog = screen.getByRole("dialog", { name: "Photo" });
+    expect(within(dialog).getByRole("img")).toHaveAttribute("src", "/api/submissions/sb1/photo");
+    expect(casts).toEqual([]);
+
+    await user.click(within(dialog).getByRole("button", { name: "Close" }));
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+    await user.click(screen.getAllByRole("button", { name: "Pick this photo" })[1]!);
+    await waitFor(() => expect(casts).toEqual([{ pairToken: "token1", winnerNominationId: "b1" }]));
   });
 
   it("celebrates the last challenge and leads back to the list", async () => {
