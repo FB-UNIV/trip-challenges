@@ -11,7 +11,9 @@ import { writeFile } from "node:fs/promises";
 import { API_URL, MAILPIT_URL } from "../e2e/support/env.js";
 import { phoneLikeJpeg, writeUploadPhoto } from "./photo.mjs";
 
-const STUDENTS = 50;
+// Same knobs as the k6 script: STUDENTS=… UPLOADERS=… npx tsx loadtest/seed.mts
+const STUDENTS = Number(process.env.STUDENTS || 50);
+const UPLOADERS = Number(process.env.UPLOADERS || 5);
 const TEAM_SIZE = 5;
 const VOTING_CHALLENGES = ["Best gelato", "Most epic statue"];
 
@@ -101,7 +103,7 @@ await call(teacher, "POST", `/api/trips/${tripId}/advance`, { to: "voting" });
 // ---- upload trip (stays in the challenge phase) ----
 const upTrip = ((await call(teacher, "POST", "/api/trips", { name: "Load test uploads", tripEndDate: "2030-06-01", maxTeamSize: TEAM_SIZE })) as { id: string }).id;
 const upChallenge = ((await call(teacher, "POST", "/api/challenges", { tripId: upTrip, title: "Anything", instructions: "x", multiplier: 1 })) as { id: string }).id;
-const uploaders = await enroll(teacher, upTrip, 5, "up");
+const uploaders = await enroll(teacher, upTrip, UPLOADERS, "up");
 for (const [i, u] of uploaders.entries()) await call(u, "POST", "/api/teams", { name: `Upload team ${i + 1}` });
 await call(teacher, "POST", `/api/trips/${upTrip}/advance`, { to: "challenge" });
 

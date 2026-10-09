@@ -1,6 +1,13 @@
 // Load test (#63): 50 students voting at once (the worst case for a trip), plus 5 uploading.
 // Seed first (loadtest/seed.mts), then:  k6 run loadtest/voting.k6.js
 // Numbers on shared CI runners are relative (before/after), not absolute capacity.
+//
+// Knobs (k6 -e NAME=value), e.g. a photo-heavy run: -e UPLOADERS=50 -e THINK=1 -e VOTERS=100
+//   VOTERS      voting students (default 50; more than the seeded students reuse their sessions)
+//   UPLOADERS   students uploading at once (default 5; seed at least that many: --uploaders N)
+//   THINK       max seconds a voter looks at a pair before picking (default 3; min is a third)
+//   UPLOAD_GAP  max seconds between one phone's uploads (default 7; min is a third)
+//   STEADY      how long the full load holds (default 2m)
 import http from "k6/http";
 import { check, sleep } from "k6";
 
@@ -11,13 +18,23 @@ const BASE = __ENV.BASE_URL || state.baseUrl;
 // A refused cast (pair already judged, voting closed) is an answer, not a failure.
 const castOk = http.expectedStatuses(200, 201, 409);
 
+const VOTERS = Number(__ENV.VOTERS || 50);
+const UPLOADERS = Number(__ENV.UPLOADERS || 5);
+const THINK = Number(__ENV.THINK || 3);
+const UPLOAD_GAP = Number(__ENV.UPLOAD_GAP || 7);
+const STEADY = __ENV.STEADY || "2m";
+const between = (max) => max / 3 + Math.random() * (max * 2 / 3);
+
 export const options = {
   scenarios: {
     voting: {
       executor: "ramping-vus", exec: "vote", startVUs: 0,
-      stages: [{ duration: "30s", target: 50 }, { duration: "2m", target: 50 }, { duration: "10s", target: 0 }],
+      stages: [{ duration: "30s", target: VOTERS }, { duration: STEADY, target: VOTERS }, { duration: "10s", target: 0 }],
     },
-    uploads: { executor: "constant-vus", exec: "upload", vus: 5, duration: "2m30s" },
+    uploads: {
+      executor: "ramping-vus", exec: "upload", startVUs: 0,
+      stages: [{ duration: "30s", target: UPLOADERS }, { duration: STEADY, target: UPLOADERS }, { duration: "10s", target: 0 }],
+    },
   },
   thresholds: {
     http_req_failed: ["rate<0.01"],
@@ -50,7 +67,7 @@ export function vote() {
   ]);
   check(photos, { "photos 200": (rs) => rs.every((r) => r.status === 200) });
 
-  sleep(1 + Math.random() * 2); // looking at the two photos
+  sleep(between(THINK)); // looking at the two photos
   const winner = Math.random() < 0.5 ? pair.aNominationId : pair.bNominationId;
   const cast = http.post(
     `${BASE}/api/duels/cast`,
@@ -68,7 +85,7 @@ export function upload() {
     as(cookie, "upload"),
   );
   check(res, { "upload 201": (r) => r.status === 201 });
-  sleep(3 + Math.random() * 4); // a phone uploads now and then, not in a tight loop
+  sleep(between(UPLOAD_GAP)); // a phone uploads now and then, not in a tight loop
 }
 
 export function handleSummary(data) {

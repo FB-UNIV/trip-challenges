@@ -99,7 +99,10 @@ export type LoadtestState = {
 export async function seedLoadtest(opts: {
   teacherEmail: string; students?: number; teamSize?: number; uploaders?: number;
 }): Promise<LoadtestState> {
-  const o = { students: 50, teamSize: 5, uploaders: 5, ...opts };
+  const o = {
+    teacherEmail: opts.teacherEmail,
+    students: opts.students ?? 50, teamSize: opts.teamSize ?? 5, uploaders: opts.uploaders ?? 5,
+  };
   const teacherId = await teacherIdOf(o.teacherEmail);
   const app = await demoApp();
   try {

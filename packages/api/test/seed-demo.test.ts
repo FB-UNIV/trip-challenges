@@ -135,6 +135,18 @@ describe("seedLoadtest", () => {
     expect(me.json()).toMatchObject({ phase: "challenge", teamId: expect.any(String) });
   });
 
+  it("sizes the class and the uploaders from the script's flags, and refuses nonsense", { timeout: 120_000 }, async () => {
+    const lines: string[] = [];
+    const args = ["--teacher", "staging-teacher@school.test", "--loadtest", "--students", "6", "--uploaders", "3"];
+    expect(await run(args, { SEED_DEMO: "staging" }, (l) => lines.push(l))).toBe(0);
+    const state = JSON.parse(lines[0]!);
+    expect([state.students.length, state.upload.students.length]).toEqual([6, 3]);
+
+    const bad: string[] = [];
+    expect(await run(["--teacher", "staging-teacher@school.test", "--loadtest", "--uploaders", "lots"], { SEED_DEMO: "staging" }, (l) => bad.push(l))).toBe(1);
+    expect(bad.join("\n")).toMatch(/--uploaders needs a positive whole number/);
+  });
+
   it("prints only the state JSON from the script", { timeout: 120_000 }, async () => {
     const lines: string[] = [];
     const code = await run(["--teacher", "staging-teacher@school.test", "--loadtest"], { SEED_DEMO: "staging" }, (l) => lines.push(l));
