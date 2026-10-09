@@ -1,7 +1,7 @@
 // Co-teacher invite acceptance, the projected reveal ceremony, and the API client itself.
 import { describe, it, expect, vi } from "vitest";
 import { fireEvent, screen } from "@testing-library/react";
-import { http, HttpResponse } from "msw";
+import { delay, http, HttpResponse } from "msw";
 import { server } from "./server.js";
 import { renderAt } from "./render.js";
 import { api, HttpError, errorText } from "../src/api.js";
@@ -79,6 +79,19 @@ describe("accept invite (/teacher/accept?token=…)", () => {
     server.use(http.get("/api/invites/preview", () => HttpResponse.json({}, { status: 400 })));
     renderAt("/teacher/accept");
     expect(screen.getByText("Missing invite token.")).toBeInTheDocument();
+  });
+});
+
+// #80: every screen shows the shimmer placeholder while it loads, never bare "Loading…".
+describe("loading placeholders", () => {
+  it.each([
+    ["the invite preview", "/teacher/accept?token=t", "/api/invites/preview"],
+    ["the ceremony", "/ceremony/t1", "/api/trips/t1/results"],
+  ])("%s", async (_label, path, endpoint) => {
+    server.use(http.get(endpoint, async () => { await delay("infinite"); return HttpResponse.json({}); }));
+    renderAt(path);
+    expect(await screen.findByRole("status", { name: "Loading" })).toBeInTheDocument();
+    expect(screen.queryByText(/Loading…|Loading invite…/)).not.toBeInTheDocument();
   });
 });
 

@@ -2,7 +2,7 @@ import { useState } from "react";
 import { Link } from "react-router-dom";
 import { api, errorText, HttpError, isBadCode } from "../api.js";
 import { qk, useMe, useRefresh, useTeams } from "../query.js";
-import { Button, Card, ErrorCard, Field, PhasePill, PhaseTrail } from "../ui.js";
+import { Button, Card, ErrorCard, Field, PhasePill, PhaseTrail, Skeleton } from "../ui.js";
 
 export function StudentHome() {
   const { data: me, error, loading, reload } = useMe();
@@ -11,7 +11,7 @@ export function StudentHome() {
   const [code, setCode] = useState("");
   const [msg, setMsg] = useState("");
 
-  if (loading) return <p className="muted">Loading…</p>;
+  if (loading) return <Card><Skeleton /></Card>;
 
   // Not logged in -> offer manual code entry (QR/email link is the usual path).
   if (error instanceof HttpError && error.status === 401) {

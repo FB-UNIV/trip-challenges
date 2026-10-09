@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { api, HttpError } from "../../api.js";
-import { Button, Card, useAsync } from "../../ui.js";
+import { Button, Card, Skeleton, useAsync } from "../../ui.js";
 
 export function AcceptInvite() {
   const [params] = useSearchParams();
@@ -46,7 +46,7 @@ export function AcceptInvite() {
   };
 
   if (!token) return <Card><p style={{ margin: 0 }}>Missing invite token.</p></Card>;
-  if (preview.loading) return <Card><p className="muted" style={{ margin: 0 }}>Loading invite…</p></Card>;
+  if (preview.loading) return <Card><Skeleton /></Card>;
 
   if (preview.error || !preview.data) {
     return <Card><h2>Invite not found</h2><p className="muted" style={{ marginBottom: 0 }}>This invite is invalid or has already been used.</p></Card>;

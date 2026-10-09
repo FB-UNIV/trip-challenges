@@ -402,6 +402,11 @@ a.check-row:focus-visible { outline: 2px solid var(--accent); outline-offset: 2p
 .sk-line { display: block; height: 16px; border-radius: 8px; background: linear-gradient(90deg, var(--line-2), var(--line), var(--line-2)); background-size: 200% 100%; animation: shimmer 1.2s linear infinite; }
 .sk-line:first-child { height: 26px; width: 60%; }
 .sk-line:last-child:not(:first-child) { width: 80%; }
+.sk-photos { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; margin-top: 10px; }
+.sk-tile { aspect-ratio: 1; border-radius: 12px; background: linear-gradient(90deg, var(--line-2), var(--line), var(--line-2)); background-size: 200% 100%; animation: shimmer 1.2s linear infinite; }
+/* On the projector's dark stage. */
+.sk-dark { width: min(520px, 80vw); }
+.sk-dark .sk-line { background: linear-gradient(90deg, #ffffff14, #ffffff2e, #ffffff14); background-size: 200% 100%; }
 
 /* ---------- trip desk ---------- */
 .trip-head { display: flex; flex-direction: column; gap: var(--s-3); }

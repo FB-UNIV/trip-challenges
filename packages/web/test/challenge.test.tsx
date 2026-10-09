@@ -13,6 +13,22 @@ const me = (m: object | null) =>
   http.get("/api/student/me", () => (m ? HttpResponse.json(m) : HttpResponse.json({}, { status: 401 })));
 
 describe("challenge page", () => {
+  // #80
+  it("shows a placeholder while the challenge loads, then a photo-grid one for the team's photos", async () => {
+    let release!: () => void;
+    const held = new Promise<void>((r) => { release = r; });
+    server.use(
+      http.get("/api/challenges/by-slug/abc", async () => { await held; return HttpResponse.json(CH); }),
+      me(ME),
+      http.get("/api/submissions", async () => { await delay("infinite"); return HttpResponse.json({ submissions: [] }); }),
+    );
+    renderAt("/c/abc");
+    expect(screen.getByRole("status", { name: "Loading" })).toBeInTheDocument();
+    release();
+    expect(await screen.findByRole("status", { name: "Loading photos" })).toBeInTheDocument();
+    expect(screen.queryByText("Loading…")).not.toBeInTheDocument();
+  });
+
   it("says so for an unknown QR", async () => {
     server.use(http.get("/api/challenges/by-slug/abc", () => HttpResponse.json({}, { status: 404 })), me(ME));
     renderAt("/c/abc");

@@ -303,9 +303,17 @@ export function EmptyState({ icon, title, children }: { icon: string; title: str
   );
 }
 
-export function Skeleton({ lines = 3 }: { lines?: number }) {
+/** `photos`: a grid of square tiles where a photo grid will appear. `dark`: on the projector. */
+export function Skeleton({ lines = 3, photos, dark }: { lines?: number; photos?: number; dark?: boolean }) {
+  if (photos) {
+    return (
+      <div className="skeleton sk-photos" role="status" aria-label="Loading photos" aria-busy="true">
+        {Array.from({ length: photos }, (_, i) => <span key={i} className="sk-tile" />)}
+      </div>
+    );
+  }
   return (
-    <div className="skeleton" role="status" aria-label="Loading" aria-busy="true">
+    <div className={cx("skeleton", dark && "sk-dark")} role="status" aria-label="Loading" aria-busy="true">
       {Array.from({ length: lines }, (_, i) => <span key={i} className="sk-line" />)}
     </div>
   );

@@ -5,7 +5,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useParams } from "react-router-dom";
 import { api, type ResultRow } from "../api.js";
-import { useAsync } from "../ui.js";
+import { Skeleton, useAsync } from "../ui.js";
 
 type Scene =
   | { kind: "intro" }
@@ -54,7 +54,7 @@ export function Ceremony() {
     <div onClick={next} style={S.stage}>
       <style>{KEYFRAMES}</style>
       {res.loading ? (
-        <p style={{ color: "#b7aac9" }}>Loading…</p>
+        <Skeleton dark />
       ) : scene?.kind === "empty" ? (
         <div style={S.center}><h1 style={S.h1}>No results yet</h1><p style={S.sub}>Results appear once voting closes.</p></div>
       ) : (
