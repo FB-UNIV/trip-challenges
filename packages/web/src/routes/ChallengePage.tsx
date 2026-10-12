@@ -3,7 +3,7 @@ import { useParams } from "react-router";
 import type { EntryState } from "@trip/shared";
 import { api, errorText, HttpError, isBadCode } from "../api.js";
 import { qk, useLoad, useMe, useOptimistic, useRefresh } from "../query.js";
-import { Button, Card, Field, PhasePill, phaseMeta, Progress, Skeleton } from "../ui.js";
+import { Button, Card, Celebrate, Field, PhasePill, phaseMeta, Progress, Skeleton } from "../ui.js";
 import { shrinkPhoto } from "../photo.js";
 import { PlaySolo } from "./PlaySolo.js";
 
@@ -66,12 +66,35 @@ function UploadAndNominate({ challengeId }: { challengeId: string }) {
   const changed = () => refresh(qk.submissions(challengeId), qk.myChallenges); // the photos here, the checklist, the badge
   const optimistic = useOptimistic();
   type Subs = Awaited<ReturnType<typeof api.listSubmissions>>;
-  const uploads = useUploads(challengeId, changed);
+  // One photo is looked at full screen before it goes (`review`); once it's in, the team may make it their entry (`sent`).
+  const [sheet, setSheet] = useState<Sheet | null>(null);
+  const uploads = useUploads(challengeId, changed, (u, id) => { if (u.reviewed) setSheet({ kind: "sent", id }); });
   const [err, setErr] = useState("");
   const pick = (e: ChangeEvent<HTMLInputElement>) => {
     const files = [...(e.target.files ?? [])];
     e.target.value = ""; // the same photo can be picked again
-    uploads.add(files);
+    if (files.length === 1) setSheet({ kind: "review", file: files[0]!, preview: URL.createObjectURL(files[0]!), from: e.target });
+    else uploads.add(files); // a batch from the gallery just goes
+  };
+  const closeReview = (r: Review) => { URL.revokeObjectURL(r.preview); setSheet(null); };
+  const hasEntry = !!subs.data?.submissions.some((s) => s.nominated);
+
+  const nominate = async (id: string) => {
+    setErr("");
+    try {
+      // Optimistic: the mark moves to this photo at once (a team has one nomination per challenge).
+      await optimistic<Subs>(
+        qk.submissions(challengeId),
+        // The new entry is pending; the one it replaces is retired (a rejection stays marked).
+        (old) => ({ submissions: old.submissions.map((x) => ({
+          ...x, nominated: x.id === id,
+          entry: x.id === id ? "pending" : x.entry === "rejected" ? "rejected" : null,
+        })) }),
+        () => api.nominate(challengeId, id),
+      );
+      await changed();
+    }
+    catch (e) { setErr(e instanceof HttpError ? e.reason : "Échec de la sélection"); }
   };
 
   return (
@@ -110,26 +133,7 @@ function UploadAndNominate({ challengeId }: { challengeId: string }) {
             <div key={s.id} className="photo-cell">
               <img src={api.photoUrl(s.id)} alt="" className="photo" style={{ aspectRatio: "1" }} />
               {s.entry && <span className={`entry-badge entry-${s.entry}`}>{ENTRY_LABEL[s.entry]}</span>}
-              <Button
-                variant={s.nominated ? "gold" : "ghost"} size="mini"
-                onClick={async () => {
-                  setErr("");
-                  try {
-                    // Optimistic: the mark moves to this photo at once (a team has one nomination per challenge).
-                    await optimistic<Subs>(
-                      qk.submissions(challengeId),
-                      // The new entry is pending; the one it replaces is retired (a rejection stays marked).
-                      (old) => ({ submissions: old.submissions.map((x) => ({
-                        ...x, nominated: x.id === s.id,
-                        entry: x.id === s.id ? "pending" : x.entry === "rejected" ? "rejected" : null,
-                      })) }),
-                      () => api.nominate(challengeId, s.id),
-                    );
-                    await changed();
-                  }
-                  catch (e) { setErr(e instanceof HttpError ? e.reason : "Échec de la sélection"); }
-                }}
-              >{s.nominated ? "Sélectionnée ✓" : "Sélectionner"}</Button>
+              <Button variant={s.nominated ? "gold" : "ghost"} size="mini" onClick={() => nominate(s.id)}>{s.nominated ? "Sélectionnée ✓" : "Sélectionner"}</Button>
             </div>
           ))}
           {uploads.items.map((u) => (
@@ -153,15 +157,55 @@ function UploadAndNominate({ challengeId }: { challengeId: string }) {
         </div>
         {err && <p className="err tiny" style={{ marginBottom: 0 }}>{err}</p>}
       </Card>
+
+      {sheet?.kind === "review" && (
+        <div className="sheet" role="dialog" aria-modal="true" aria-label="Ta photo">
+          <button className="lb-close" aria-label="Annuler" onClick={() => closeReview(sheet)}>✕</button>
+          <img src={sheet.preview} alt="Ta photo" className="sheet-photo" />
+          <div className="sheet-acts">
+            <Button
+              variant="neutral" size="lg"
+              onClick={() => { closeReview(sheet); sheet.from.click(); }}
+            ><span aria-hidden="true">↺</span> Reprendre</Button>
+            <Button
+              size="lg"
+              onClick={() => { closeReview(sheet); uploads.add([sheet.file], true); }}
+            >Envoyer <span aria-hidden="true">➜</span></Button>
+          </div>
+        </div>
+      )}
+      {sheet?.kind === "sent" && (
+        <div className="sheet sheet-sent" role="dialog" aria-modal="true" aria-label="Photo envoyée">
+          <Celebrate icon="🎉" title="Photo envoyée !">
+            {hasEntry ? "Elle est avec les photos de ton équipe." : "C'est votre photo pour le vote ?"}
+          </Celebrate>
+          <div className="sheet-acts">
+            {hasEntry ? (
+              <Button size="lg" onClick={() => setSheet(null)}>Continuer</Button>
+            ) : (
+              <>
+                <Button variant="neutral" size="lg" onClick={() => setSheet(null)}>Plus tard</Button>
+                <Button
+                  variant="gold" size="lg"
+                  onClick={() => { const { id } = sheet; setSheet(null); void nominate(id); }}
+                ><span aria-hidden="true">⭐</span> On la met en lice</Button>
+              </>
+            )}
+          </div>
+        </div>
+      )}
     </>
   );
 }
 
+type Review = { kind: "review"; file: File; preview: string; from: HTMLInputElement };
+type Sheet = Review | { kind: "sent"; id: string };
+
 /** A photo on its way: `sent` is 0 → 1 while it uploads, null while it waits its turn. */
-type Upload = { key: number; file: File; preview: string; sent: number | null; error?: string };
+type Upload = { key: number; file: File; preview: string; reviewed: boolean; sent: number | null; error?: string };
 
 /** Photos send one at a time, in the order picked; a failed one stays on screen to retry or drop. */
-function useUploads(challengeId: string, onSent: () => Promise<unknown>) {
+function useUploads(challengeId: string, onSent: () => Promise<unknown>, onUploaded: (u: Upload, id: string) => void) {
   const [items, setItems] = useState<Upload[]>([]);
   const queue = useRef(Promise.resolve());
   const keys = useRef(0);
@@ -180,9 +224,10 @@ function useUploads(challengeId: string, onSent: () => Promise<unknown>) {
       patch(u.key, { sent: 0 });
       try {
         const photo = await shrinkPhoto(u.file);
-        await api.uploadSubmission(challengeId, photo, (sent) => patch(u.key, { sent }));
+        const { id } = await api.uploadSubmission(challengeId, photo, (sent) => patch(u.key, { sent }));
         await onSent(); // listed before its preview goes: no flicker
         drop(u);
+        onUploaded(u, id);
       } catch (e) {
         patch(u.key, { sent: null, error: errorText(e, "Échec de l'envoi.") });
       }
@@ -192,8 +237,9 @@ function useUploads(challengeId: string, onSent: () => Promise<unknown>) {
   return {
     items,
     drop,
-    add: (files: File[]) => {
-      const fresh = files.map((file) => ({ key: keys.current++, file, preview: URL.createObjectURL(file), sent: null }));
+    /** `reviewed`: the student looked at it full screen first, so tell them when it's in. */
+    add: (files: File[], reviewed = false) => {
+      const fresh = files.map((file) => ({ key: keys.current++, file, preview: URL.createObjectURL(file), reviewed, sent: null }));
       fresh.forEach((u) => previews.current.add(u.preview));
       setItems((all) => [...all, ...fresh]);
       fresh.forEach(send);
