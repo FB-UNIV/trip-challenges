@@ -339,6 +339,18 @@ Recorded on one 12-core laptop, with the same scenario for each build:
 Workflows in [`.github/workflows/`](../.github/workflows): `ci.yml` runs typecheck → test
 → build (and a Docker build) on every PR/push; `release.yml` uses release-please to cut
 semver releases and pushes `trip-api` + `trip-web` images to GHCR. Then set
-`IMAGE_API`/`IMAGE_WEB` in `.env` to the pushed tags (e.g. `ghcr.io/<owner>/trip-api:0.1.0`),
-`docker login ghcr.io` on the host (the images are private), and `docker compose up -d` to
-deploy the built images instead of building on the host. See the README's CI/CD section.
+`IMAGE_API`/`IMAGE_WEB` in `.env` to the pushed tags (e.g. `ghcr.io/fb-univ/trip-api:0.9.2`)
+and `docker compose up -d` to deploy the published images instead of building on the host.
+The images are public; no `docker login` needed. See the README's CI/CD section.
+
+Every release image is signed keyless with [cosign](https://docs.sigstore.dev/) by the
+release workflow and carries an SBOM and build provenance. Verify before deploying:
+
+```bash
+cosign verify ghcr.io/fb-univ/trip-api:0.9.2 \
+  --certificate-identity-regexp '^https://github\.com/FB-UNIV/trip-challenges/\.github/workflows/release\.yml@refs/heads/main$' \
+  --certificate-oidc-issuer https://token.actions.githubusercontent.com
+```
+
+A signature proves the image was built by this repo's release workflow on `main`. Images
+from before signing was added (≤ 0.9.2) are unsigned.

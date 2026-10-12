@@ -3,7 +3,9 @@
 # On every push to main, release-please keeps a "chore(main): release x.y.z" PR up to date
 # with the next version (from Conventional Commit PR titles) and CHANGELOG.md. Merging that
 # PR tags vX.Y.Z, creates the GitHub release, and the `images` job pushes the api/web images
-# to GHCR as :X.Y.Z, :X.Y and :latest.
+# to GHCR as :X.Y.Z, :X.Y and :latest, with an SBOM + provenance attestation, then signs
+# them keyless with cosign (Sigstore, via this workflow's OIDC identity — no key to manage).
+# Verify command: docs/deployment.md §7.
 #
 # Optional secret RELEASE_PLEASE_TOKEN (fine-grained PAT: contents + pull-requests write).
 # Without it, release PRs are opened by GITHUB_TOKEN and GitHub does not run CI on them,
@@ -47,6 +49,7 @@ jobs:
     permissions:
       contents: read
       packages: write
+      id-token: write # cosign keyless signing (Sigstore OIDC)
     strategy:
       matrix:
         include:
@@ -60,6 +63,8 @@ jobs:
           ref: ${{ needs.release-please.outputs.tag_name }}
 
       - uses: docker/setup-buildx-action@v4
+
+      - uses: sigstore/cosign-installer@v3
 
       - name: Log in to GHCR
         uses: docker/login-action@v3
@@ -84,6 +89,7 @@ jobs:
             type=raw,value=latest
 
       - name: Build and push
+        id: build
         uses: docker/build-push-action@v6
         with:
           context: .
@@ -91,5 +97,13 @@ jobs:
           push: true
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
+          sbom: true
+          provenance: mode=max
           cache-from: type=gha,scope=${{ matrix.name }}
           cache-to: type=gha,mode=max,scope=${{ matrix.name }}
+
+      # Sign the digest, not a tag: tags move, the digest is what was built here.
+      - name: Sign image
+        env:
+          IMAGE: ${{ steps.image.outputs.name }}@${{ steps.build.outputs.digest }}
+        run: cosign sign --yes "$IMAGE"
