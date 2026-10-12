@@ -89,23 +89,33 @@ describe("GET /api/trips/:id/progress", () => {
 
   describe("eraseAt — mirrors when erasure will actually fire", () => {
     const hardEraseAt = new Date("2030-02-01T00:00:00Z");
-    const votingClosesAt = new Date("2030-01-10T12:00:00Z");
+    const graceStartedAt = new Date("2030-01-10T12:00:00Z");
 
-    it("is the hard deadline before the grace period", async () => {
+    it("is the hard deadline before the grace period, whatever the planned vote close", async () => {
+      const votingClosesAt = new Date("2030-01-10T12:00:00Z");
       const trip = await makeTrip(owner, { phase: "voting", hardEraseAt, votingClosesAt, graceDays: 7 });
       const body = TripProgress.parse((await progress(trip)).json());
       expect(body.eraseAt).toBe(hardEraseAt.toISOString());
-      expect(body.graceEndsAt).toBe("2030-01-17T12:00:00.000Z"); // planned, not yet effective
+      expect(body.graceEndsAt).toBeNull();
+    });
+
+    it("during the ceremony, graceEndsAt is when grace would end if published now", async () => {
+      const farHard = new Date(Date.now() + 90 * 86_400_000);
+      const trip = await makeTrip(owner, { phase: "reveal", hardEraseAt: farHard, graceDays: 7 });
+      const body = TripProgress.parse((await progress(trip)).json());
+      const ends = new Date(body.graceEndsAt!).getTime();
+      expect(Math.abs(ends - (Date.now() + 7 * 86_400_000))).toBeLessThan(60_000);
+      expect(body.eraseAt).toBe(farHard.toISOString()); // not in grace yet: the hard deadline rules
     });
 
     it("is the end of the grace window once in grace, if that comes first", async () => {
-      const trip = await makeTrip(owner, { phase: "grace", hardEraseAt, votingClosesAt, graceDays: 7 });
+      const trip = await makeTrip(owner, { phase: "grace", hardEraseAt, graceStartedAt, graceDays: 7 });
       expect(TripProgress.parse((await progress(trip)).json()).eraseAt).toBe("2030-01-17T12:00:00.000Z");
     });
 
-    it("stays the hard deadline when that is sooner, or when voting has no close date", async () => {
+    it("stays the hard deadline when that is sooner, or when grace has no start (legacy row)", async () => {
       const soon = new Date("2030-01-12T00:00:00Z");
-      const t1 = await makeTrip(owner, { phase: "grace", hardEraseAt: soon, votingClosesAt, graceDays: 7 });
+      const t1 = await makeTrip(owner, { phase: "grace", hardEraseAt: soon, graceStartedAt, graceDays: 7 });
       expect(TripProgress.parse((await progress(t1)).json()).eraseAt).toBe(soon.toISOString());
       const t2 = await makeTrip(owner, { phase: "grace", hardEraseAt, graceDays: 7 });
       const body = TripProgress.parse((await progress(t2)).json());

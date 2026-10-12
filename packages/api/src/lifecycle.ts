@@ -25,6 +25,8 @@ export async function advanceTrip(tripId: string, to: string): Promise<void> {
     if (to === "reveal") await computeResultsIn(c, tripId);
 
     await c.query(`UPDATE trip SET phase = $2 WHERE id = $1`, [tripId, to]);
+    // Publishing the results starts the grace period that ends in Erasure (CONTEXT: Erasure).
+    if (to === "grace") await c.query(`UPDATE trip SET grace_started_at = now() WHERE id = $1`, [tripId]);
     await c.query(
       `INSERT INTO audit_log (trip_id, action, target_opaque_id) VALUES ($1, $2, NULL)`,
       [tripId, `phase_${to}`],

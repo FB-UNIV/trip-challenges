@@ -147,11 +147,13 @@ describe("findTripsDueForErasure", () => {
     const later = new Date(now.getTime() + 90 * day); // hard deadline not reached
     const hardPassed = await makeTrip(owner, { phase: "challenge", hardEraseAt: new Date(now.getTime() - 1) });
     const graceDone = await makeTrip(owner, {
-      phase: "grace", graceDays: 2, votingClosesAt: new Date(now.getTime() - 3 * day), hardEraseAt: later,
+      phase: "grace", graceDays: 2, graceStartedAt: new Date(now.getTime() - 3 * day), hardEraseAt: later,
     });
-    // Not due: grace still running; grace math ignored outside phase 'grace'; already erased.
-    await makeTrip(owner, { phase: "grace", graceDays: 7, votingClosesAt: new Date(now.getTime() - 3 * day), hardEraseAt: later });
-    await makeTrip(owner, { phase: "voting", graceDays: 0, votingClosesAt: new Date(now.getTime() - 3 * day), hardEraseAt: later });
+    // Not due: grace still running; grace math ignored outside phase 'grace'; the planned vote
+    // close date doesn't start grace (only publishing does); already erased.
+    await makeTrip(owner, { phase: "grace", graceDays: 7, graceStartedAt: new Date(now.getTime() - 3 * day), hardEraseAt: later });
+    await makeTrip(owner, { phase: "voting", graceDays: 0, graceStartedAt: new Date(now.getTime() - 3 * day), hardEraseAt: later });
+    await makeTrip(owner, { phase: "grace", graceDays: 0, votingClosesAt: new Date(now.getTime() - 3 * day), graceStartedAt: new Date(now.getTime() + day), hardEraseAt: later });
     await makeTrip(owner, { phase: "erased", hardEraseAt: new Date(now.getTime() - day) });
 
     expect((await findTripsDueForErasure(now)).sort()).toEqual([hardPassed, graceDone].sort());
@@ -166,7 +168,7 @@ describe("warnUpcomingErasures", () => {
     const co = await makeTeacher("co@school.test");
     const trip = await makeTrip(owner, {
       phase: "grace", graceDays: 0,
-      votingClosesAt: new Date(now.getTime() + 2 * H), // grace deadline in 2h → "1d" bracket
+      graceStartedAt: new Date(now.getTime() + 2 * H), // grace deadline in 2h → "1d" bracket
       hardEraseAt: new Date(now.getTime() + 30 * 24 * H),
     });
     await addCoTeacher(trip, co);
