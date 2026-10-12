@@ -52,20 +52,20 @@ export function Field({
 }
 
 // ---------- ErrorCard ----------
-/** A failed load: the API's reason (e.g. "Too many requests — try again in 1 minute.") + retry. */
+/** A failed load: the API's reason (e.g. "Trop de requêtes — réessaie dans 1 minute.") + retry. */
 export function ErrorCard({ error, onRetry, inline }: { error: unknown; onRetry: () => void; inline?: boolean }) {
-  const reason = error instanceof HttpError ? error.reason : "Something went wrong.";
+  const reason = error instanceof HttpError ? error.reason : "Une erreur est survenue.";
   // A reference only when the server broke (5xx): it's what the operator searches the logs for.
   const ref = error instanceof HttpError && error.status >= 500 ? error.requestId : null;
   const body = (
     <>
       <p className="err" style={{ marginTop: inline ? undefined : 0 }}>{reason}</p>
-      {ref && <p className="muted tiny">Reference: <span className="mono-tag">{ref}</span></p>}
-      <Button variant="ghost" onClick={onRetry}>Try again</Button>
+      {ref && <p className="muted tiny">Référence : <span className="mono-tag">{ref}</span></p>}
+      <Button variant="ghost" onClick={onRetry}>Réessayer</Button>
     </>
   );
   // Inline: inside a card or section that already frames it.
-  return inline ? <div role="group" aria-label="Could not load">{body}</div> : <Card>{body}</Card>;
+  return inline ? <div role="group" aria-label="Chargement impossible">{body}</div> : <Card>{body}</Card>;
 }
 
 // ---------- Pill ----------
@@ -81,12 +81,12 @@ export function Pill({ children, tone = "neutral", dot }: { children: ReactNode;
 
 // ---------- Phase helpers (colour encodes the trip phase) ----------
 const PHASE_META: Record<string, { tone: Tone; label: string }> = {
-  draft: { tone: "lilac", label: "Draft" },
-  challenge: { tone: "coral", label: "Challenge" },
-  voting: { tone: "sky", label: "Voting" },
-  reveal: { tone: "gold", label: "Reveal" },
-  grace: { tone: "gold", label: "Grace" },
-  erased: { tone: "neutral", label: "Erased" },
+  draft: { tone: "lilac", label: "Brouillon" },
+  challenge: { tone: "coral", label: "Défis" },
+  voting: { tone: "sky", label: "Vote" },
+  reveal: { tone: "gold", label: "Révélation" },
+  grace: { tone: "gold", label: "Délai de grâce" },
+  erased: { tone: "neutral", label: "Effacée" },
 };
 export const phaseMeta = (phase: string) => PHASE_META[phase] ?? { tone: "neutral" as Tone, label: phase };
 
@@ -103,8 +103,8 @@ const TRAIL = [
 ];
 const RANK: Record<string, number> = { draft: 0, challenge: 1, voting: 2, reveal: 3, grace: 4, erased: 5 };
 const LABELS = {
-  teacher: ["Draft", "Challenge", "Voting", "Reveal"],
-  student: ["Draft", "Play", "Vote", "Reveal"],
+  teacher: ["Brouillon", "Défis", "Vote", "Révélation"],
+  student: ["Préparation", "Jeu", "Vote", "Révélation"],
 };
 
 export function PhaseTrail({ phase, variant = "student" }: { phase: string; variant?: "student" | "teacher" }) {
@@ -142,7 +142,7 @@ export function LightboxProvider({ children }: { children: ReactNode }) {
       {children}
       {content && (
         <div className="lightbox" onClick={() => setContent(null)} role="dialog" aria-modal="true" aria-label="Photo">
-          <button className="lb-close" aria-label="Close" onClick={() => setContent(null)}>✕</button>
+          <button className="lb-close" aria-label="Fermer" onClick={() => setContent(null)}>✕</button>
           <img
             src={content.src}
             alt={content.title ?? "photo"}
@@ -156,7 +156,7 @@ export function LightboxProvider({ children }: { children: ReactNode }) {
               {content.subtitle && <span className="pt">{content.subtitle}</span>}
             </div>
           )}
-          <div className="lb-hint">Click anywhere or press Esc to close</div>
+          <div className="lb-hint">Touche n'importe où ou appuie sur Échap pour fermer</div>
         </div>
       )}
     </LightboxCtx.Provider>
@@ -205,9 +205,9 @@ export function ProgressRing({ value, max, label }: { value: number; max: number
 
 export type CheckState = "todo" | "doing" | "done";
 const CHECK: Record<CheckState, { label: string; mark: string }> = {
-  todo: { label: "To do", mark: "" },
-  doing: { label: "In progress", mark: "•" },
-  done: { label: "Done", mark: "✓" },
+  todo: { label: "À faire", mark: "" },
+  doing: { label: "En cours", mark: "•" },
+  done: { label: "Fait", mark: "✓" },
 };
 
 /** One checklist line: state bead, title, optional meta/trailing; a link when `to` is set. */
@@ -236,7 +236,7 @@ export type Step = { label: string; state: "done" | "current" | "upcoming"; icon
 export function Stepper({ steps }: { steps: Step[] }) {
   return (
     // role="list": Safari drops list semantics from <ol> with list-style: none.
-    <ol className="stepper" role="list" aria-label="Next steps">
+    <ol className="stepper" role="list" aria-label="Prochaines étapes">
       {steps.map((s, i) => (
         <li key={s.label} className={cx("step", `step-${s.state}`)} aria-current={s.state === "current" ? "step" : undefined}>
           <span className="step-bead" aria-hidden="true">{s.state === "done" ? "✓" : (s.icon ?? i + 1)}</span>
@@ -256,7 +256,7 @@ export function TabBar({ tabs }: { tabs: Tab[] }) {
   const under = (p: string) => pathname === p || pathname.startsWith(p + "/");
   const isActive = (t: Tab) => (t.to === "/" ? pathname === "/" : [t.to, ...(t.also ?? [])].some(under));
   return (
-    <nav className="tabbar" aria-label="Main">
+    <nav className="tabbar" aria-label="Principale">
       {tabs.map((t) => {
         const inner = (
           <>
@@ -273,7 +273,7 @@ export function TabBar({ tabs }: { tabs: Tab[] }) {
           <Link
             key={t.to} to={t.to} className={cx("tab", active && "active")}
             aria-current={active ? "page" : undefined}
-            aria-label={t.badge ? `${t.label}, ${t.badge} to do` : undefined}
+            aria-label={t.badge ? `${t.label}, ${t.badge} à faire` : undefined}
           >{inner}</Link>
         );
       })}
@@ -307,13 +307,13 @@ export function EmptyState({ icon, title, children }: { icon: string; title: str
 export function Skeleton({ lines = 3, photos, dark }: { lines?: number; photos?: number; dark?: boolean }) {
   if (photos) {
     return (
-      <div className="skeleton sk-photos" role="status" aria-label="Loading photos" aria-busy="true">
+      <div className="skeleton sk-photos" role="status" aria-label="Chargement des photos" aria-busy="true">
         {Array.from({ length: photos }, (_, i) => <span key={i} className="sk-tile" />)}
       </div>
     );
   }
   return (
-    <div className={cx("skeleton", dark && "sk-dark")} role="status" aria-label="Loading" aria-busy="true">
+    <div className={cx("skeleton", dark && "sk-dark")} role="status" aria-label="Chargement" aria-busy="true">
       {Array.from({ length: lines }, (_, i) => <span key={i} className="sk-line" />)}
     </div>
   );
@@ -327,7 +327,7 @@ export function Notice({ tone, children }: { tone: "ok" | "err"; children: React
 }
 
 /** Wraps an async action: no double submit, busy flag, the API's reason on failure. */
-export function useAction(fn: () => Promise<unknown>, fallback = "Something went wrong.") {
+export function useAction(fn: () => Promise<unknown>, fallback = "Une erreur est survenue.") {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const [done, setDone] = useState(false);
@@ -380,7 +380,7 @@ export function ConfirmProvider({ children }: { children: ReactNode }) {
 }
 
 function ConfirmDialog({
-  title, body, confirmLabel = "Confirm", danger, typeToConfirm, onClose,
+  title, body, confirmLabel = "Confirmer", danger, typeToConfirm, onClose,
 }: ConfirmOptions & { onClose: (ok: boolean) => void }) {
   const [typed, setTyped] = useState("");
   const firstFocus = useRef<HTMLInputElement & HTMLButtonElement>(null);
@@ -402,14 +402,14 @@ function ConfirmDialog({
         {body && <div id="confirm-body" className="muted">{body}</div>}
         {typeToConfirm !== undefined && (
           <label className="field">
-            <span>Type “{typeToConfirm}” to confirm</span>
+            <span>Tape « {typeToConfirm} » pour confirmer</span>
             <input ref={firstFocus} value={typed} onChange={(e) => setTyped(e.target.value)} autoComplete="off" />
           </label>
         )}
         <div className="confirm-acts">
           {/* A plain <button>: Button doesn't forward refs, and Cancel takes the initial focus. */}
           <button className="btn btn-neutral" ref={typeToConfirm === undefined ? firstFocus : undefined} onClick={() => onClose(false)}>
-            Cancel
+            Annuler
           </button>
           <Button variant={danger ? "crit" : "primary"} className={danger ? "btn-solid" : undefined} disabled={locked} onClick={() => onClose(true)}>
             {confirmLabel}
@@ -443,7 +443,7 @@ export function CopyField({ label, value }: { label: string; value: string }) {
       <span>{label}</span>
       <span className="copy-field">
         <input ref={input} readOnly value={value} className="input input-code" onFocus={(e) => e.target.select()} />
-        <Button type="button" variant="neutral" onClick={copy}>{copied ? "Copied ✓" : "Copy"}</Button>
+        <Button type="button" variant="neutral" onClick={copy}>{copied ? "Copié ✓" : "Copier"}</Button>
       </span>
     </label>
   );
@@ -474,7 +474,7 @@ export function SectionNav({ label, items }: { label: string; items: Section[] }
       {items.map((s) => (
         <NavLink
           key={s.to} to={s.to} end={s.end} className="secnav-link"
-          aria-label={s.badge ? `${s.label}, ${s.badge} pending` : undefined}
+          aria-label={s.badge ? `${s.label}, ${s.badge} en attente` : undefined}
         >
           {s.label}
           {!!s.badge && <span className="secnav-badge" aria-hidden="true">{s.badge}</span>}

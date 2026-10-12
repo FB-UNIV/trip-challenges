@@ -13,21 +13,21 @@ export function JoinPage() {
   const code = params.get("code");
   const trip = params.get("trip");
 
-  const [status, setStatus] = useState(code ? "Joining…" : "");
+  const [status, setStatus] = useState(code ? "Connexion…" : "");
   useEffect(() => {
     if (!code) return;
     api.redeemCode(code).then(
       () => navigate("/", { replace: true }),
       (e) =>
         setStatus(isBadCode(e)
-          ? "This link is invalid or has already been used. If you lost your device, ask your teacher for the recovery link to request a fresh code."
+          ? "Ce lien n'est pas valide ou a déjà été utilisé. Si tu as perdu ton appareil, demande à ton enseignant le lien de récupération pour recevoir un nouveau code."
           : errorText(e)),
     );
   }, [code, navigate]);
 
   if (code) return <Card><p style={{ margin: 0 }}>{status}</p></Card>;
   if (trip) return <ReissueForm tripId={trip} />;
-  return <Card><p style={{ margin: 0 }}>Missing code.</p></Card>;
+  return <Card><p style={{ margin: 0 }}>Code manquant.</p></Card>;
 }
 
 function ReissueForm({ tripId }: { tripId: string }) {
@@ -39,10 +39,10 @@ function ReissueForm({ tripId }: { tripId: string }) {
   if (sent) {
     return (
       <Card hero>
-        <h2>Check your inbox</h2>
+        <h2>Regarde ta boîte mail</h2>
         <p className="muted" style={{ margin: "6px 0 0" }}>
-          If that email is on this trip, a new access-code link is on its way. Check your inbox
-          (and your spam folder).
+          Si cette adresse fait partie de la sortie, un nouveau lien avec ton code d'accès arrive.
+          Regarde ta boîte de réception (et tes spams).
         </p>
       </Card>
     );
@@ -50,12 +50,12 @@ function ReissueForm({ tripId }: { tripId: string }) {
 
   return (
     <Card hero>
-      <h2>Get a new access code</h2>
+      <h2>Recevoir un nouveau code d'accès</h2>
       <p className="muted tiny" style={{ margin: "6px 0 8px" }}>
-        Lost or changed your device? Enter the email your teacher used and we'll send a fresh
-        link. Your old device stays signed in until you open the new link.
+        Tu as perdu ou changé d'appareil ? Saisis l'adresse e-mail utilisée par ton enseignant et
+        on t'envoie un nouveau lien. Ton ancien appareil reste connecté jusqu'à ce que tu ouvres le nouveau lien.
       </p>
-      <Field label="Email" type="email" value={email} onChange={(e) => setEmail(e.target.value)} />
+      <Field label="E-mail" type="email" value={email} onChange={(e) => setEmail(e.target.value)} />
       <Button
         disabled={busy || !email.trim()}
         onClick={async () => {
@@ -70,7 +70,7 @@ function ReissueForm({ tripId }: { tripId: string }) {
           setSent(true);
         }}
       >
-        Send me a new code
+        M'envoyer un nouveau code
       </Button>
       <Notice tone="err">{err}</Notice>
     </Card>

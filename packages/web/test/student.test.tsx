@@ -24,22 +24,22 @@ describe("join link (/join?code=…)", () => {
   });
 
   it("explains a used or invalid link and points to recovery", async () => {
-    server.use(http.post("/api/student/redeem", () => HttpResponse.json({ error: "invalid" }, { status: 400 })));
+    server.use(http.post("/api/student/redeem", () => HttpResponse.json({ error: "pas valide" }, { status: 400 })));
     renderAt("/join?code=nope");
-    expect(await screen.findByText(/invalid or has already been used/)).toBeInTheDocument();
+    expect(await screen.findByText(/n'est pas valide ou a déjà été utilisé/)).toBeInTheDocument();
   });
 
   it("doesn't call the link invalid when the server is down (#69)", async () => {
     server.use(http.post("/api/student/redeem", () =>
       HttpResponse.json({ error: "database_unavailable", message: "The database is unavailable right now.", requestId: "r-1" }, { status: 503 })));
     renderAt("/join?code=s1.secret");
-    expect(await screen.findByText("The database is unavailable right now. Reference: r-1")).toBeInTheDocument();
-    expect(screen.queryByText(/invalid/)).not.toBeInTheDocument();
+    expect(await screen.findByText("The database is unavailable right now. Référence : r-1")).toBeInTheDocument();
+    expect(screen.queryByText(/pas valide/)).not.toBeInTheDocument();
   });
 
   it("says so when the link has no code", () => {
     renderAt("/join");
-    expect(screen.getByText("Missing code.")).toBeInTheDocument();
+    expect(screen.getByText("Code manquant.")).toBeInTheDocument();
   });
 });
 
@@ -51,11 +51,11 @@ describe("recovery link (/join?trip=…)", () => {
       return HttpResponse.json({ ok: status === 200 }, { status });
     }));
     const { user } = renderAt("/join?trip=t1");
-    const send = screen.getByRole("button", { name: "Send me a new code" });
+    const send = screen.getByRole("button", { name: "M'envoyer un nouveau code" });
     expect(send).toBeDisabled();
-    await user.type(screen.getByLabelText("Email"), "  kid@school.test ");
+    await user.type(screen.getByLabelText("E-mail"), "  kid@school.test ");
     await user.click(send);
-    expect(await screen.findByText("Check your inbox")).toBeInTheDocument();
+    expect(await screen.findByText("Regarde ta boîte mail")).toBeInTheDocument();
     expect(sent).toEqual({ tripId: "t1", email: "kid@school.test" });
   });
 });
@@ -64,11 +64,11 @@ describe("recovery link when offline", () => {
   it("says the request didn't go out instead of confirming it (#69)", async () => {
     server.use(http.post("/api/student/reissue", () => HttpResponse.error()));
     const { user } = renderAt("/join?trip=t1");
-    await user.type(screen.getByLabelText("Email"), "kid@school.test");
-    await user.click(screen.getByRole("button", { name: "Send me a new code" }));
-    expect(await screen.findByText(/Can't reach the server/)).toBeInTheDocument();
-    expect(screen.queryByText("Check your inbox")).not.toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Send me a new code" })).toBeEnabled();
+    await user.type(screen.getByLabelText("E-mail"), "kid@school.test");
+    await user.click(screen.getByRole("button", { name: "M'envoyer un nouveau code" }));
+    expect(await screen.findByText(/Impossible de joindre le serveur/)).toBeInTheDocument();
+    expect(screen.queryByText("Regarde ta boîte mail")).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "M'envoyer un nouveau code" })).toBeEnabled();
   });
 });
 
@@ -76,7 +76,7 @@ describe("student home", () => {
   it("shows a placeholder while it loads (#80)", async () => {
     server.use(http.get("/api/student/me", async () => { await delay("infinite"); return HttpResponse.json(ME); }), teams());
     renderAt("/");
-    expect(screen.getByRole("status", { name: "Loading" })).toBeInTheDocument();
+    expect(screen.getByRole("status", { name: "Chargement" })).toBeInTheDocument();
     expect(screen.queryByText("Loading…")).not.toBeInTheDocument();
   });
 
@@ -88,47 +88,47 @@ describe("student home", () => {
       http.post("/api/student/redeem", () => { signedIn = true; return HttpResponse.json({ ok: true }); }),
     );
     const { user } = renderAt("/");
-    await user.type(await screen.findByLabelText("Access code"), "FOX-7Q2K");
-    await user.click(screen.getByRole("button", { name: "Continue" }));
+    await user.type(await screen.findByLabelText("Code d'accès"), "FOX-7Q2K");
+    await user.click(screen.getByRole("button", { name: "Continuer" }));
     expect(await screen.findByText("Rome 2030")).toBeInTheDocument();
   });
 
   it("shows an error for a bad manual code", async () => {
     server.use(meIs(null), teams(), http.post("/api/student/redeem", () => HttpResponse.json({}, { status: 400 })));
     const { user } = renderAt("/");
-    await user.type(await screen.findByLabelText("Access code"), "BAD");
-    await user.click(screen.getByRole("button", { name: "Continue" }));
-    expect(await screen.findByText("That code is invalid or has already been used.")).toBeInTheDocument();
+    await user.type(await screen.findByLabelText("Code d'accès"), "BAD");
+    await user.click(screen.getByRole("button", { name: "Continuer" }));
+    expect(await screen.findByText("Ce code n'est pas valide ou a déjà été utilisé.")).toBeInTheDocument();
   });
 
   it("doesn't call a code invalid when the server failed (#69)", async () => {
     server.use(meIs(null), teams(), http.post("/api/student/redeem", () => new HttpResponse(null, { status: 429 })));
     const { user } = renderAt("/");
-    await user.type(await screen.findByLabelText("Access code"), "FOX-7Q2K");
-    await user.click(screen.getByRole("button", { name: "Continue" }));
-    expect(await screen.findByText(/server is busy/)).toBeInTheDocument();
-    expect(screen.queryByText(/invalid/)).not.toBeInTheDocument();
+    await user.type(await screen.findByLabelText("Code d'accès"), "FOX-7Q2K");
+    await user.click(screen.getByRole("button", { name: "Continuer" }));
+    expect(await screen.findByText(/serveur est occupé/)).toBeInTheDocument();
+    expect(screen.queryByText(/pas valide/)).not.toBeInTheDocument();
   });
 
   it("reports an unexpected failure instead of a blank screen", async () => {
     server.use(http.get("/api/student/me", () => HttpResponse.json({}, { status: 500 })), teams());
     renderAt("/");
-    expect(await screen.findByText("Something went wrong.")).toBeInTheDocument();
+    expect(await screen.findByText("Une erreur est survenue.")).toBeInTheDocument();
   });
 
   it.each([
-    ["draft", null, "Team up or play solo", "Go to teams"],
-    ["challenge", null, "Snap the challenges", "Play solo"],
-    ["challenge", "team1", "Snap the challenges", "See your challenges"],
-    ["voting", "team1", "Vote on the duels", "Start voting"],
-    ["reveal", "team1", "Results are in", null],
+    ["draft", null, "Fais équipe ou joue en solo", "Voir les équipes"],
+    ["challenge", null, "Relève les défis", "Jouer en solo"],
+    ["challenge", "team1", "Relève les défis", "Voir tes défis"],
+    ["voting", "team1", "Vote pour les duels", "Commencer à voter"],
+    ["reveal", "team1", "Les résultats sont là", null],
   ])("in %s (team %s) the next step is “%s”", async (phase, teamId, title, button) => {
     server.use(meIs({ ...ME, phase, teamId }), teams([{ id: "team1", name: "Foxes", members: 2 }]));
     renderAt("/");
     expect(await screen.findByRole("heading", { name: title })).toBeInTheDocument();
     if (button) expect(screen.getByRole("button", { name: button })).toBeInTheDocument();
     if (teamId) await waitFor(() => expect(screen.getByRole("heading", { name: "Foxes" })).toBeInTheDocument());
-    else expect(screen.getByRole("heading", { name: "No team yet" })).toBeInTheDocument();
+    else expect(screen.getByRole("heading", { name: "Pas encore d'équipe" })).toBeInTheDocument();
   });
 });
 
@@ -146,7 +146,7 @@ describe("when the API is busy or failing (#67)", () => {
     );
     const { user } = renderAt("/");
     expect(await screen.findByText(/Too many requests — try again in 1 minute\./)).toBeInTheDocument();
-    await user.click(screen.getByRole("button", { name: "Try again" }));
+    await user.click(screen.getByRole("button", { name: "Réessayer" }));
     expect(await screen.findByText("Rome 2030")).toBeInTheDocument();
   });
 
@@ -157,7 +157,7 @@ describe("when the API is busy or failing (#67)", () => {
     );
     renderAt("/");
     expect(await screen.findByText(/The database is unavailable\./)).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Try again" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Réessayer" })).toBeInTheDocument();
   });
 
   it("the team page never claims teams are locked when it just couldn't load", async () => {
@@ -167,6 +167,6 @@ describe("when the API is busy or failing (#67)", () => {
     );
     renderAt("/team");
     expect(await screen.findByText(/Too many requests/)).toBeInTheDocument();
-    expect(screen.queryByText("Teams are locked")).not.toBeInTheDocument();
+    expect(screen.queryByText("Les équipes sont verrouillées")).not.toBeInTheDocument();
   });
 });

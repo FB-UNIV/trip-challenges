@@ -36,13 +36,13 @@ describe("vote home", () => {
 
     expect(await screen.findByRole("link", { name: /Pyramid/ })).toHaveAttribute("href", "/vote/c4");
     expect(titlesInOrder(container)).toEqual(["Pyramid", "Gelato", "Street sign", "Statue selfie"]);
-    expect(screen.getByRole("progressbar", { name: "Pyramid duels" })).toHaveTextContent("2/6");
+    expect(screen.getByRole("progressbar", { name: "Duels Pyramid" })).toHaveTextContent("2/6");
     expect(screen.getByRole("link", { name: /Gelato/ })).toHaveAttribute("href", "/vote/c2");
     expect(screen.queryByRole("link", { name: /Statue selfie/ })).not.toBeInTheDocument();
     expect(screen.queryByRole("link", { name: /Street sign/ })).not.toBeInTheDocument();
-    expect(screen.getByText("Waiting for photos")).toBeInTheDocument();
+    expect(screen.getByText("En attente de photos")).toBeInTheDocument();
     // Overall: challenges that can be voted on (not "waiting"), how many are finished.
-    const overall = screen.getByRole("progressbar", { name: "Challenges voted" });
+    const overall = screen.getByRole("progressbar", { name: "Défis votés" });
     expect(overall).toHaveAttribute("aria-valuenow", "1");
     expect(overall).toHaveAttribute("aria-valuemax", "3");
   });
@@ -50,25 +50,25 @@ describe("vote home", () => {
   it("celebrates once every challenge is voted", async () => {
     server.use(meIs(ME), listIs([ch("c1", "Statue selfie", 1, 1, "done"), ch("c2", "Gelato", 3, 3, "done")]));
     renderAt("/vote");
-    expect(await statusWith("All voted!")).toBeInTheDocument();
+    expect(await statusWith("Tout est voté !")).toBeInTheDocument();
     expect(screen.queryByRole("link", { name: /Gelato/ })).not.toBeInTheDocument();
   });
 
   it("shows an empty state when nothing can be voted on yet", async () => {
     server.use(meIs(ME), listIs([ch("c3", "Street sign", 0, 0, "not_enough")]));
     renderAt("/vote");
-    expect(await screen.findByText("Nothing to vote on yet")).toBeInTheDocument();
+    expect(await screen.findByText("Rien à voter pour l'instant")).toBeInTheDocument();
   });
 
   it("shows an empty state for a trip with no challenges", async () => {
     server.use(meIs(ME), listIs([]));
     renderAt("/vote");
-    expect(await screen.findByText("Nothing to vote on yet")).toBeInTheDocument();
+    expect(await screen.findByText("Rien à voter pour l'instant")).toBeInTheDocument();
   });
 
   it.each([
-    ["challenge", "Voting opens soon"],
-    ["reveal", "Voting is closed"],
+    ["challenge", "Le vote ouvre bientôt"],
+    ["reveal", "Le vote est fermé"],
   ])("isn't open in phase %s", async (phase, text) => {
     server.use(meIs({ ...ME, phase }), listIs([]));
     renderAt("/vote");
@@ -78,13 +78,13 @@ describe("vote home", () => {
   it("treats a voting trip past its close time as closed", async () => {
     server.use(meIs(ME), listIs([{ ...ch("c1", "Gelato", 0, 3, "todo"), vote: null }]));
     renderAt("/vote");
-    expect(await screen.findByText("Voting is closed")).toBeInTheDocument();
+    expect(await screen.findByText("Le vote est fermé")).toBeInTheDocument();
   });
 
   it("shows a loading placeholder, not text", () => {
     server.use(meIs(ME), listIs([]));
     renderAt("/vote");
-    expect(screen.getByRole("status", { name: "Loading" })).toBeInTheDocument();
+    expect(screen.getByRole("status", { name: "Chargement" })).toBeInTheDocument();
   });
 });
 
@@ -102,19 +102,19 @@ describe("duel screen", () => {
       http.post("/api/duels/cast", async ({ request }) => { casts.push(await request.json()); return HttpResponse.json({ ok: true }); }),
     );
     const { user } = renderAt("/vote/ch1");
-    const bar = await screen.findByRole("progressbar", { name: "Duels voted" });
+    const bar = await screen.findByRole("progressbar", { name: "Duels votés" });
     expect(bar).toHaveAttribute("aria-valuenow", "0");
     expect(bar).toHaveAttribute("aria-valuemax", "2");
-    const [a] = await screen.findAllByRole("button", { name: "Pick this photo" });
+    const [a] = await screen.findAllByRole("button", { name: "Choisir cette photo" });
     expect(a!.querySelector("img")).toHaveAttribute("src", "/api/submissions/sa1/photo");
 
     await user.click(a!);
     await screen.findByText("1 / 2");
-    expect(screen.getByRole("progressbar", { name: "Duels voted" })).toHaveAttribute("aria-valuenow", "1");
-    await user.click(screen.getAllByRole("button", { name: "Pick this photo" })[1]!);
+    expect(screen.getByRole("progressbar", { name: "Duels votés" })).toHaveAttribute("aria-valuenow", "1");
+    await user.click(screen.getAllByRole("button", { name: "Choisir cette photo" })[1]!);
 
-    const done = await statusWith("Challenge done!");
-    expect(within(done).getByRole("link", { name: /Next challenge/ })).toHaveAttribute("href", "/vote/ch2");
+    const done = await statusWith("Défi terminé !");
+    expect(within(done).getByRole("link", { name: /Défi suivant/ })).toHaveAttribute("href", "/vote/ch2");
     expect(casts).toEqual([
       { pairToken: "token1", winnerNominationId: "a1" },
       { pairToken: "token2", winnerNominationId: "b2" },
@@ -130,14 +130,14 @@ describe("duel screen", () => {
       http.post("/api/duels/cast", async ({ request }) => { casts.push(await request.json()); return HttpResponse.json({ ok: true }); }),
     );
     const { user } = renderAt("/vote/ch1");
-    await user.click(await screen.findByRole("button", { name: "View photo B full screen" }));
+    await user.click(await screen.findByRole("button", { name: "Voir la photo B en plein écran" }));
     const dialog = screen.getByRole("dialog", { name: "Photo" });
     expect(within(dialog).getByRole("img")).toHaveAttribute("src", "/api/submissions/sb1/photo");
     expect(casts).toEqual([]);
 
-    await user.click(within(dialog).getByRole("button", { name: "Close" }));
+    await user.click(within(dialog).getByRole("button", { name: "Fermer" }));
     expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
-    await user.click(screen.getAllByRole("button", { name: "Pick this photo" })[1]!);
+    await user.click(screen.getAllByRole("button", { name: "Choisir cette photo" })[1]!);
     await waitFor(() => expect(casts).toEqual([{ pairToken: "token1", winnerNominationId: "b1" }]));
   });
 
@@ -147,18 +147,18 @@ describe("duel screen", () => {
       http.get("/api/duels/next", () => HttpResponse.json({ pair: null, reason: "exhausted" })),
     );
     renderAt("/vote/ch1");
-    const done = await statusWith("All voted!");
-    expect(within(done).getByRole("link", { name: /Back to challenges/ })).toHaveAttribute("href", "/vote");
+    const done = await statusWith("Tout est voté !");
+    expect(within(done).getByRole("link", { name: /Retour aux défis/ })).toHaveAttribute("href", "/vote");
   });
 
   it.each([
-    ["closed", "Voting is closed"],
-    ["not_enough", "Waiting for more photos"],
+    ["closed", "Le vote est fermé"],
+    ["not_enough", "En attente d'autres photos"],
   ])("shows a %s challenge as a visual empty state", async (reason, text) => {
     server.use(listIs([]), http.get("/api/duels/next", () => HttpResponse.json({ pair: null, reason })));
     renderAt("/vote/ch1");
     expect(await screen.findByText(text)).toBeInTheDocument();
-    expect(screen.getByRole("link", { name: /Back/ })).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: /Retour/ })).toBeInTheDocument();
   });
 
   it("recovers when a vote is refused (e.g. voting closed mid-duel) instead of hanging", async () => {
@@ -169,8 +169,8 @@ describe("duel screen", () => {
       http.post("/api/duels/cast", () => { open = false; return HttpResponse.json({ error: "closed" }, { status: 409 }); }),
     );
     const { user } = renderAt("/vote/ch1");
-    await user.click((await screen.findAllByRole("button", { name: "Pick this photo" }))[0]!);
-    expect(await screen.findByText("Voting is closed")).toBeInTheDocument();
+    await user.click((await screen.findAllByRole("button", { name: "Choisir cette photo" }))[0]!);
+    expect(await screen.findByText("Le vote est fermé")).toBeInTheDocument();
   });
 
   // #69: a failure must not look like "nothing happened" (or an endless skeleton).
@@ -184,10 +184,10 @@ describe("duel screen", () => {
     );
     const { user } = renderAt("/vote/ch1");
     expect(await screen.findByText("The database is unavailable right now.")).toBeInTheDocument();
-    expect(screen.getByText(/^Reference:/)).toHaveTextContent("r-9");
+    expect(screen.getByText(/^Référence :/)).toHaveTextContent("r-9");
     down = false;
-    await user.click(screen.getByRole("button", { name: "Try again" }));
-    expect(await screen.findAllByRole("button", { name: "Pick this photo" })).toHaveLength(2);
+    await user.click(screen.getByRole("button", { name: "Réessayer" }));
+    expect(await screen.findAllByRole("button", { name: "Choisir cette photo" })).toHaveLength(2);
   });
 
   it("keeps the pair and says so when a vote can't be saved, so it can be cast again", async () => {
@@ -203,13 +203,13 @@ describe("duel screen", () => {
       }),
     );
     const { user } = renderAt("/vote/ch1");
-    await user.click((await screen.findAllByRole("button", { name: "Pick this photo" }))[0]!);
-    expect(await screen.findByRole("alert")).toHaveTextContent("Your vote wasn't saved. Something went wrong on our side. Reference: r-7");
-    expect(screen.getAllByRole("button", { name: "Pick this photo" })).toHaveLength(2);
+    await user.click((await screen.findAllByRole("button", { name: "Choisir cette photo" }))[0]!);
+    expect(await screen.findByRole("alert")).toHaveTextContent("Ton vote n'a pas été enregistré. Something went wrong on our side. Référence : r-7");
+    expect(screen.getAllByRole("button", { name: "Choisir cette photo" })).toHaveLength(2);
 
     down = false;
-    await user.click(screen.getAllByRole("button", { name: "Pick this photo" })[0]!);
-    expect(await screen.findByText("All voted!")).toBeInTheDocument();
+    await user.click(screen.getAllByRole("button", { name: "Choisir cette photo" })[0]!);
+    expect(await screen.findByText("Tout est voté !")).toBeInTheDocument();
     expect(casts).toHaveLength(1);
   });
 
@@ -219,7 +219,7 @@ describe("duel screen", () => {
       http.get("/api/duels/next", () => HttpResponse.json({ pair: pair(1) })),
     );
     renderAt("/vote/ch1");
-    expect(await screen.findAllByRole("button", { name: "Pick this photo" })).toHaveLength(2);
-    expect(screen.queryByRole("progressbar", { name: "Duels voted" })).not.toBeInTheDocument();
+    expect(await screen.findAllByRole("button", { name: "Choisir cette photo" })).toHaveLength(2);
+    expect(screen.queryByRole("progressbar", { name: "Duels votés" })).not.toBeInTheDocument();
   });
 });

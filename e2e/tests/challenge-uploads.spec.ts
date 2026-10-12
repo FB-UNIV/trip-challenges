@@ -17,7 +17,7 @@ test("a scanned QR shows the challenge; team members upload, photos are cleaned,
     const page = await stranger.newPage();
     await new ChallengePage(page).goto(challenge.qrSlug);
     await expect(page.getByRole("heading", { name: "Best gelato" })).toBeVisible();
-    await expect(page.getByRole("heading", { name: "Enter your access code to upload" })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Saisis ton code d'accès pour envoyer des photos" })).toBeVisible();
     await stranger.close();
   });
 
@@ -29,7 +29,7 @@ test("a scanned QR shows the challenge; team members upload, photos are cleaned,
     // Newest first: index 1 is the first upload.
     await ch.nominate(1);
     await ch.page.reload();
-    await expect(ch.photos().nth(1).getByRole("button", { name: "Nominated ✓" })).toBeVisible();
+    await expect(ch.photos().nth(1).getByRole("button", { name: "Sélectionnée ✓" })).toBeVisible();
   });
 
   await test.step("photos are JPEG without EXIF, and private to the team during the challenge", async () => {
@@ -58,15 +58,15 @@ test("a student without a team plays solo from the QR page, and uploads close wh
   await test.step("teams are optional (#79): play solo, then upload and nominate like a team", async () => {
     const ch = new ChallengePage(loner!.page);
     await ch.goto(challenge.qrSlug);
-    await loner!.page.getByLabel("Your player name").fill("Lone wolf");
-    await loner!.page.getByRole("button", { name: "Play solo" }).click();
+    await loner!.page.getByLabel("Ton nom de joueur").fill("Lone wolf");
+    await loner!.page.getByRole("button", { name: "Jouer en solo" }).click();
     await ch.upload(asFile(await photo("#3a7d44")));
     await ch.nominate(0);
   });
 
   await teacher.api.advance(tripId, "voting");
   await new ChallengePage(ana!.page).goto(challenge.qrSlug);
-  await expect(ana!.page.getByText("Uploads are closed (phase: voting).")).toBeVisible();
+  await expect(ana!.page.getByText("L'envoi de photos est fermé (phase : Vote).")).toBeVisible();
   await expect(ana!.page.locator('input[type="file"]')).toHaveCount(0);
 
   await closeAll(teacher, ana!, loner!);

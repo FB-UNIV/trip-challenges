@@ -71,8 +71,8 @@ test("a full trip: roster → teams → photos → moderation → duels → cere
 
   await test.step("reveal: results computed, visible to the teacher only", async () => {
     await admin.advanceTo("reveal");
-    await admin.open("Results");
-    const results = admin.card("Results & ceremony");
+    await admin.open("Résultats");
+    const results = admin.card("Résultats et cérémonie");
     await expect(results.getByText("🏆 Foxes (5 pts)")).toBeVisible();
     await expect(results.getByText("Best gelato #1 — Foxes (5 pts)")).toBeVisible();
     await expect(results.getByText("Best gelato #2 — Owls (3 pts)")).toBeVisible();
@@ -83,20 +83,20 @@ test("a full trip: roster → teams → photos → moderation → duels → cere
     await anon.dispose();
 
     await new StudentHomePage(kids.Bears.page).goto();
-    await expect(kids.Bears.page.getByRole("heading", { name: "Results are in" })).toBeVisible();
+    await expect(kids.Bears.page.getByRole("heading", { name: "Les résultats sont là" })).toBeVisible();
   });
 
   await test.step("the projector ceremony steps through the podium to the Grand Champion", async () => {
     const [ceremony] = await Promise.all([
       teacher.context.waitForEvent("page"),
-      admin.card("Results & ceremony").getByRole("button", { name: /Launch ceremony/ }).click(),
+      admin.card("Résultats et cérémonie").getByRole("button", { name: /Lancer la cérémonie/ }).click(),
     ]);
-    await expect(ceremony.getByRole("heading", { name: "And the winners are…" })).toBeVisible();
-    await ceremony.getByRole("button", { name: "Reveal →" }).click();
+    await expect(ceremony.getByRole("heading", { name: "Et les gagnants sont…" })).toBeVisible();
+    await ceremony.getByRole("button", { name: "Dévoiler →" }).click();
     await expect(ceremony.getByRole("heading", { name: "Best gelato" })).toBeVisible();
     await expect(ceremony.getByText("Foxes")).toBeVisible();
-    await ceremony.getByRole("button", { name: "Reveal →" }).click();
-    await expect(ceremony.getByText("Grand Champion")).toBeVisible();
+    await ceremony.getByRole("button", { name: "Dévoiler →" }).click();
+    await expect(ceremony.getByText("Grand champion")).toBeVisible();
     await expect(ceremony.getByRole("heading", { name: /Foxes/ })).toBeVisible();
     await ceremony.close();
   });

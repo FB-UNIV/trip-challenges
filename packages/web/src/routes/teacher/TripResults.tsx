@@ -20,17 +20,17 @@ function Results({ tripId, phase }: { tripId: string; phase: string }) {
 
   return (
     <Card>
-      <h3>Results &amp; ceremony</h3>
+      <h3>Résultats et cérémonie</h3>
       {phase === "reveal" && (
         <p className="muted tiny mt-0">
-          Students can't see the results yet. After the ceremony, publish them from the Overview.
+          Les élèves ne voient pas encore les résultats. Après la cérémonie, publie-les depuis la vue d'ensemble.
         </p>
       )}
 
       {/* Grand Champion tie — the teacher picks one (CONTEXT: Grand Champion). */}
       {phase === "reveal" && champions.length > 1 && (
         <div className="warncard mt-2">
-          <b>It's a tie for Grand Champion — pick the winner:</b>
+          <b>Égalité pour le titre de grand champion — choisis le gagnant :</b>
           {champions.map((c) => <Crown key={c.id} tripId={tripId} team={c} onCrowned={() => void refreshTrip()} />)}
         </div>
       )}
@@ -38,7 +38,7 @@ function Results({ tripId, phase }: { tripId: string; phase: string }) {
       {results.length > 0 ? (
         <>
           <Button variant="gold" className="mt-3" onClick={() => window.open(`/ceremony/${tripId}`, "_blank", "noopener")}>
-            🏆 Launch ceremony
+            🏆 Lancer la cérémonie
           </Button>
           <div className="results-list mt-3">
             {results.map((r) => (
@@ -49,18 +49,18 @@ function Results({ tripId, phase }: { tripId: string; phase: string }) {
             ))}
           </div>
         </>
-      ) : res.data && <EmptyState icon="🏁" title="No results" />}
+      ) : res.data && <EmptyState icon="🏁" title="Aucun résultat" />}
     </Card>
   );
 }
 
 function Crown({ tripId, team, onCrowned }: { tripId: string; team: ResultRow; onCrowned: () => void }) {
-  const crown = useAction(async () => { await api.setGrandChampion(tripId, team.id); onCrowned(); }, "Could not crown this team.");
+  const crown = useAction(async () => { await api.setGrandChampion(tripId, team.id); onCrowned(); }, "Impossible de couronner cette équipe.");
   return (
     <div className="mt-2">
       <div className="row">
         <span className="grow">{team.team_name_vetted} ({team.points} pts)</span>
-        <Button size="mini" busy={crown.busy} onClick={crown.run}>Crown this team</Button>
+        <Button size="mini" busy={crown.busy} onClick={crown.run}>Couronner cette équipe</Button>
       </div>
       <Notice tone="err">{crown.error}</Notice>
     </div>

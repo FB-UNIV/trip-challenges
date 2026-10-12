@@ -9,7 +9,8 @@ export default defineConfig({
       registerType: "autoUpdate",
       manifest: {
         name: "Trip Challenges",
-        short_name: "Challenges",
+        short_name: "Défis",
+        lang: "fr",
         start_url: "/",
         display: "standalone",
         background_color: "#111827",

@@ -12,7 +12,7 @@ const ME = { studentId: "s1", tripId: "t1", tripName: "Rome 2030", phase: "chall
 const ch = (id: string, nominated: boolean) => ({
   id, title: `Challenge ${id}`, instructions: "", qrSlug: `slug-${id}`, photos: nominated ? 1 : 0, nominated, vote: null,
 });
-const tabBar = () => screen.findByRole("navigation", { name: "Main" });
+const tabBar = () => screen.findByRole("navigation", { name: "Principale" });
 
 /** Fake student API with request counters and mutable state. */
 function studentApi(over: Partial<Omit<typeof ME, "teamId"> & { teamId: string | null }> = {}) {
@@ -38,7 +38,7 @@ describe("live data (student)", () => {
   it("asks who's signed in once per screen, though the tab bar needs it too", async () => {
     const api = studentApi();
     renderAt("/challenges");
-    await within(await tabBar()).findByRole("link", { name: "Challenges, 1 to do" });
+    await within(await tabBar()).findByRole("link", { name: "Défis, 1 à faire" });
     await screen.findByText("Challenge c1");
     expect(api.calls.me).toBe(1);
     expect(api.calls.challenges).toBe(1);
@@ -49,15 +49,15 @@ describe("live data (student)", () => {
     studentApi({ phase: "draft", teamId: null });
     renderAt("/team");
     const nav = await tabBar();
-    expect(await within(nav).findByRole("link", { name: "Team" })).toBeInTheDocument();
-    expect(within(nav).queryByRole("link", { name: /Team, / })).not.toBeInTheDocument();
+    expect(await within(nav).findByRole("link", { name: "Équipe" })).toBeInTheDocument();
+    expect(within(nav).queryByRole("link", { name: /Équipe, / })).not.toBeInTheDocument();
   });
 
   it("coming back to the app picks up what changed meanwhile (the teacher opened voting)", async () => {
     const api = studentApi();
     renderAt("/challenges");
     const nav = await tabBar();
-    await within(nav).findByRole("link", { name: /Challenges/ });
+    await within(nav).findByRole("link", { name: /Défis/ });
     expect(within(nav).queryByRole("link", { name: /Vote/ })).not.toBeInTheDocument();
 
     api.me = { ...api.me, phase: "voting" };

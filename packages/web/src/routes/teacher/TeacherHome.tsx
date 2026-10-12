@@ -15,10 +15,10 @@ export function TeacherHome() {
   if (me.error instanceof HttpError && me.error.status === 401) {
     return (
       <Card hero>
-        <h2>Teacher sign-in</h2>
-        <p className="muted" style={{ margin: "6px 0 12px" }}>Authenticate with your PocketID account to manage your trips.</p>
+        <h2>Connexion enseignant</h2>
+        <p className="muted" style={{ margin: "6px 0 12px" }}>Connecte-toi avec ton compte PocketID pour gérer tes sorties.</p>
         <Button onClick={() => (window.location.href = "/api/auth/teacher/login")}>
-          Sign in with PocketID
+          Se connecter avec PocketID
         </Button>
       </Card>
     );
@@ -35,12 +35,12 @@ export function TeacherHome() {
     <div className="stack">
       <section className="stack" aria-labelledby="trips-h">
         <div className="row">
-          <h2 id="trips-h" className="grow">Your trips</h2>
-          {trips.data && !empty && !creating && <Button variant="soft" onClick={() => setCreating(true)}>New trip</Button>}
+          <h2 id="trips-h" className="grow">Tes sorties</h2>
+          {trips.data && !empty && !creating && <Button variant="soft" onClick={() => setCreating(true)}>Nouvelle sortie</Button>}
         </div>
         {trips.error && !trips.data ? <ErrorCard error={trips.error} onRetry={trips.reload} />
           : trips.loading && !trips.data ? <Card><Skeleton /></Card>
-          : empty ? <Card><EmptyState icon="🧳" title="No trips yet" /></Card>
+          : empty ? <Card><EmptyState icon="🧳" title="Pas encore de sortie" /></Card>
           : <div className="trip-cards">{active.map((t) => <TripCard key={t.id} t={t} />)}</div>}
       </section>
 
@@ -50,7 +50,7 @@ export function TeacherHome() {
 
       {past.length > 0 && (
         <section className="stack" aria-labelledby="past-h">
-          <h3 id="past-h" className="muted">Past trips</h3>
+          <h3 id="past-h" className="muted">Sorties passées</h3>
           <div className="trip-cards">{past.map((t) => <TripCard key={t.id} t={t} />)}</div>
         </section>
       )}
@@ -59,7 +59,7 @@ export function TeacherHome() {
 }
 
 const endDate = (d: string) =>
-  new Date(d).toLocaleDateString(undefined, { day: "numeric", month: "short", year: "numeric", timeZone: "UTC" });
+  new Date(d).toLocaleDateString("fr-FR", { day: "numeric", month: "short", year: "numeric", timeZone: "UTC" });
 
 function TripCard({ t }: { t: TripSummary }) {
   return (
@@ -68,7 +68,7 @@ function TripCard({ t }: { t: TripSummary }) {
         <b>{t.name}</b>
         <PhasePill phase={t.phase} dot />
       </span>
-      <span className="d">{t.role === "owner" ? "Owner" : "Co-teacher"} · ends {endDate(t.trip_end_date)}</span>
+      <span className="d">{t.role === "owner" ? "Responsable" : "Co-enseignant"} · se termine le {endDate(t.trip_end_date)}</span>
     </Link>
   );
 }
@@ -80,18 +80,18 @@ function NewTrip({ onCreated, onCancel }: { onCreated: () => void; onCancel?: ()
   const create = useAction(async () => {
     await api.createTrip({ name: name.trim(), tripEndDate: endDate, maxTeamSize: Number(maxTeamSize) });
     onCreated();
-  }, "Could not create the trip.");
+  }, "Impossible de créer la sortie.");
   return (
     <Card hero>
-      <h3>New trip</h3>
-      <Field label="Name" value={name} onChange={(e) => setName(e.target.value)} />
+      <h3>Nouvelle sortie</h3>
+      <Field label="Nom" value={name} onChange={(e) => setName(e.target.value)} />
       <div className="grid2">
-        <Field label="Trip end date" type="date" value={endDate} onChange={(e) => setEndDate(e.target.value)} />
-        <Field label="Max team size" type="number" min={1} value={maxTeamSize} onChange={(e) => setMaxTeamSize(e.target.value)} />
+        <Field label="Date de fin de la sortie" type="date" value={endDate} onChange={(e) => setEndDate(e.target.value)} />
+        <Field label="Taille max. d'une équipe" type="number" min={1} value={maxTeamSize} onChange={(e) => setMaxTeamSize(e.target.value)} />
       </div>
       <div className="row">
-        <Button disabled={!name.trim() || !endDate} busy={create.busy} onClick={create.run}>Create trip</Button>
-        {onCancel && <Button variant="neutral" onClick={onCancel}>Cancel</Button>}
+        <Button disabled={!name.trim() || !endDate} busy={create.busy} onClick={create.run}>Créer la sortie</Button>
+        {onCancel && <Button variant="neutral" onClick={onCancel}>Annuler</Button>}
       </div>
       <Notice tone="err">{create.error}</Notice>
     </Card>

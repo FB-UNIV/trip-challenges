@@ -46,7 +46,7 @@ function Duels({ challengeId }: { challengeId: string }) {
       } catch (e) {
         // The server (or the network) failed: keep this pair so the vote can be cast again (#69).
         if (!(e instanceof HttpError) || e.status === 0 || e.status === 429 || e.status >= 500) {
-          setCastError(`Your vote wasn't saved. ${errorText(e)}`);
+          setCastError(`Ton vote n'a pas été enregistré. ${errorText(e)}`);
           return;
         }
         // Refused (voting just closed, pair already cast…): the next load says what's going on.
@@ -62,12 +62,12 @@ function Duels({ challengeId }: { challengeId: string }) {
   const challenges = list.data?.challenges ?? [];
   if (done) {
     if (reason === "closed") {
-      return <Card><EmptyState icon="🔒" title="Voting is closed"><Link to="/">Back home</Link></EmptyState></Card>;
+      return <Card><EmptyState icon="🔒" title="Le vote est fermé"><Link to="/">Retour à l'accueil</Link></EmptyState></Card>;
     }
     if (reason === "not_enough") {
       return (
         <Card>
-          <EmptyState icon="🖼️" title="Waiting for more photos"><Link to="/vote">Back to challenges</Link></EmptyState>
+          <EmptyState icon="🖼️" title="En attente d'autres photos"><Link to="/vote">Retour aux défis</Link></EmptyState>
         </Card>
       );
     }
@@ -75,12 +75,12 @@ function Duels({ challengeId }: { challengeId: string }) {
     return (
       <Card>
         {next ? (
-          <Celebrate icon="✅" title="Challenge done!">
-            <Link to={`/vote/${next.id}`} className="btn btn-block" style={{ marginTop: 8 }}>Next challenge → {next.title}</Link>
+          <Celebrate icon="✅" title="Défi terminé !">
+            <Link to={`/vote/${next.id}`} className="btn btn-block" style={{ marginTop: 8 }}>Défi suivant → {next.title}</Link>
           </Celebrate>
         ) : (
-          <Celebrate icon="🎉" title="All voted!">
-            <Link to="/vote" className="btn btn-ghost" style={{ marginTop: 8 }}>Back to challenges</Link>
+          <Celebrate icon="🎉" title="Tout est voté !">
+            <Link to="/vote" className="btn btn-ghost" style={{ marginTop: 8 }}>Retour aux défis</Link>
           </Celebrate>
         )}
       </Card>
@@ -96,11 +96,11 @@ function Duels({ challengeId }: { challengeId: string }) {
   // screen, so a small phone photo can be judged before picking (#82).
   const side = (label: "A" | "B", nominationId: string, submissionId: string) => (
     <div className="duel-opt">
-      <button className="pick" onClick={() => pick(nominationId)} disabled={busy} aria-label="Pick this photo">
-        <img src={api.photoUrl(submissionId)} alt="option" />
+      <button className="pick" onClick={() => pick(nominationId)} disabled={busy} aria-label="Choisir cette photo">
+        <img src={api.photoUrl(submissionId)} alt="choix" />
       </button>
       <button
-        type="button" className="zoom" aria-label={`View photo ${label} full screen`}
+        type="button" className="zoom" aria-label={`Voir la photo ${label} en plein écran`}
         onClick={() => openLightbox({ src: api.photoUrl(submissionId), title: `Photo ${label}` })}
       >🔍</button>
     </div>
@@ -109,11 +109,11 @@ function Duels({ challengeId }: { challengeId: string }) {
   return (
     <div>
       <div className="duel-head">
-        <h2>Which is better?</h2>
+        <h2>Laquelle est la meilleure ?</h2>
         {total > 0 && (
           <>
             <div className="prog">{voted} / {total}</div>
-            <Progress value={voted} max={total} label="Duels voted" tone="sky" />
+            <Progress value={voted} max={total} label="Duels votés" tone="sky" />
           </>
         )}
       </div>
@@ -122,7 +122,7 @@ function Duels({ challengeId }: { challengeId: string }) {
         <span className="vs">VS</span>
         {side("B", pair.bNominationId, pair.bSubmissionId)}
       </div>
-      <div className="duel-foot">Tap a photo · never your own team</div>
+      <div className="duel-foot">Touche une photo · jamais celle de ton équipe</div>
       <Notice tone="err">{castError}</Notice>
     </div>
   );

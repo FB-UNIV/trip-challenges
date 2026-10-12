@@ -21,13 +21,13 @@ export function TripChallenges() {
     <>
       <Card>
         <div className="row">
-          <h3 className="grow">Challenges</h3>
+          <h3 className="grow">Défis</h3>
           {challenges.length > 0 && (
-            <Link to={`/qr/${tripId}`} target="_blank" rel="noopener" className="btn btn-ghost btn-mini">Print QR codes</Link>
+            <Link to={`/qr/${tripId}`} target="_blank" rel="noopener" className="btn btn-ghost btn-mini">Imprimer les QR codes</Link>
           )}
         </div>
         {list.loading && !list.data ? <Skeleton />
-          : challenges.length === 0 ? <EmptyState icon="📸" title="No challenges yet" />
+          : challenges.length === 0 ? <EmptyState icon="📸" title="Pas encore de défi" />
           : challenges.map((c) => (
             <ChallengeRow key={c.id} c={c} canEdit={canEdit} canDelete={canDelete} onChange={reload} />
           ))}
@@ -45,12 +45,12 @@ function NewChallenge({ tripId, onAdded }: { tripId: string; onAdded: () => void
     await api.createChallenge(tripId, toInput(draft));
     setDraft(EMPTY);
     onAdded();
-  }, "Could not add the challenge.");
+  }, "Impossible d'ajouter le défi.");
   return (
     <Card>
-      <h3>New challenge</h3>
+      <h3>Nouveau défi</h3>
       <ChallengeFields draft={draft} onChange={setDraft} />
-      <Button disabled={!draft.title.trim()} busy={add.busy} onClick={add.run}>Add challenge</Button>
+      <Button disabled={!draft.title.trim()} busy={add.busy} onClick={add.run}>Ajouter le défi</Button>
       <Notice tone="err">{add.error}</Notice>
     </Card>
   );
@@ -60,12 +60,12 @@ function ChallengeFields({ draft, onChange }: { draft: Draft; onChange: (d: Draf
   const set = (k: keyof Draft) => (e: { target: { value: string } }) => onChange({ ...draft, [k]: e.target.value });
   return (
     <>
-      <Field label="Title" value={draft.title} onChange={set("title")} />
+      <Field label="Titre" value={draft.title} onChange={set("title")} />
       <label className="field">
-        <span>Instructions</span>
+        <span>Consignes</span>
         <textarea rows={3} value={draft.instructions} onChange={set("instructions")} />
       </label>
-      <Field label="Points multiplier — ×2 for a boss challenge" type="number" min={1} value={draft.multiplier} onChange={set("multiplier")} />
+      <Field label="Multiplicateur de points — ×2 pour un défi boss" type="number" min={1} value={draft.multiplier} onChange={set("multiplier")} />
     </>
   );
 }
@@ -80,21 +80,21 @@ function ChallengeRow({
     await api.updateChallenge(c.id, toInput(draft));
     setEditing(false);
     onChange();
-  }, "Could not save the challenge.");
+  }, "Impossible d'enregistrer le défi.");
   const remove = useAction(async () => {
-    const ok = await confirm({ title: `Delete “${c.title}”?`, body: "Its QR code will stop working.", confirmLabel: "Delete", danger: true });
+    const ok = await confirm({ title: `Supprimer « ${c.title} » ?`, body: "Son QR code ne fonctionnera plus.", confirmLabel: "Supprimer", danger: true });
     if (!ok) return;
     await api.deleteChallenge(c.id);
     onChange();
-  }, "Could not delete the challenge.");
+  }, "Impossible de supprimer le défi.");
 
   if (editing) {
     return (
       <div className="challenge-edit">
         <ChallengeFields draft={draft} onChange={setDraft} />
         <div className="row">
-          <Button disabled={!draft.title.trim()} busy={save.busy} onClick={save.run}>Save</Button>
-          <Button variant="neutral" onClick={() => setEditing(false)}>Cancel</Button>
+          <Button disabled={!draft.title.trim()} busy={save.busy} onClick={save.run}>Enregistrer</Button>
+          <Button variant="neutral" onClick={() => setEditing(false)}>Annuler</Button>
         </div>
         <Notice tone="err">{save.error}</Notice>
       </div>
@@ -103,15 +103,15 @@ function ChallengeRow({
 
   return (
     <div className="list-row challenge-row">
-      <img src={api.qrUrl(c.id)} alt={`QR code for ${c.title}`} className="qr-img" />
+      <img src={api.qrUrl(c.id)} alt={`QR code du défi ${c.title}`} className="qr-img" />
       <div className="grow">
         <b>{c.title}</b> {Number(c.multiplier) !== 1 && <Pill tone="gold">×{c.multiplier}</Pill>}
         {c.instructions && <div className="d">{c.instructions}</div>}
         <Notice tone="err">{remove.error}</Notice>
       </div>
       <div className="challenge-acts">
-        {canEdit && <Button variant="neutral" size="mini" onClick={() => setEditing(true)}>Edit</Button>}
-        {canDelete && <Button variant="danger" size="mini" busy={remove.busy} onClick={remove.run}>Delete</Button>}
+        {canEdit && <Button variant="neutral" size="mini" onClick={() => setEditing(true)}>Modifier</Button>}
+        {canDelete && <Button variant="danger" size="mini" busy={remove.busy} onClick={remove.run}>Supprimer</Button>}
       </div>
     </div>
   );

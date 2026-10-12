@@ -81,7 +81,7 @@ describe("useAction", () => {
     const user = userEvent.setup();
     render(<Harness fn={fn} />);
     await user.click(screen.getByRole("button", { name: "Go" }));
-    expect(await screen.findByRole("alert")).toHaveTextContent("Something went wrong on our side. Reference: abc-123");
+    expect(await screen.findByRole("alert")).toHaveTextContent("Something went wrong on our side. Référence : abc-123");
   });
 
   it("falls back to a plain message for non-HTTP failures", async () => {
@@ -114,7 +114,7 @@ describe("useConfirm", () => {
 
   it("resolves false on cancel and on Escape, focusing Cancel by default", async () => {
     const first = await ask({ title: "Delete challenge?", confirmLabel: "Delete" });
-    expect(within(first.dialog).getByRole("button", { name: "Cancel" })).toHaveFocus();
+    expect(within(first.dialog).getByRole("button", { name: "Annuler" })).toHaveFocus();
     await first.user.keyboard("{Escape}");
     await waitFor(() => expect(first.onResult).toHaveBeenCalledWith(false));
   });
@@ -126,7 +126,7 @@ describe("useConfirm", () => {
     expect(dialog).toHaveTextContent("This cannot be undone.");
     const erase = within(dialog).getByRole("button", { name: "Erase" });
     expect(erase).toBeDisabled();
-    const input = within(dialog).getByLabelText(/Type “Rome 2030” to confirm/);
+    const input = within(dialog).getByLabelText(/Tape « Rome 2030 » pour confirmer/);
     expect(input).toHaveFocus();
     await user.type(input, "Rome 203");
     expect(erase).toBeDisabled();
@@ -148,16 +148,16 @@ describe("CopyField", () => {
     const writeText = vi.spyOn(navigator.clipboard, "writeText").mockResolvedValue();
     render(<CopyField label="Recovery link" value="https://x.test/join?trip=t1" />);
     expect(screen.getByLabelText("Recovery link")).toHaveValue("https://x.test/join?trip=t1");
-    await user.click(screen.getByRole("button", { name: "Copy" }));
+    await user.click(screen.getByRole("button", { name: "Copier" }));
     expect(writeText).toHaveBeenCalledWith("https://x.test/join?trip=t1");
-    expect(await screen.findByRole("button", { name: "Copied ✓" })).toBeInTheDocument();
+    expect(await screen.findByRole("button", { name: "Copié ✓" })).toBeInTheDocument();
   });
 
   it("selects the text when the clipboard is unavailable", async () => {
     const user = userEvent.setup();
     vi.spyOn(navigator.clipboard, "writeText").mockRejectedValue(new Error("denied"));
     render(<CopyField label="Recovery link" value="abc" />);
-    await user.click(screen.getByRole("button", { name: "Copy" }));
+    await user.click(screen.getByRole("button", { name: "Copier" }));
     await waitFor(() => expect(screen.getByLabelText("Recovery link")).toHaveFocus());
   });
 });
@@ -192,7 +192,7 @@ describe("SectionNav", () => {
 
   it("announces the badge count", () => {
     at("/teacher/trips/t1", <SectionNav label="Trip" items={items} />);
-    expect(screen.getByRole("link", { name: "Review, 3 pending" })).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Review, 3 en attente" })).toBeInTheDocument();
     expect(screen.getByRole("link", { name: "Overview" })).toHaveAttribute("aria-current", "page");
   });
 });

@@ -19,13 +19,13 @@ const send = (path: string, init: RequestInit) =>
 const failure = async (res: Response) =>
   new HttpError(res.status, await res.text().catch(() => res.statusText), res.headers.get("x-request-id"));
 
-const GENERIC = "Something went wrong.";
+const GENERIC = "Une erreur est survenue.";
 
 // When the API gave no message (a proxy error page, an empty body), say what kind of failure it was.
 function defaultReason(status: number): string {
-  if (status === 0) return "Can't reach the server. Check your connection and try again.";
-  if (status === 429) return "The server is busy. Try again in a minute.";
-  if (status === 502 || status === 503 || status === 504) return "The service is temporarily unavailable. Try again in a moment.";
+  if (status === 0) return "Impossible de joindre le serveur. Vérifie ta connexion et réessaie.";
+  if (status === 429) return "Le serveur est occupé. Réessaie dans une minute.";
+  if (status === 502 || status === 503 || status === 504) return "Le service est momentanément indisponible. Réessaie dans un instant.";
   return GENERIC;
 }
 
@@ -70,7 +70,7 @@ export const isBadCode = (e: unknown) => e instanceof HttpError && (e.status ===
  */
 export function errorText(e: unknown, fallback = GENERIC): string {
   if (!(e instanceof HttpError)) return fallback;
-  const ref = e.status >= 500 && e.requestId ? ` Reference: ${e.requestId}` : "";
+  const ref = e.status >= 500 && e.requestId ? ` Référence : ${e.requestId}` : "";
   return e.reason + ref;
 }
 

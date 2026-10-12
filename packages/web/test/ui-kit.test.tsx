@@ -44,9 +44,9 @@ describe("ProgressRing", () => {
 
 describe("CheckRow", () => {
   it.each([
-    ["todo", "To do"],
-    ["doing", "In progress"],
-    ["done", "Done"],
+    ["todo", "À faire"],
+    ["doing", "En cours"],
+    ["done", "Fait"],
   ] as const)("labels the %s state", (state, label) => {
     render(<CheckRow state={state} title="Team pyramid" />);
     expect(screen.getByLabelText(label)).toBeInTheDocument();
@@ -69,7 +69,7 @@ describe("Stepper", () => {
         { label: "Snap the challenges", state: "upcoming" },
       ]} />,
     );
-    const list = screen.getByRole("list", { name: "Next steps" });
+    const list = screen.getByRole("list", { name: "Prochaines étapes" });
     const items = within(list).getAllByRole("listitem");
     expect(items).toHaveLength(3);
     expect(items[1]).toHaveAttribute("aria-current", "step");
@@ -86,7 +86,7 @@ describe("TabBar", () => {
 
   it("marks the active tab, including nested paths", () => {
     at("/challenges/x", <TabBar tabs={tabs} />);
-    const nav = screen.getByRole("navigation", { name: "Main" });
+    const nav = screen.getByRole("navigation", { name: "Principale" });
     expect(within(nav).getByRole("link", { name: /Challenges/ })).toHaveAttribute("aria-current", "page");
     expect(within(nav).getByRole("link", { name: /Home/ })).not.toHaveAttribute("aria-current");
   });
@@ -103,7 +103,7 @@ describe("TabBar", () => {
 
   it("announces the to-do badge", () => {
     at("/", <TabBar tabs={tabs} />);
-    expect(screen.getByRole("link", { name: /Challenges/ })).toHaveAccessibleName("Challenges, 2 to do");
+    expect(screen.getByRole("link", { name: /Challenges/ })).toHaveAccessibleName("Challenges, 2 à faire");
   });
 
   it("renders a disabled tab as non-navigable", () => {
@@ -127,7 +127,7 @@ describe("Celebrate / EmptyState / Skeleton", () => {
 
   it("Skeleton is a busy loading placeholder with the requested lines", () => {
     const { container } = render(<Skeleton lines={4} />);
-    const s = screen.getByRole("status", { name: "Loading" });
+    const s = screen.getByRole("status", { name: "Chargement" });
     expect(s).toHaveAttribute("aria-busy", "true");
     expect(container.querySelectorAll(".sk-line")).toHaveLength(4);
   });
@@ -140,17 +140,17 @@ describe("ErrorCard", () => {
     const err = new HttpError(503, JSON.stringify({ error: "database_unavailable", message: "The database is unavailable right now.", requestId: "req-42" }));
     render(<ErrorCard error={err} onRetry={() => retried++} />);
     expect(screen.getByText("The database is unavailable right now.")).toBeInTheDocument();
-    expect(screen.getByText(/^Reference:/)).toHaveTextContent("Reference: req-42");
-    await userEvent.setup().click(screen.getByRole("button", { name: "Try again" }));
+    expect(screen.getByText(/^Référence :/)).toHaveTextContent("Référence : req-42");
+    await userEvent.setup().click(screen.getByRole("button", { name: "Réessayer" }));
     expect(retried).toBe(1);
   });
 
   it("has no reference for a refusal, and a plain reason for unknown failures", () => {
     const { unmount } = render(<ErrorCard error={new HttpError(429, "")} onRetry={() => {}} />);
-    expect(screen.getByText(/busy/)).toBeInTheDocument();
-    expect(screen.queryByText(/Reference/)).not.toBeInTheDocument();
+    expect(screen.getByText(/occupé/)).toBeInTheDocument();
+    expect(screen.queryByText(/Référence/)).not.toBeInTheDocument();
     unmount();
     render(<ErrorCard error={new Error("x")} onRetry={() => {}} />);
-    expect(screen.getByText("Something went wrong.")).toBeInTheDocument();
+    expect(screen.getByText("Une erreur est survenue.")).toBeInTheDocument();
   });
 });

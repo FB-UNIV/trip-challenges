@@ -18,26 +18,26 @@ export function StudentHome() {
   if (error instanceof HttpError && error.status === 401) {
     return (
       <Card hero>
-        <h2>Enter your access code</h2>
+        <h2>Saisis ton code d'accès</h2>
         <p className="muted tiny" style={{ margin: "6px 0 12px" }}>
-          Usually you'll open the link from your email, or scan a challenge QR.
+          En général, tu ouvres le lien reçu par e-mail ou tu scannes le QR code d'un défi.
         </p>
         <Field
-          label="Access code" className="input-mono" value={code}
+          label="Code d'accès" className="input-mono" value={code}
           placeholder="FOX-7Q2K" onChange={(e) => setCode(e.target.value)}
         />
         <Button
           size="block" style={{ marginTop: 4 }}
           onClick={async () => {
             try { await api.redeemCode(code.trim()); await refresh(qk.student); }
-            catch (e) { setMsg(isBadCode(e) ? "That code is invalid or has already been used." : errorText(e)); }
+            catch (e) { setMsg(isBadCode(e) ? "Ce code n'est pas valide ou a déjà été utilisé." : errorText(e)); }
           }}
         >
-          Continue
+          Continuer
         </Button>
         {msg && <p className="err tiny" style={{ marginBottom: 0 }}>{msg}</p>}
         <p className="tiny" style={{ marginTop: 16, marginBottom: 0 }}>
-          <Link to="/teacher">I'm a teacher →</Link>
+          <Link to="/teacher">Je suis enseignant →</Link>
         </p>
       </Card>
     );
@@ -57,7 +57,7 @@ export function StudentHome() {
           <span className="crest">{me.teamId ? "🦊" : "🧭"}</span>
           <div style={{ flex: 1, minWidth: 0 }}>
             <div className="tiny muted">{me.tripName}</div>
-            <h2 style={{ margin: "2px 0 0" }}>{teamName ?? (me.teamId ? "Your team" : "No team yet")}</h2>
+            <h2 style={{ margin: "2px 0 0" }}>{teamName ?? (me.teamId ? "Ton équipe" : "Pas encore d'équipe")}</h2>
           </div>
           <PhasePill phase={me.phase} dot />
         </div>
@@ -72,17 +72,17 @@ function NextAction({ phase, inTeam }: { phase: string; inTeam: boolean }) {
   if (phase === "draft") {
     return (
       <Card>
-        <Action icon="🧑‍🤝‍🧑" title="Team up or play solo" body="Join or create a team before the challenge period starts. Playing solo? Create a team just for you." />
-        <Link to="/team"><Button size="block" style={{ marginTop: 12 }}>Go to teams</Button></Link>
+        <Action icon="🧑‍🤝‍🧑" title="Fais équipe ou joue en solo" body="Rejoins ou crée une équipe avant le début des défis. Tu joues en solo ? Crée une équipe rien que pour toi." />
+        <Link to="/team"><Button size="block" style={{ marginTop: 12 }}>Voir les équipes</Button></Link>
       </Card>
     );
   }
   if (phase === "challenge") {
     return (
       <Card>
-        <Action icon="📸" title="Snap the challenges" body="Snap a photo for each one, then enter your best shot." />
+        <Action icon="📸" title="Relève les défis" body="Prends une photo pour chaque défi, puis sélectionne ta meilleure." />
         {inTeam
-          ? <Link to="/challenges"><Button size="block" style={{ marginTop: 12 }}>See your challenges</Button></Link>
+          ? <Link to="/challenges"><Button size="block" style={{ marginTop: 12 }}>Voir tes défis</Button></Link>
           : <div className="mt-3"><PlaySolo heading={false} /></div>}
       </Card>
     );
@@ -90,14 +90,14 @@ function NextAction({ phase, inTeam }: { phase: string; inTeam: boolean }) {
   if (phase === "voting") {
     return (
       <Card>
-        <Action icon="⚖️" title="Vote on the duels" body="Pick the better photo, as many times as you like." />
-        <Link to="/vote"><Button size="block" style={{ marginTop: 12 }}>Start voting</Button></Link>
+        <Action icon="⚖️" title="Vote pour les duels" body="Choisis la meilleure photo, autant de fois que tu veux." />
+        <Link to="/vote"><Button size="block" style={{ marginTop: 12 }}>Commencer à voter</Button></Link>
       </Card>
     );
   }
   return (
     <Card>
-      <Action icon="🏆" title="Results are in" body="Ask your teacher to reveal the winners on the big screen!" />
+      <Action icon="🏆" title="Les résultats sont là" body="Demande à ton enseignant de dévoiler les gagnants sur grand écran !" />
     </Card>
   );
 }
