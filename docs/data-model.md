@@ -1,150 +1,165 @@
-# Data Model
+# Modèle de données
 
-Schema design for Trip Challenges. Derived from `CONTEXT.md` and the ADRs. Postgres for relational data, MinIO for photo blobs, Vault (transit) for per-Trip keys. Not migrations — the contract the code encodes.
+Conception du schéma de Trip Challenges, dérivée de `CONTEXT.md` et des ADR. Postgres
+pour les données relationnelles, MinIO pour les fichiers photo, Vault (transit) pour les
+clés par sortie. Ce ne sont pas les migrations : c'est le contrat que le code met en
+œuvre. Les noms de tables, de colonnes et de valeurs restent ceux du code (en anglais).
 
-Notation: 🔒 = encrypted at rest under the **per-Trip key** (Vault transit key `trip-<tripId>`); destroying that key crypto-erases every 🔒 value (ADR-0001). Plain columns are non-PII and survive Erasure.
+Notation : 🔒 = chiffré au repos sous la **clé de la sortie** (clé Vault transit
+`trip-<tripId>`) ; détruire cette clé efface cryptographiquement toutes les valeurs 🔒
+(ADR-0001). Les colonnes en clair ne sont pas des données personnelles et survivent à
+l'effacement.
 
 ---
 
-## Global (not Trip-scoped, survive across Trips)
+## Global (non rattaché à une sortie, persiste d'une sortie à l'autre)
 
 ### teacher
-Staff identity, sourced from PocketID OIDC. Spans Trips; not under any Trip key.
+Identité du personnel, issue de PocketID (OIDC). Couvre plusieurs sorties ; sous aucune
+clé de sortie.
 
-| column | type | notes |
+| colonne | type | remarques |
 |---|---|---|
 | id | uuid pk | |
-| oidc_subject | text unique | PocketID `sub`; the real identity anchor |
-| email | citext | staff email (not a minor) |
+| oidc_subject | text unique | `sub` PocketID ; l'ancrage réel de l'identité |
+| email | citext | e-mail du personnel (pas un mineur) |
 | display_name | text | |
 | created_at | timestamptz | |
 
 ---
 
-## Trip-scoped
+## Rattaché à une sortie
 
-Every table below carries `trip_id uuid` (FK -> trip) and is filtered by it on every query (tenant isolation, ADR: many concurrent Trips).
+Chaque table ci-dessous porte `trip_id uuid` (FK → trip) et est filtrée par cette colonne
+à chaque requête (isolation entre sorties, de nombreuses sorties pouvant être
+simultanées).
 
 ### trip
-| column | type | notes |
+| colonne | type | remarques |
 |---|---|---|
 | id | uuid pk | |
 | name | text | |
-| owner_teacher_id | uuid fk->teacher | creator/owner |
-| max_team_size | int | default 4 |
-| points_table | jsonb | `[{placement:1,points:5},{2,3},{3,1}]`, editable |
+| owner_teacher_id | uuid fk→teacher | créateur/responsable |
+| max_team_size | int | 4 par défaut |
+| points_table | jsonb | `[{placement:1,points:5},{2,3},{3,1}]`, modifiable |
 | phase | text enum | `draft \| challenge \| voting \| reveal \| grace \| erased` |
-| challenge_opens_at | timestamptz | planned |
-| voting_opens_at | timestamptz | planned |
-| voting_closes_at | timestamptz | planned |
-| grace_days | int | default 7 (post-voting auto-wipe) |
-| trip_end_date | date | for hard cap |
-| max_retention_days | int | default 30 |
-| hard_erase_at | timestamptz | = trip_end_date + max_retention_days; force-wipe regardless of phase |
-| vault_key_name | text | `trip-<id>`; reference only, key lives in Vault |
+| challenge_opens_at | timestamptz | prévue |
+| voting_opens_at | timestamptz | prévue |
+| voting_closes_at | timestamptz | prévue |
+| grace_days | int | 7 par défaut (effacement automatique après le vote) |
+| trip_end_date | date | pour la date butoir |
+| max_retention_days | int | 30 par défaut |
+| hard_erase_at | timestamptz | = trip_end_date + max_retention_days ; effacement forcé quelle que soit la phase |
+| vault_key_name | text | `trip-<id>` ; simple référence, la clé vit dans Vault |
 | created_at | timestamptz | |
 
-`teams_locked` derives from `phase >= challenge` (joining and leaving freeze at challenge start). Creating a team stays open through `challenge`, so a student without one can play solo as a team of one (#79). From `voting` on, nothing changes.
+`teams_locked` découle de `phase >= challenge` (rejoindre et quitter se figent au début
+des défis). Créer une équipe reste possible pendant `challenge`, pour qu'un élève sans
+équipe puisse jouer en solo dans une équipe d'une personne (#79). À partir de `voting`,
+plus rien ne change.
 
-### trip_teacher — co-teacher membership
-| column | type | notes |
+### trip_teacher — appartenance des co-enseignants
+| colonne | type | remarques |
 |---|---|---|
 | trip_id | uuid fk | |
 | teacher_id | uuid fk | |
 | role | text enum | `owner \| co` |
 | pk | (trip_id, teacher_id) | |
 
-### trip_teacher_invite — pending co-teacher invites
-| column | type | notes |
+### trip_teacher_invite — invitations de co-enseignants en attente
+| colonne | type | remarques |
 |---|---|---|
 | id | uuid pk | |
 | trip_id | uuid fk | |
-| email | citext | invited colleague (staff) |
-| token_hash | text | single-use, expiring |
-| accepted_at | timestamptz null | bound to teacher on PocketID login |
+| email | citext | collègue invité (personnel) |
+| token_hash | text | à usage unique, avec expiration |
+| accepted_at | timestamptz null | rattachée à l'enseignant lors de sa connexion PocketID |
 
-### student — a minor participant, unique per Trip
-| column | type | notes |
+### student — un participant mineur, unique par sortie
+| colonne | type | remarques |
 |---|---|---|
 | id | uuid pk | |
 | trip_id | uuid fk | |
-| email 🔒 | bytea | Vault-encrypted; the only student PII field |
-| email_lookup | text | HMAC(email) under a Trip-scoped MAC key, for dedupe/lookup without decrypting |
-| access_code_hash | text | argon2id of the 128-bit single-use code; never store plaintext |
+| email 🔒 | bytea | chiffré par Vault ; la seule donnée personnelle de l'élève |
+| email_lookup | text | HMAC(email) sous une clé MAC propre à la sortie, pour dédoublonner/retrouver sans déchiffrer |
+| access_code_hash | text | argon2id du code à usage unique de 128 bits ; jamais stocké en clair |
 | access_code_state | text enum | `unredeemed \| redeemed \| reissued` |
 | created_at | timestamptz | |
 
-Same email in two Trips = two rows in two Trips, different `email_lookup` (different MAC key). No cross-Trip join possible.
+Même e-mail dans deux sorties = deux lignes dans deux sorties, avec des `email_lookup`
+différents (clés MAC différentes). Aucune jointure entre sorties n'est possible.
 
-### student_session — device-bound session
-| column | type | notes |
+### student_session — session liée à l'appareil
+| colonne | type | remarques |
 |---|---|---|
 | id | uuid pk | |
 | student_id | uuid fk | |
-| token_hash | text | `sha256:<hex>` of the 256-bit device token (#64); legacy argon2 hashes are upgraded on first use |
+| token_hash | text | `sha256:<hex>` du jeton d'appareil de 256 bits (#64) ; les anciens hachages argon2 sont convertis à la première utilisation |
 | created_at | timestamptz | |
-| revoked_at | timestamptz null | set when a fresh code is re-issued (invalidates prior session) |
+| revoked_at | timestamptz null | renseigné quand un nouveau code est émis puis utilisé (invalide la session précédente) |
 
-Single-use code -> one active session; re-issue revokes the old (Access Code term).
+Code à usage unique → une session active ; un nouveau code révoque l'ancienne (voir
+« Code d'accès »).
 
 ### team
-| column | type | notes |
+| colonne | type | remarques |
 |---|---|---|
 | id | uuid pk | |
 | trip_id | uuid fk | |
-| name 🔒 | bytea | Vault-encrypted (may contain real names -> treat as PII). Copied into `result` at reveal; it survives Erasure only if reviewed (see `result`). |
-| name_reviewed | bool | a Teacher reviewed the name (renaming counts). Only reviewed names survive Erasure (ADR-0007). |
-| created_at | timestamptz | also sets the neutral label order ("Team N") |
+| name 🔒 | bytea | chiffré par Vault (peut contenir de vrais noms → traité comme donnée personnelle). Copié dans `result` à la révélation ; il ne survit à l'effacement que s'il a été vérifié (voir `result`). |
+| name_reviewed | bool | un enseignant a vérifié le nom (renommer compte). Seuls les noms vérifiés survivent à l'effacement (ADR-0007). |
+| created_at | timestamptz | fixe aussi l'ordre de l'étiquette neutre (« Équipe N ») |
 
-### team_member — exclusive membership (one Team per Student per Trip)
-| column | type | notes |
+### team_member — appartenance exclusive (une équipe par élève et par sortie)
+| colonne | type | remarques |
 |---|---|---|
 | team_id | uuid fk | |
 | student_id | uuid fk | |
-| unique(student_id) within trip | | enforces exclusivity |
-| bounded 1..trip.max_team_size | | app-enforced |
+| unique(student_id) dans la sortie | | garantit l'exclusivité |
+| bornée à 1..trip.max_team_size | | appliqué par l'application |
 
-### challenge — teacher-authored, not PII
-| column | type | notes |
+### challenge — rédigé par l'enseignant, pas une donnée personnelle
+| colonne | type | remarques |
 |---|---|---|
 | id | uuid pk | |
 | trip_id | uuid fk | |
 | title | text | |
 | instructions | text | |
-| multiplier | numeric | default 1 (boss challenge = 2, etc.); scales Grand Champion points |
-| qr_slug | text unique | encoded in the printed QR URL; static |
+| multiplier | numeric | 1 par défaut (défi boss = 2, etc.) ; pondère les points du grand champion |
+| qr_slug | text unique | encodé dans l'URL du QR imprimé ; statique |
 
-### submission — a photo
-| column | type | notes |
+### submission — une photo
+| colonne | type | remarques |
 |---|---|---|
 | id | uuid pk | |
 | trip_id | uuid fk | |
 | challenge_id | uuid fk | |
-| team_id | uuid fk | attribution unit |
-| uploaded_by_student_id | uuid fk | any team member may upload |
-| blob_key | text | MinIO object key; **object bytes 🔒** (envelope: per-object data key from Vault, wrapped under the Trip key) |
-| content_type | text | validated (image/*), EXIF+GPS stripped on ingest |
+| team_id | uuid fk | unité d'attribution |
+| uploaded_by_student_id | uuid fk | tout membre de l'équipe peut envoyer |
+| blob_key | text | clé de l'objet MinIO ; **octets de l'objet 🔒** (enveloppe : clé de données par objet émise par Vault, enveloppée sous la clé de la sortie) |
+| content_type | text | validé (image/*), EXIF et GPS supprimés à la réception |
 | created_at | timestamptz | |
-| removed_by_teacher_id | uuid null | standing teacher oversight (remove any submission) |
+| removed_by_teacher_id | uuid null | surveillance permanente par l'enseignant (retrait de n'importe quelle photo) |
 
-Non-nominated submissions persist (team-only) until Erasure.
+Les photos non sélectionnées persistent (visibles par l'équipe seulement) jusqu'à
+l'effacement.
 
-### nomination — the votable pick, one active per (team, challenge)
-| column | type | notes |
+### nomination — la photo en lice, une active par (équipe, défi)
+| colonne | type | remarques |
 |---|---|---|
 | id | uuid pk | |
 | trip_id | uuid fk | |
 | challenge_id | uuid fk | |
 | team_id | uuid fk | |
-| submission_id | uuid fk | the chosen photo |
-| state | text enum | `pending \| approved \| rejected` (moderation) |
+| submission_id | uuid fk | la photo choisie |
+| state | text enum | `pending \| approved \| rejected` (modération) |
 | moderated_by_teacher_id | uuid null | |
 | moderated_at | timestamptz null | |
-| auto_nominated | bool | true if latest was auto-picked at voting open |
-| unique(team_id, challenge_id) where active | | one live nomination |
+| auto_nominated | bool | vrai si la dernière photo a été sélectionnée automatiquement à l'ouverture du vote |
+| unique(team_id, challenge_id) si active | | une seule sélection active |
 
-### duel — one pairwise comparison (atomic vote)
-| column | type | notes |
+### duel — une comparaison par paire (vote élémentaire)
+| colonne | type | remarques |
 |---|---|---|
 | id | uuid pk | |
 | trip_id | uuid fk | |
@@ -152,97 +167,118 @@ Non-nominated submissions persist (team-only) until Erasure.
 | voter_student_id | uuid fk | |
 | a_nomination_id | uuid fk | |
 | b_nomination_id | uuid fk | |
-| winner_nomination_id | uuid fk | chosen side |
+| winner_nomination_id | uuid fk | côté choisi |
 | created_at | timestamptz | |
-| unique(voter, unordered{a,b}) | | no repeat pair per voter |
+| unique(votant, {a,b} non ordonné) | | pas de paire répétée pour un même votant |
 
-Neither side may belong to the voter's own Team (no self-vote). Pairing: least-compared-first + random eligible opponent.
+Aucun des deux côtés ne peut appartenir à l'équipe du votant (pas de vote pour soi).
+Appariement : la moins comparée d'abord + une adversaire éligible tirée au hasard.
 
-### nomination_stats — denormalized for fast Wilson ranking
-| column | type | notes |
+### nomination_stats — dénormalisé pour un classement de Wilson rapide
+| colonne | type | remarques |
 |---|---|---|
 | nomination_id | uuid pk fk | |
 | wins | int | |
 | comparisons | int | |
-| wilson_score | double | lower-bound(win-rate); recomputed on duel write |
+| wilson_score | double | borne inférieure du taux de victoire ; recalculée à chaque duel enregistré |
 
-Ranking per Challenge = order by `wilson_score` desc (ADR-0002).
+Classement par défi = tri par `wilson_score` décroissant (ADR-0002).
 
 ---
 
-## Survivors of Erasure (non-PII, not under Trip key)
+## Ce qui survit à l'effacement (non personnel, hors clé de la sortie)
 
-### result — the keepsake
-| column | type | notes |
+### result — le souvenir
+| colonne | type | remarques |
 |---|---|---|
 | id | uuid pk | |
-| trip_id | uuid | kept as opaque id |
-| challenge_title | text | copied at reveal |
+| trip_id | uuid | conservé comme identifiant opaque |
+| challenge_title | text | copié à la révélation |
 | placement | int | 1..N |
-| team_name_vetted | text | copied from `team.name` at reveal; at Erasure, replaced by `team_label` unless `team_name_reviewed` |
-| points | numeric | placement points × challenge multiplier |
+| team_name_vetted | text | copié depuis `team.name` à la révélation ; à l'effacement, remplacé par `team_label` sauf si `team_name_reviewed` |
+| points | numeric | points de placement × multiplicateur du défi |
 | is_grand_champion | bool | |
-| team_label | text | neutral "Team N" (trip-wide team creation order), recorded at reveal |
-| team_name_reviewed | bool | copy of `team.name_reviewed` at reveal |
+| team_label | text | étiquette neutre « Équipe N » (ordre de création des équipes dans la sortie), enregistrée à la révélation (les résultats calculés avant le passage au français portent « Team N ») |
+| team_name_reviewed | bool | copie de `team.name_reviewed` à la révélation |
 
-Populated during the teacher-paced ceremony; contains **no image, no student identity**.
+Rempli pendant la cérémonie rythmée par l'enseignant ; ne contient **ni image, ni
+identité d'élève**.
 
-### audit_log — PII-free by design
-| column | type | notes |
+### audit_log — sans données personnelles par conception
+| colonne | type | remarques |
 |---|---|---|
 | id | uuid pk | |
 | trip_id | uuid | opaque |
-| teacher_id | uuid | actor (staff) |
-| action | text | e.g. `submission_removed`, `nomination_rejected`, `erasure_fired`, `voting_closed` |
-| target_opaque_id | uuid null | references an id, never student PII |
+| teacher_id | uuid | auteur de l'action (personnel) |
+| action | text | par ex. `submission_removed`, `nomination_rejected`, `erasure_fired`, `voting_closed` |
+| target_opaque_id | uuid null | référence un identifiant, jamais une donnée personnelle d'élève |
 | at | timestamptz | |
 
-Survives Erasure precisely because it never holds student PII (CONTEXT: Erasure › Survives).
+Il survit à l'effacement précisément parce qu'il ne contient jamais de données
+personnelles d'élèves (CONTEXT : Effacement › Subsiste).
 
 ---
 
-## Encryption boundary (per-Trip key)
+## Frontière du chiffrement (clé de la sortie)
 
-🔒 under Vault transit key `trip-<tripId>`:
+🔒 sous la clé Vault transit `trip-<tripId>` :
 - `student.email`
 - `team.name`
-- `submission` photo **bytes** in MinIO (envelope: Vault-issued data key wrapped under the Trip key)
+- les **octets** des photos (`submission`) dans MinIO (enveloppe : clé de données émise
+  par Vault, enveloppée sous la clé de la sortie)
 
-Also Trip-scoped but not raw-PII: `access_code_hash` (a hash), `email_lookup` (a Trip-scoped HMAC) — safe to store as-is; they carry no recoverable PII once the Trip key/MAC key is destroyed.
+Également rattachés à la sortie mais pas des données personnelles brutes :
+`access_code_hash` (un hachage), `email_lookup` (un HMAC propre à la sortie) — sûrs à
+stocker tels quels ; ils ne contiennent plus aucune donnée personnelle récupérable une fois
+la clé de la sortie / la clé MAC détruite.
 
-**Not** encrypted (survive): teacher identity, challenge content, `result`, `audit_log`, trip config.
+**Non** chiffrés (survivent) : identité des enseignants, contenu des défis, `result`,
+`audit_log`, configuration de la sortie.
 
-## Erasure procedure (maps to ADR-0001)
-1. Delete MinIO objects for the Trip (best-effort hard delete of live blobs).
-2. Replace every unreviewed team name in `result` with its neutral label (ADR-0007), then delete all Trip-scoped rows (student, team, submission, nomination, duel, stats, sessions, invites) — cascade by `trip_id`.
-3. Scrub email-delivery + app logs of any Trip identifiers/PII; rotate.
-4. **Destroy the Vault transit key `trip-<tripId>`** — the decisive step: any residual copy in DB/MinIO backups is now permanently unreadable.
-5. Set `trip.phase = erased`, write `audit_log(action=erasure_fired)`.
-6. `result` (reviewed team names or neutral labels only) and `audit_log` remain.
+## Procédure d'effacement (correspond à l'ADR-0001)
+1. Supprimer les objets MinIO de la sortie (suppression définitive des fichiers en
+   production, au mieux).
+2. Remplacer chaque nom d'équipe non vérifié dans `result` par son étiquette neutre
+   (ADR-0007), puis supprimer toutes les lignes rattachées à la sortie (student, team,
+   submission, nomination, duel, stats, sessions, invites) — en cascade par `trip_id`.
+3. Nettoyer les traces de distribution des e-mails et les journaux applicatifs de tout
+   identifiant/donnée personnelle de la sortie ; les renouveler.
+4. **Détruire la clé Vault transit `trip-<tripId>`** — l'étape décisive : toute copie
+   résiduelle dans les sauvegardes de la base ou de MinIO devient définitivement
+   illisible.
+5. Passer `trip.phase = erased`, écrire `audit_log(action=erasure_fired)`.
+6. `result` (uniquement noms d'équipe vérifiés ou étiquettes neutres) et `audit_log`
+   restent.
 
-## State machine (trip.phase)
+## Machine à états (trip.phase)
 ```
 draft -> challenge -> voting -> reveal -> grace -> erased
                                                    ^
-        hard_erase_at reached in ANY phase --------┘ (force)
+        hard_erase_at atteinte dans N'IMPORTE QUELLE phase ┘ (forcé)
 ```
-- challenge->voting and voting->reveal: teacher-confirmed or auto at planned date.
-- reveal->grace: after ceremony completes.
-- grace->erased: auto after grace_days (teacher may fire early).
-- any->erased: forced at hard_erase_at, with escalating warnings (7d/1d/1h, email + banner).
+- challenge→voting et voting→reveal : confirmés par l'enseignant ou automatiques à la
+  date prévue.
+- reveal→grace : une fois la cérémonie terminée.
+- grace→erased : automatique après grace_days (l'enseignant peut le déclencher plus tôt).
+- n'importe laquelle→erased : forcé à hard_erase_at, avec des alertes progressives
+  (7 j / 1 j / 1 h, par e-mail et bandeau).
 
-## Editability (config edits via `PATCH`)
+## Modifiabilité (modifications de configuration via `PATCH`)
 
-Fields are editable *until the phase where the value becomes settled*. Two limits are safety locks (🔒), not convenience — see the reason column.
+Les champs sont modifiables *jusqu'à la phase où leur valeur devient définitive*. Deux
+limites sont des verrous de sécurité (🔒), pas de confort — voir la colonne des raisons.
 
-| Field(s) | Editable through phase | Reason for the limit |
+| Champ(s) | Modifiable jusqu'à la phase | Raison de la limite |
 |---|---|---|
-| `trip.name` | any (`≠ erased`) | cosmetic |
-| `trip.points_table`, `challenge.multiplier` | `< reveal` | only feed `computeResults`; frozen once results are computed |
-| `challenge.title`, `challenge.instructions` | `< reveal` | text only; `qr_slug` never changes |
-| `trip.challenge_opens_at` / `voting_opens_at` / `voting_closes_at`, `grace_days`, `trip_end_date`, `max_retention_days` | `≠ erased` | recompute `hard_erase_at` on write |
-| **`trip.max_team_size`** 🔒 | **`draft` only** | teams lock at challenge start; shrinking it later would orphan formed members |
-| **challenge add** | `< voting` | fine to introduce tasks mid-trip |
-| **challenge delete** 🔒 | **`draft` only** | the QR is printed/distributed once the challenge exists — deleting leaves a dead QR in the wild |
+| `trip.name` | toutes (`≠ erased`) | cosmétique |
+| `trip.points_table`, `challenge.multiplier` | `< reveal` | n'alimentent que `computeResults` ; figés une fois les résultats calculés |
+| `challenge.title`, `challenge.instructions` | `< reveal` | texte uniquement ; `qr_slug` ne change jamais |
+| `trip.challenge_opens_at` / `voting_opens_at` / `voting_closes_at`, `grace_days`, `trip_end_date`, `max_retention_days` | `≠ erased` | `hard_erase_at` recalculé à l'écriture |
+| **`trip.max_team_size`** 🔒 | **`draft` uniquement** | les équipes se figent au début des défis ; réduire la taille ensuite laisserait des membres orphelins |
+| **ajout de défi** | `< voting` | rien n'empêche d'ajouter des défis en cours de sortie |
+| **suppression de défi** 🔒 | **`draft` uniquement** | le QR est imprimé/distribué dès que le défi existe — le supprimer laisserait un QR mort dans la nature |
 
-Edits outside the allowed phase return `409`. `hard_erase_at` is always recomputed from `trip_end_date + max_retention_days` on write. All config edits are owner/co-teacher gated and audit-logged.
+Une modification hors de la phase autorisée renvoie `409`. `hard_erase_at` est toujours
+recalculé à partir de `trip_end_date + max_retention_days` à l'écriture. Toutes les
+modifications de configuration sont réservées au responsable et aux co-enseignants, et
+journalisées dans l'audit.

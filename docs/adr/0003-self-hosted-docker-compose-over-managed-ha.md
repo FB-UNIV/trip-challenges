@@ -1,8 +1,20 @@
-# Self-hosted docker-compose with warm standby, over managed cloud or k8s
+# docker-compose auto-hébergé avec secours à chaud, plutôt que cloud managé ou k8s
 
-We deploy the whole system (React PWA, TypeScript API replicas, Postgres, MinIO, Vault) as a self-hosted docker-compose stack with a warm DB standby and backups we own, rather than managed cloud services (RDS/S3) or a multi-node orchestrator (k8s/Swarm). The deciding constraint is *complete erasure of minors' data*: managed backends replicate data and backups across regions we cannot fully attest or purge, whereas self-hosting keeps every copy in infrastructure we control. Scale (a few classes over a few days) does not justify k8s ops overhead.
+Nous déployons l'ensemble du système (PWA React, réplicas de l'API TypeScript, Postgres,
+MinIO, Vault) comme une pile docker-compose auto-hébergée, avec une base de secours à
+chaud et des sauvegardes que nous maîtrisons, plutôt que des services cloud managés
+(RDS/S3) ou un orchestrateur multi-nœuds (k8s/Swarm). La contrainte décisive est
+l'*effacement complet des données de mineurs* : les services managés répliquent données et
+sauvegardes dans des régions que nous ne pouvons ni attester ni purger complètement,
+alors que l'auto-hébergement garde chaque copie dans une infrastructure que nous
+contrôlons. L'échelle (quelques classes sur quelques jours) ne justifie pas la charge
+d'exploitation de k8s.
 
-## Consequences
+## Conséquences
 
-- "High availability" here means container auto-restart + a warm Postgres standby + owned backups — not zone-redundant, provider-grade uptime. Accepted trade-off given the scale and the erasure priority.
-- A single host is still a failure domain; a second host (primary + standby) is the intended topology if uptime matters during the event window.
+- « Haute disponibilité » signifie ici redémarrage automatique des conteneurs + un
+  Postgres de secours à chaud + des sauvegardes maîtrisées — pas une disponibilité
+  multi-zones de niveau fournisseur. Compromis accepté vu l'échelle et la priorité donnée à
+  l'effacement.
+- Une machine unique reste un domaine de panne ; un second serveur (principal + secours)
+  est la topologie prévue si la disponibilité compte pendant l'événement.
