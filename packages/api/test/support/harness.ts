@@ -17,7 +17,9 @@ import { createTripKey, encrypt, hmac, resetVault } from "./fake-vault.js";
 import { objects, putBlob, blobKey, s3faults, s3health } from "./fake-s3.js";
 import { resetMailer } from "./fake-mailer.js";
 
-export { pool };
+// Re-exported straight from the module: vitest 4's module runner leaves an
+// `import { pool } …; export { pool }` re-export undefined in the importing test file.
+export { pool } from "../../src/db.js";
 
 // Cheap argon2 params for fixtures; argon2.verify reads params from the hash itself.
 export const FAST_ARGON = { type: argon2.argon2id, memoryCost: 1024, timeCost: 2, parallelism: 1 };

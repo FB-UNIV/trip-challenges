@@ -11,7 +11,8 @@ import { startErasureScheduler } from "../src/scheduler.js";
 import { enqueueRoster } from "../src/roster-worker.js";
 import { hasKey, faults, vaultHealth } from "./support/fake-vault.js";
 import { s3faults, s3health } from "./support/fake-s3.js";
-import { sent } from "./support/fake-mailer.js";
+import { sent, mailer } from "./support/fake-mailer.js";
+import { config } from "./support/config.js";
 import { pool, resetAll, buildApp, makeTeacher, makeTrip, addCoTeacher, count } from "./support/harness.js";
 
 beforeEach(async () => {
@@ -114,6 +115,65 @@ describe("startErasureScheduler", () => {
     await vi.waitFor(() => expect(hasKey(due)).toBe(false), { timeout: 10_000 }); // finished on a later tick
   });
 
+  // Each pass of a tick is isolated: one failing is logged and the others still run.
+  describe("a failing pass is logged and the tick carries on", () => {
+    /** Make pool.query throw for the statement that `match` picks out, every time. */
+    function failQuery(match: (sql: string) => boolean) {
+      const realQuery = pool.query.bind(pool);
+      vi.spyOn(pool, "query").mockImplementation((async (sql: string, params?: unknown[]) => {
+        if (match(sql)) throw new Error("boom");
+        return realQuery(sql, params as any);
+      }) as any);
+    }
+
+    it("auto-advance: erasure still runs", async () => {
+      const due = await makeTrip(await makeTeacher(), { phase: "challenge", hardEraseAt: new Date(Date.now() - 1000) });
+      const err = vi.spyOn(console, "error").mockImplementation(() => {});
+      failQuery((sql) => sql.includes("IS NOT NULL AND") && sql.startsWith("SELECT id FROM trip WHERE phase"));
+
+      timer = startErasureScheduler(20);
+      await vi.waitFor(() => expect(err).toHaveBeenCalledWith("[lifecycle] auto-advance pass failed", expect.any(Error)), { timeout: 10_000 });
+      await vi.waitFor(() => expect(hasKey(due)).toBe(false), { timeout: 10_000 });
+    });
+
+    it("erasure warnings", async () => {
+      const err = vi.spyOn(console, "error").mockImplementation(() => {});
+      failQuery((sql) => sql.includes("AS erase_at"));
+
+      timer = startErasureScheduler(20);
+      await vi.waitFor(() => expect(err).toHaveBeenCalledWith("[erasure] warning pass failed", expect.any(Error)), { timeout: 10_000 });
+    });
+
+    it("alerting about a failed erasure", async () => {
+      await makeTrip(await makeTeacher(), { phase: "challenge", hardEraseAt: new Date(Date.now() - 1000) });
+      const err = vi.spyOn(console, "error").mockImplementation(() => {});
+      s3faults.deleteFailures = 1_000;
+      failQuery((sql) => sql.startsWith("SELECT name FROM trip WHERE id"));
+
+      timer = startErasureScheduler(20);
+      await vi.waitFor(() => expect(err).toHaveBeenCalledWith("[erasure] alerting failed", expect.any(Error)), { timeout: 10_000 });
+    });
+
+    it("roster drain", async () => {
+      const err = vi.spyOn(console, "error").mockImplementation(() => {});
+      const ROSTER_LOCK = 553311;
+      const realConnect = pool.connect.bind(pool);
+      vi.spyOn(pool, "connect").mockImplementation((async () => {
+        const c = await realConnect();
+        return {
+          ...c,
+          query: async (sql: string, params?: unknown[]) => {
+            if (sql.includes("pg_try_advisory_lock") && params?.[0] === ROSTER_LOCK) throw new Error("boom");
+            return c.query(sql, params as any);
+          },
+        };
+      }) as any);
+
+      timer = startErasureScheduler(20);
+      await vi.waitFor(() => expect(err).toHaveBeenCalledWith("[roster] drain failed", expect.any(Error)), { timeout: 10_000 });
+    });
+  });
+
   // #19: a DB blip used to escape `void tick()` as an unhandled rejection, which kills
   // the Node process (and every replica hits the same blip).
   describe("survives a database outage during a tick (#19)", () => {
@@ -200,6 +260,43 @@ describe("erasure alerting and heartbeat (#24)", () => {
   it("pings the heartbeat after a healthy tick", async () => {
     timer = startErasureScheduler(20);
     await vi.waitFor(() => expect(pings).toContain("http://heartbeat.test/ping"));
+  });
+
+  it("logs a failed heartbeat ping and keeps ticking", async () => {
+    const err = vi.spyOn(console, "error").mockImplementation(() => {});
+    vi.stubGlobal("fetch", vi.fn(async () => { throw new Error("ENOTFOUND heartbeat.test"); }));
+
+    timer = startErasureScheduler(20);
+    await vi.waitFor(() => expect(err).toHaveBeenCalledWith("[scheduler] heartbeat ping failed", expect.any(Error)));
+  });
+
+  it("pings nothing when no heartbeat is configured", async () => {
+    const url = config.HEARTBEAT_URL;
+    config.HEARTBEAT_URL = undefined;
+    try {
+      const trip = await makeTrip(await makeTeacher(), { phase: "draft", challengeOpensAt: new Date(Date.now() - 1000) });
+      timer = startErasureScheduler(20);
+      // A tick has completed once the planned phase change has landed.
+      await vi.waitFor(async () => {
+        const { rows } = await pool.query<{ phase: string }>(`SELECT phase FROM trip WHERE id = $1`, [trip]);
+        expect(rows[0]!.phase).toBe("challenge");
+      });
+      await new Promise((r) => setTimeout(r, 60));
+      expect(pings).toEqual([]);
+    } finally {
+      config.HEARTBEAT_URL = url;
+    }
+  });
+
+  it("still alerts the other recipients when one alert mail bounces", async () => {
+    const due = await makeTrip(await makeTeacher("owner@school.test"), { phase: "challenge", hardEraseAt: new Date(Date.now() - 1000) });
+    const err = vi.spyOn(console, "error").mockImplementation(() => {});
+    s3faults.deleteFailures = 1;
+    mailer.failTimes = 1;
+
+    timer = startErasureScheduler(20);
+    await vi.waitFor(() => expect(err).toHaveBeenCalledWith(`[erasure] alert mail failed for trip ${due}`, expect.any(Error)));
+    expect(sent.filter((m) => m.kind === "erasure_failed")).toHaveLength(1);
   });
 
   it("withholds the heartbeat while an erasure is failing, so the monitor alerts", async () => {

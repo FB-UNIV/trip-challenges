@@ -266,6 +266,25 @@ describe("PATCH /api/trips/:id (phase-gated config edits)", () => {
     expect(rows[0]!.hard_erase_at.toISOString().slice(0, 10)).toBe("2030-01-06");
   });
 
+  it("moves the planned dates, and the erase deadline with the end date", async () => {
+    const id = await makeTrip(owner);
+    const at = (d: string) => new Date(`${d}T08:00:00.000Z`).toISOString();
+    const res = await patch(id, {
+      challengeOpensAt: at("2029-12-20"), votingOpensAt: at("2029-12-28"), votingClosesAt: at("2029-12-30"),
+      tripEndDate: at("2030-02-01"),
+    });
+    expect(res.json()).toEqual({ ok: true });
+    const { rows } = await pool.query<Record<string, Date> & { max_retention_days: number }>(
+      `SELECT challenge_opens_at, voting_opens_at, voting_closes_at, trip_end_date, hard_erase_at, max_retention_days
+         FROM trip WHERE id = $1`, [id]);
+    const t = rows[0]!;
+    expect([t.challenge_opens_at, t.voting_opens_at, t.voting_closes_at].map((d) => d.toISOString()))
+      .toEqual([at("2029-12-20"), at("2029-12-28"), at("2029-12-30")]);
+    const erase = new Date(at("2030-02-01"));
+    erase.setDate(erase.getDate() + t.max_retention_days);
+    expect(t.hard_erase_at.toISOString().slice(0, 10)).toBe(erase.toISOString().slice(0, 10));
+  });
+
   it("locks maxTeamSize after draft and points after voting", async () => {
     const challenge = await makeTrip(owner, { phase: "challenge" });
     expect((await patch(challenge, { maxTeamSize: 2 })).statusCode).toBe(409);

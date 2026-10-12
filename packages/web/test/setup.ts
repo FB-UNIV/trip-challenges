@@ -1,9 +1,13 @@
-import "@testing-library/jest-dom/vitest";
+import * as jestDomMatchers from "@testing-library/jest-dom/matchers";
 import { File as NodeFile } from "node:buffer";
-import { afterAll, afterEach, beforeAll, beforeEach, vi } from "vitest";
+import { afterAll, afterEach, beforeAll, beforeEach, expect, vi } from "vitest";
 import { http, HttpResponse } from "msw";
 import { cleanup } from "@testing-library/react";
 import { server } from "./server.js";
+
+// Not "@testing-library/jest-dom/vitest": that entry imports `vitest` from the hoisted root,
+// where there is none (vitepress pins the root's vite to 5, so each workspace keeps its own).
+expect.extend(jestDomMatchers);
 
 // fetch here is Node's, the DOM is jsdom's. Bridge the two the way a browser would:
 // - relative URLs ("/api/...") resolve against the page origin;
