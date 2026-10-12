@@ -1,52 +1,66 @@
-# Contributing
+# Contribuer
 
-Thanks for helping! This app handles **minors' data under strict erasure**, so a few rules
-are stricter than usual. Security issues go through [`SECURITY.md`](./SECURITY.md), never
-a public issue.
+Merci de votre aide ! Cette application traite **des données de mineurs soumises à un
+effacement strict** : certaines règles sont donc plus exigeantes que d'habitude. Les
+problèmes de sécurité passent par [`SECURITY.md`](./SECURITY.md), jamais par un ticket
+public.
 
-## Before you start
+Le projet est en français (interface, e-mails, documentation). Le code, les identifiants,
+les codes d'erreur et les journaux restent en anglais ; les tickets et PR peuvent être
+rédigés en français ou en anglais.
 
-- For anything beyond a small fix, open an issue first so we can agree on the approach.
-- Read [`CONTEXT.md`](./CONTEXT.md) (domain glossary) and the [ADRs](./docs/adr/) before
-  touching auth, storage, crypto or erasure.
-- Dev setup: [`docs/development.md`](./docs/development.md). Unit/route tests need no
-  infrastructure (Postgres runs in-process via PGlite; Vault, S3 and SMTP are faked).
+## Avant de commencer
+
+- Pour tout ce qui dépasse une petite correction, ouvrez d'abord un ticket pour qu'on
+  s'accorde sur l'approche.
+- Lisez [`CONTEXT.md`](./CONTEXT.md) (glossaire du domaine) et les [ADR](./docs/adr/)
+  avant de toucher à l'authentification, au stockage, à la cryptographie ou à
+  l'effacement.
+- Environnement de dev : [`docs/development.md`](./docs/development.md). Les tests
+  unitaires et de routes ne demandent aucune infrastructure (Postgres tourne dans le
+  processus via PGlite ; Vault, S3 et SMTP sont simulés).
 
 ```bash
 npm install
-npm run typecheck && npm test && npm run build   # what CI runs
+npm run typecheck && npm test && npm run build   # ce que lance la CI
 ```
 
 ## Pull requests
 
-- Branch from `main` (`feat/…`, `fix/…`, `docs/…`, `ci/…`).
-- PRs are squash-merged, so the **PR title** becomes the commit and the changelog entry.
-  It must be a [Conventional Commit](https://www.conventionalcommits.org/): `fix:` (patch),
-  `feat:` (minor), `feat!:` (breaking), or `docs:` / `ci:` / `chore:` / `test:` /
-  `refactor:` (no release). CI checks it.
-- Don't edit `CHANGELOG.md` or `.release-please-manifest.json` — release-please owns them.
+- Partez de `main` (`feat/…`, `fix/…`, `docs/…`, `ci/…`).
+- Les PR sont fusionnées en squash : le **titre de la PR** devient le commit et l'entrée
+  du changelog. Il doit suivre les [Conventional Commits](https://www.conventionalcommits.org/) :
+  `fix:` (patch), `feat:` (mineure), `feat!:` (rupture), ou `docs:` / `ci:` / `chore:` /
+  `test:` / `refactor:` (pas de release). La CI le vérifie.
+- Ne modifiez pas `CHANGELOG.md` ni `.release-please-manifest.json` : release-please s'en
+  charge.
 
-## Code rules
+## Règles de code
 
-- **Never log or persist student PII** outside the per-Trip encrypted scope
+- **Ne jamais journaliser ni conserver de données personnelles d'élèves** hors du
+  périmètre chiffré de la sortie
   ([ADR 0001](./docs/adr/0001-crypto-erasure-with-vault-per-trip-keys.md)).
-- Every API route declares `{ preHandler: guard({ role, trip, phases }) }`; a test fails
-  on a route without one.
-- Migrations in `packages/api/db/migrations/` are append-only: never edit a shipped one,
-  add the next number.
-- Shared types and schemas live in `packages/shared` (zod) — don't duplicate them.
-- The API is ESM: relative imports use explicit `.js` extensions.
+- Chaque route de l'API déclare `{ preHandler: guard({ role, trip, phases }) }` ; un test
+  échoue si une route n'en a pas.
+- Les migrations de `packages/api/db/migrations/` ne font que s'ajouter : ne modifiez
+  jamais une migration livrée, ajoutez le numéro suivant.
+- Les types et schémas partagés vivent dans `packages/shared` (zod) — ne les dupliquez pas.
+- L'API est en ESM : les imports relatifs utilisent des extensions `.js` explicites.
+- Les textes affichés sont en français, avec le tutoiement, et reprennent le vocabulaire
+  de l'interface (sortie, défi, équipe, élève, enseignant, effacement…).
 
 ## Tests
 
-- Add or update tests with every behaviour change. API tests copy the `vi.mock(...)` block
-  from an existing test and use the fixtures in `packages/api/test/support/harness.ts`.
-  Web tests mount real routes against MSW — declare every endpoint a screen hits.
-- A known, unfixed bug is recorded as `it.fails(...)` with a `// BUG:` comment; when you
-  fix it, flip it to `it(...)`.
-- Coverage thresholds (`packages/{api,web}/vitest.config.ts`) may go up, never down.
+- Ajoutez ou mettez à jour les tests à chaque changement de comportement. Les tests de
+  l'API copient le bloc `vi.mock(...)` d'un test existant et utilisent les fixtures de
+  `packages/api/test/support/harness.ts`. Les tests web montent les vraies routes contre
+  MSW — déclarez chaque point d'accès appelé par un écran.
+- Un bug connu non corrigé est consigné par un `it.fails(...)` avec un commentaire
+  `// BUG:` ; quand vous le corrigez, passez-le en `it(...)`.
+- Les seuils de couverture (`packages/{api,web}/vitest.config.ts`) peuvent monter, jamais
+  descendre.
 
-## License
+## Licence
 
-By contributing, you agree that your contributions are licensed under the
-[GNU AGPL-3.0](./LICENSE), the project's license.
+En contribuant, vous acceptez que vos contributions soient publiées sous la
+[GNU AGPL-3.0](./LICENSE), la licence du projet.

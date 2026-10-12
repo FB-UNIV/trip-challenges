@@ -1,54 +1,55 @@
-# Development guide
+# Guide de développement
 
-Set up a local environment to run and hack on Trip Challenges. The **student flow works
-without any external services**; **teacher login** needs either an OIDC provider or the
-built-in dev-login shortcut (below).
+Monter un environnement local pour faire tourner et modifier Trip Challenges. Le
+**parcours élève fonctionne sans aucun service externe** ; la **connexion enseignant**
+nécessite soit un fournisseur OIDC, soit le raccourci de connexion de dev intégré
+(ci-dessous).
 
-- Architecture & glossary → [`../CONTEXT.md`](../CONTEXT.md), [`adr/`](./adr)
+- Architecture et glossaire → [`../CONTEXT.md`](../CONTEXT.md), [`adr/`](./adr)
 - Production → [`deployment.md`](./deployment.md)
 
 ---
 
-## 1. Prerequisites
+## 1. Prérequis
 
-- **Node.js ≥ 20** and **npm ≥ 10** (the API is ESM; imports use explicit `.js` extensions).
-- **Docker + Compose v2** — for the data services only (Postgres, MinIO, Vault). The API
-  and PWA run on your host with hot reload.
+- **Node.js ≥ 20** et **npm ≥ 10** (l'API est en ESM ; les imports utilisent des extensions `.js` explicites).
+- **Docker + Compose v2** — uniquement pour les services de données (Postgres, MinIO,
+  Vault). L'API et la PWA tournent sur votre machine avec rechargement à chaud.
 
-## 2. Install
+## 2. Installation
 
 ```bash
-git clone <your-repo> trip-challenges && cd trip-challenges
-npm install          # installs all workspaces (@trip/shared, @trip/api, @trip/web)
+git clone https://github.com/FB-UNIV/trip-challenges.git && cd trip-challenges
+npm install          # installe tous les workspaces (@trip/shared, @trip/api, @trip/web)
 ```
 
-## 3. Start the data services
+## 3. Démarrer les services de données
 
-`docker-compose.dev.yml` runs just the backing services, published to `localhost`:
+`docker-compose.dev.yml` ne lance que les services de soutien, exposés sur `localhost` :
 
 ```bash
 docker compose -f docker-compose.dev.yml up -d
 ```
 
-| Service | Host port | Notes |
+| Service | Port hôte | Remarques |
 |---|---|---|
-| Postgres | `5432` | empty; the API applies the migrations when it starts |
-| MinIO | `9000` (API), `9001` (web console) | default creds `trip-minio` / `devpass123` |
-| Vault | `8200` | dev mode, root token `dev-root-token` |
+| Postgres | `5432` | vide ; l'API applique les migrations au démarrage |
+| MinIO | `9000` (API), `9001` (console web) | identifiants par défaut `trip-minio` / `devpass123` |
+| Vault | `8200` | mode dev, jeton root `dev-root-token` |
 
-Every port is overridable if it clashes with something you already run — e.g.
-`MINIO_HOST_PORT=9002 MINIO_CONSOLE_PORT=9003 PG_HOST_PORT=5433 VAULT_HOST_PORT=8201 docker compose -f docker-compose.dev.yml up -d`.
-Set the same values in your `.env` endpoints below.
+Chaque port est modifiable s'il entre en conflit avec quelque chose qui tourne déjà —
+par ex. `MINIO_HOST_PORT=9002 MINIO_CONSOLE_PORT=9003 PG_HOST_PORT=5433 VAULT_HOST_PORT=8201 docker compose -f docker-compose.dev.yml up -d`.
+Reportez les mêmes valeurs dans les adresses de votre `.env` ci-dessous.
 
-## 4. Configure `.env`
+## 4. Configurer `.env`
 
-Copy the example and point everything at `localhost`:
+Copiez l'exemple et pointez tout vers `localhost` :
 
 ```bash
 cp .env.example .env
 ```
 
-Minimum for the student flow (no OIDC, no email, no AV):
+Le minimum pour le parcours élève (sans OIDC, sans e-mail, sans antivirus) :
 
 ```ini
 NODE_ENV=development
@@ -61,7 +62,7 @@ POSTGRES_DB=trip
 POSTGRES_USER=trip
 POSTGRES_PASSWORD=devpass
 
-# Object storage → the bundled dev MinIO (S3 API, path-style)
+# Stockage objet → le MinIO de dev fourni (API S3, path-style)
 S3_ENDPOINT=http://localhost:9000
 S3_REGION=us-east-1
 S3_ACCESS_KEY_ID=trip-minio
@@ -73,99 +74,112 @@ VAULT_ADDR=http://localhost:8200
 VAULT_TOKEN=dev-root-token
 VAULT_TRANSIT_MOUNT=transit
 
-SESSION_SECRET=dev-secret-please-change-32chars-min   # ≥ 32 chars
+SESSION_SECRET=dev-secret-please-change-32chars-min   # ≥ 32 caractères
 
-AV_SCAN_ENABLED=false        # dev compose has no clamav; leave off
+AV_SCAN_ENABLED=false        # le compose de dev n'a pas de clamav ; laissez désactivé
 
-# OIDC_* — only to test real teacher login; skip if using dev-login (§6)
+# OIDC_* — seulement pour tester la vraie connexion enseignant ; inutile avec dev-login (§ 6)
 ```
 
-The API **fails fast** if a required variable is missing — that's intentional. If it exits
-on boot, the error names the missing/invalid key.
+L'API **s'arrête immédiatement** s'il manque une variable obligatoire — c'est voulu. Si
+elle s'arrête au démarrage, l'erreur nomme la variable manquante ou invalide.
 
-## 5. Run the API and the PWA
+## 5. Lancer l'API et la PWA
 
-Two terminals:
+Deux terminaux :
 
 ```bash
-npm run dev:api      # Fastify on :3000 (tsx watch — restarts on save)
-npm run dev:web      # Vite on :5173, proxies /api → :3000
+npm run dev:api      # Fastify sur :3000 (tsx watch — redémarre à chaque sauvegarde)
+npm run dev:web      # Vite sur :5173, proxy /api → :3000
 ```
 
-Open **http://localhost:5173**. On first API boot it enables the Vault transit engine and
-creates the MinIO bucket automatically.
+Ouvrez **http://localhost:5173**. Au premier démarrage, l'API active le moteur transit de
+Vault et crée le bucket MinIO automatiquement.
 
-### Testing from a phone (camera / QR)
+### Tester depuis un téléphone (appareil photo / QR)
 
-`npm run dev:web` runs `vite --host`, so the dev server is reachable on your LAN at
-`http://<your-machine-ip>:5173`. Open that on a phone on the same network to test the camera
-and QR scanning. The `/api` proxy runs on the dev host, so the API doesn't need separate
-exposure. (Raw IP works out of the box; a hostname additionally needs `server.allowedHosts`
-in `vite.config.ts`.)
+`npm run dev:web` lance `vite --host` : le serveur de dev est joignable sur votre réseau
+local à `http://<ip-de-votre-machine>:5173`. Ouvrez cette adresse sur un téléphone du même
+réseau pour tester l'appareil photo et le scan des QR codes. Le proxy `/api` tourne sur la
+machine de dev, l'API n'a donc pas besoin d'être exposée séparément. (Une IP brute
+fonctionne directement ; un nom d'hôte nécessite en plus `server.allowedHosts` dans
+`vite.config.ts`.)
 
-## 6. Signing in as a teacher (without OIDC)
+## 6. Se connecter en tant qu'enseignant (sans OIDC)
 
-When `NODE_ENV !== "production"` the API exposes a passwordless shortcut — a dev-only
-backdoor that is **not registered in production**:
+Quand `NODE_ENV` ne vaut pas `production`, l'API expose un raccourci sans mot de passe —
+une porte dérobée réservée au dev, **non enregistrée en production** :
 
 ```bash
 curl -c cookies.txt -X POST http://localhost:3000/api/auth/teacher/dev-login \
-  -H 'content-type: application/json' -d '{"email":"teacher@example.org"}'
+  -H 'content-type: application/json' -d '{"email":"enseignant@example.org"}'
 ```
 
-That sets a teacher session cookie. In the browser, the teacher UI at `/teacher` will then
-work. To exercise the **real** OIDC flow instead, point `OIDC_*` at a dev PocketID and set
+Cela crée un cookie de session enseignant. Dans le navigateur, l'interface enseignant de
+`/teacher` fonctionne alors. Pour tester le **vrai** parcours OIDC, pointez `OIDC_*` vers
+un PocketID de dev et définissez
 `OIDC_REDIRECT_URI=http://localhost:5173/api/auth/teacher/callback`.
 
-## 7. Exercising the student flow
+## 7. Tester le parcours élève
 
-1. As a teacher, create a trip and import a roster (one email per line).
-2. Access codes are **printed to the API console** in dev (SMTP unset) — look for a
-   `[mail:dev] to=… :: … code=…` line.
-3. Redeem by opening `http://localhost:5173/join?code=<the-code>` — that spends the code and
-   establishes a device session. From there: form a team, upload via a challenge QR, vote.
+1. En tant qu'enseignant, créez une sortie et importez une liste d'élèves (une adresse par
+   ligne).
+2. En dev (sans SMTP), les e-mails sont **affichés dans la console de l'API** — cherchez
+   une ligne `[mail:dev] to=… :: Ton code d'accès pour …` contenant le lien
+   `…/join?code=…`.
+3. Ouvrez ce lien (`http://localhost:5173/join?code=<le-code>`) : il consomme le code et
+   ouvre une session sur l'appareil. Ensuite : former une équipe, envoyer une photo via le
+   QR d'un défi, voter.
 
-## 8. Checks
+## 8. Vérifications
 
 ```bash
-npm test           # Vitest (api, shared, web) + coverage thresholds — no infrastructure required
-npm run typecheck  # tsc across all workspaces
-npm run build      # api → dist, web → static bundle + service worker
+npm test           # Vitest (api, shared, web) + seuils de couverture — aucune infrastructure requise
+npm run typecheck  # tsc sur tous les workspaces
+npm run build      # api → dist, web → bundle statique + service worker
 ```
 
-For end-to-end work against live services, keep the dev compose up and drive the API with
-`curl` (see the `verify`/E2E scripts pattern). Tests themselves need no infra: API tests run
-the real schema in PGlite (in-process Postgres) with in-memory Vault/S3/SMTP fakes; web tests
-mount the real routes in jsdom (React Testing Library) against an MSW-mocked API.
+Pour travailler de bout en bout avec de vrais services, gardez le compose de dev lancé et
+pilotez l'API avec `curl` (voir `scripts/e2e.mjs`), ou lancez les tests Playwright de
+`e2e/` (`npm run e2e:services` puis `npm run test:e2e`). Les tests unitaires n'ont besoin
+d'aucune infrastructure : les tests de l'API exécutent le vrai schéma dans PGlite
+(Postgres dans le processus) avec des doublures en mémoire pour Vault/S3/SMTP ; les tests
+web montent les vraies routes dans jsdom (React Testing Library) contre une API simulée
+par MSW.
 
-## 9. Layout
+## 9. Organisation
 
 ```
 packages/
-  shared/   zod schemas + types — the single source of truth for api + web
-  api/      Fastify service
-    src/routes/     HTTP endpoints (trips, roster, teams, submissions, duels, invites, …)
-    src/auth/       sessions + guard.ts: every route's preHandler (role, trip, phases)
-    src/crypto/     Vault transit + envelope encryption
-    src/storage/    s3.ts — S3-compatible object store (MinIO/AWS/R2/B2)
-    src/erasure.ts  the crypto-erasure job + upcoming-erasure warnings
-    src/scheduler.ts background ticks (erasure, warnings, roster drain) under advisory locks
-    db/migrations/  numbered SQL, applied by the API at boot (src/migrate.ts)
-    test/           Vitest unit tests
-  web/      React PWA (Vite) — student + teacher UI, inline styles + index.css
-    test/           Vitest + RTL + MSW (render.tsx mounts src/routes.tsx)
+  shared/   schémas zod + types — la source unique pour api et web
+  api/      service Fastify
+    src/routes/     points d'accès HTTP (trips, roster, teams, submissions, duels, invites…)
+    src/auth/       sessions + guard.ts : le preHandler de chaque route (rôle, sortie, phases)
+    src/crypto/     Vault transit + chiffrement par enveloppe
+    src/email/      mailer.ts — les e-mails (en français)
+    src/storage/    s3.ts — stockage objet compatible S3 (MinIO/AWS/R2/B2)
+    src/erasure.ts  la tâche d'effacement cryptographique + les alertes avant effacement
+    src/scheduler.ts tâches de fond (effacement, alertes, envoi des codes) sous verrous consultatifs
+    db/migrations/  SQL numéroté, appliqué par l'API au démarrage (src/migrate.ts)
+    test/           tests unitaires Vitest
+  web/      PWA React (Vite) — interface élève + enseignant, styles en ligne + index.css
+    test/           Vitest + RTL + MSW (render.tsx monte src/routes.tsx)
+e2e/        tests Playwright sur la pile complète
 docs/       adr/ · data-model.md · deployment.md · development.md · production-hardening.md
-traefik/    dynamic.yml (edge file-provider config)
+traefik/    dynamic.yml (configuration du fournisseur « file » du frontal)
 ```
 
-## 10. Troubleshooting
+L'interface, les e-mails et les messages d'erreur de l'API sont en français (tutoiement) ;
+le code, les identifiants, les codes d'erreur et les journaux restent en anglais.
 
-| Symptom | Cause / fix |
+## 10. Dépannage
+
+| Symptôme | Cause / solution |
 |---|---|
-| API exits immediately on boot | A required env var is missing/invalid — the error names it. |
-| `ECONNREFUSED` to Postgres/MinIO/Vault | Data services not up, or a port was remapped. `docker compose -f docker-compose.dev.yml ps`; align `.env` endpoints with any `*_HOST_PORT` overrides. |
-| Port already in use on `up` | Another local stack owns 5432/9000/8200. Re-run with `PG_HOST_PORT=…`, `MINIO_HOST_PORT=…`, `VAULT_HOST_PORT=…`. |
-| Teacher login redirect fails | `OIDC_REDIRECT_URI` must exactly match the client's registered URI and end in `/api/auth/teacher/callback`. Or just use dev-login (§6). |
-| No access-code email | Expected in dev — codes print to the API console. Set `SMTP_*` to send for real. |
-| Uploads rejected `503 scan_unavailable` | `AV_SCAN_ENABLED=true` but no clamd reachable. Set it `false` in dev, or run a clamav container. |
-| Vault errors after `docker compose down -v` | Dev Vault is in-memory; wiping volumes destroys all keys (every trip becomes unreadable). Expected — recreate trips. |
+| L'API s'arrête dès le démarrage | Une variable d'environnement obligatoire manque ou est invalide — l'erreur la nomme. |
+| `ECONNREFUSED` vers Postgres/MinIO/Vault | Services de données non lancés, ou un port a été déplacé. `docker compose -f docker-compose.dev.yml ps` ; alignez les adresses de `.env` sur les `*_HOST_PORT` modifiés. |
+| Port déjà utilisé au `up` | Une autre pile locale occupe 5432/9000/8200. Relancez avec `PG_HOST_PORT=…`, `MINIO_HOST_PORT=…`, `VAULT_HOST_PORT=…`. |
+| La redirection de connexion enseignant échoue | `OIDC_REDIRECT_URI` doit correspondre exactement à l'URI déclarée pour le client et finir par `/api/auth/teacher/callback`. Ou utilisez simplement dev-login (§ 6). |
+| Pas d'e-mail de code d'accès | Normal en dev — les codes s'affichent dans la console de l'API. Définissez `SMTP_*` pour un vrai envoi. |
+| Envois refusés avec `503 scan_unavailable` | `AV_SCAN_ENABLED=true` mais aucun clamd joignable. Mettez `false` en dev, ou lancez un conteneur clamav. |
+| Erreurs Vault après `docker compose down -v` | Le Vault de dev est en mémoire ; supprimer les volumes détruit toutes les clés (toutes les sorties deviennent illisibles). Normal — recréez des sorties. |

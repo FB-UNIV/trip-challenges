@@ -1,5 +1,5 @@
 blank_issues_enabled: false
 contact_links:
-  - name: Security vulnerability
+  - name: Vulnérabilité de sécurité
     url: https://github.com/FB-UNIV/trip-challenges/security/advisories/new
-    about: Report privately — never in a public issue. See SECURITY.md.
+    about: À signaler en privé — jamais dans un ticket public. Voir SECURITY.md.
