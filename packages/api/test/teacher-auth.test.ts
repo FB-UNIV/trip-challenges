@@ -27,9 +27,11 @@ vi.mock("../src/auth/oidc.js", async () => {
 });
 
 import { teacherAuthRoutes } from "../src/routes/teacher-auth.js";
+import { tripRoutes } from "../src/routes/trips.js";
+import { teacherSessionValue } from "../src/auth/teacher.js";
 import { pool, resetAll, buildApp, teacherCookie, makeTeacher } from "./support/harness.js";
 
-const app = await buildApp([teacherAuthRoutes, "/api/auth/teacher"]);
+const app = await buildApp([teacherAuthRoutes, "/api/auth/teacher"], [tripRoutes, "/api/trips"]);
 
 beforeEach(async () => {
   await resetAll();
@@ -91,6 +93,21 @@ describe("session endpoints", () => {
     expect((await app.inject({ method: "GET", url: "/api/auth/teacher/me", headers: { cookie: "teacher_session=forged" } })).statusCode).toBe(401);
     const gone = teacherCookie(app, "00000000-0000-0000-0000-000000000000");
     expect((await app.inject({ method: "GET", url: "/api/auth/teacher/me", headers: { cookie: gone } })).statusCode).toBe(401);
+  });
+
+  // A signed cookie used to carry only the teacher id, so a copied one never expired server-side.
+  it("expires a session after 8 h on the server, whatever the browser kept", async () => {
+    const id = await makeTeacher();
+    const me = (value: string) =>
+      app.inject({ method: "GET", url: "/api/auth/teacher/me", headers: { cookie: `teacher_session=${app.signCookie(value)}` } });
+    const hours = (h: number) => Date.now() - h * 3_600_000;
+    expect((await me(teacherSessionValue(id, hours(7.9)))).statusCode).toBe(200);
+    expect((await me(teacherSessionValue(id, hours(8.1)))).statusCode).toBe(401);
+    expect((await me(id)).statusCode).toBe(401); // pre-expiry format: no issue time
+    expect((await me(teacherSessionValue(id, hours(-1)))).statusCode).toBe(401); // from the future
+    // Guarded routes read the same session.
+    const trips = await app.inject({ method: "GET", url: "/api/trips", headers: { cookie: `teacher_session=${app.signCookie(teacherSessionValue(id, hours(9)))}` } });
+    expect(trips.statusCode).toBe(401);
   });
 
   it("dev-login (non-production only) creates and signs in a teacher", async () => {

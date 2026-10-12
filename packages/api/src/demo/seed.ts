@@ -12,6 +12,7 @@ import argon2 from "argon2";
 import sharp from "sharp";
 import { randomBytes, randomUUID } from "node:crypto";
 import { config } from "../config.js";
+import { teacherSessionValue } from "../auth/teacher.js";
 import { pool } from "../db.js";
 import { encrypt, hmac } from "../crypto/vault.js";
 import { eraseTrip } from "../erasure.js";
@@ -68,7 +69,7 @@ export async function seedDemo(opts: SeedOptions): Promise<{ trips: SeededTrip[]
 
   const app = await demoApp();
   try {
-    const teacher = `teacher_session=${app.signCookie(teacherId)}`;
+    const teacher = `teacher_session=${app.signCookie(teacherSessionValue(teacherId))}`;
     const stamp = new Date().toISOString().slice(0, 16).replace("T", " ");
     const trips: SeededTrip[] = [];
     for (const target of ["draft", "voting", "reveal"] as const) {
@@ -107,7 +108,7 @@ export async function seedLoadtest(opts: {
   const app = await demoApp();
   try {
     const call = caller(app);
-    const teacher = `teacher_session=${app.signCookie(teacherId)}`;
+    const teacher = `teacher_session=${app.signCookie(teacherSessionValue(teacherId))}`;
     const stamp = new Date().toISOString().slice(0, 16).replace("T", " ");
     const end = new Date(Date.now() + 30 * 86_400_000).toISOString().slice(0, 10);
     const newTrip = async (label: string) =>

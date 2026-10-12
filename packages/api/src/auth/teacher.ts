@@ -4,12 +4,22 @@ import { pool } from "../db.js";
 
 export type TeacherCtx = { teacherId: string };
 
+export const TEACHER_SESSION_TTL_MS = 8 * 60 * 60 * 1000;
+
+/** The signed cookie value: who, and when it was issued — so the 8 h limit holds server-side,
+ *  not only in the browser (a copied cookie used to stay valid until SESSION_SECRET rotated). */
+export const teacherSessionValue = (teacherId: string, issuedAt = Date.now()) => `${teacherId}.${issuedAt}`;
+
 export function readTeacher(req: FastifyRequest, reply: FastifyReply): TeacherCtx | null {
   const raw = req.cookies["teacher_session"];
   if (!raw) return null;
   const un = reply.unsignCookie(raw);
   if (!un.valid || !un.value) return null;
-  return { teacherId: un.value };
+  const [teacherId, issued] = un.value.split(".", 2);
+  const age = Date.now() - Number(issued);
+  // No timestamp (pre-expiry cookie), expired, or from the future (beyond replica clock skew).
+  if (!teacherId || !Number.isFinite(age) || age < -60_000 || age > TEACHER_SESSION_TTL_MS) return null;
+  return { teacherId };
 }
 
 /** Assert the teacher is owner or co-teacher on a Trip. */
