@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.13.0](https://github.com/FB-UNIV/trip-challenges/compare/v0.12.1...v0.13.0) (2026-10-12)
+
+
+### Features
+
+* the ceremony shows each podium's winning photo ([#168](https://github.com/FB-UNIV/trip-challenges/issues/168)) ([e22ef29](https://github.com/FB-UNIV/trip-challenges/commit/e22ef294a3b680a687ab9ec9752ac0a0816a685e))
+
 ## [0.12.1](https://github.com/FB-UNIV/trip-challenges/compare/v0.12.0...v0.12.1) (2026-10-12)
 
 
