@@ -1,91 +1,224 @@
-# Context — Trip Challenges
+# Contexte — Trip Challenges
 
-Glossary for the school-trip challenge PWA. Terms only. No implementation.
+Glossaire de la PWA de défis pour sorties scolaires. Des termes uniquement, pas
+d'implémentation. Chaque terme indique entre parenthèses le nom anglais utilisé dans le
+code (types, tables, routes) ; l'interface emploie le terme français.
 
-## Ubiquitous Language
+## Langage commun
 
-### Student
-A minor participant on the trip. Identified by a personal **Access Code** delivered to their email. Not a full account (no password). Holds PII: email.
+### Élève (Student)
+Participant mineur de la sortie. Identifié par un **code d'accès** personnel envoyé à son
+adresse e-mail. Pas un compte complet (pas de mot de passe). Porte une donnée
+personnelle : l'e-mail.
 
-### Teacher
-Organizer. Configures Challenges, manages the trip lifecycle (challenge period, voting period, erasure), moderates Nominations. Elevated privileges. A Trip has one **owner** Teacher (its creator) who may invite **co-teachers** with equal management access to that Trip.
+### Enseignant (Teacher)
+Organisateur. Configure les défis, pilote le cycle de vie de la sortie (période de défis,
+période de vote, effacement), modère les photos en lice. Droits étendus. Une sortie a un
+enseignant **responsable** (owner, son créateur) qui peut inviter des **co-enseignants**
+(co-teachers) ayant les mêmes droits de gestion sur cette sortie.
 
-### Access Code
-Opaque per-student secret emailed to a Student. Authentication mechanism for Students. Sourced from the Roster. **Single-use**: redeeming it establishes a long-lived, device-bound session; the code is then spent. A Student who loses/changes device requests a fresh code to their email; **redeeming that new code invalidates the prior session** (requesting alone does not — so a stranger who knows the email cannot log the Student out without also reading the emailed code). Not a standing shareable password. Valid only until that Trip's Erasure. The code is human-typed, so it is hashed with argon2 (slow KDF). The device session token it yields is 256-bit random and is checked on every request, so it is stored as a SHA-256 hash: a slow KDF adds nothing for a secret that cannot be guessed (#64).
-_Avoid_: password, login, PIN (it is not a chosen credential).
+### Code d'accès (Access Code)
+Secret opaque propre à chaque élève, envoyé par e-mail. Mécanisme d'authentification des
+élèves. Issu de la liste d'élèves. **À usage unique** : l'utiliser ouvre une session
+durable liée à l'appareil ; le code est alors consommé. Un élève qui perd ou change
+d'appareil demande un nouveau code à son adresse ; **utiliser ce nouveau code invalide la
+session précédente** (la demande seule ne suffit pas — un inconnu qui connaît l'adresse
+ne peut donc pas déconnecter l'élève sans lire aussi l'e-mail reçu). Ce n'est pas un mot
+de passe permanent et partageable. Valable uniquement jusqu'à l'effacement de la sortie.
+Le code est saisi à la main, il est donc haché avec argon2 (KDF lente). Le jeton de
+session qu'il produit est un aléa de 256 bits vérifié à chaque requête : il est stocké
+sous forme de hachage SHA-256, une KDF lente n'apportant rien pour un secret impossible à
+deviner (#64).
+_À éviter_ : mot de passe, identifiant, code PIN (ce n'est pas un secret choisi).
 
-### Joined
-A Student has **Joined** once they have redeemed an Access Code on a device at least once. Requesting a fresh code later (lost device) does not undo it. A Student who was emailed a code but never redeemed one is **invited**, not joined. A Roster address whose email could not be delivered never becomes a Student at all (**undelivered**).
-_Avoid_: registered, signed up, active (a joined Student may not have opened the app since).
+### Inscrit (Joined)
+Un élève est **inscrit** dès qu'il a utilisé un code d'accès sur un appareil au moins une
+fois. Demander plus tard un nouveau code (appareil perdu) ne l'annule pas. Un élève qui a
+reçu un code sans jamais en utiliser est **invité** (invited), pas inscrit. Une adresse de
+la liste dont l'e-mail n'a pas pu être distribué ne devient jamais un élève
+(**non distribué**, undelivered).
+_À éviter_ : enregistré, actif (un élève inscrit peut ne pas avoir rouvert l'application depuis).
 
-### Roster
-List of student emails bulk-imported by a Teacher. School holds parental consent offline and is the data **controller**; this system is a **processor**. Roster emails are wiped at Erasure.
+### Liste d'élèves (Roster)
+Liste d'adresses e-mail d'élèves importée en masse par un enseignant. L'établissement
+détient le consentement parental hors ligne et est **responsable de traitement** ; ce
+système est **sous-traitant**. Les adresses de la liste sont détruites à l'effacement.
 
-### Team
-A voluntary grouping of Students, formed by Students themselves. Unit credited for Submissions. Teams are **optional** for the Student: one who plays alone is a Team of one (#79). Rules:
-- **Exclusive**: a Student is in exactly one Team at a time.
-- **Solo allowed**: a Team may have a single member. A Student without a Team can **play solo** during the challenge period by creating a Team of one (naming it as for any Team). Nobody can join it, since joining is locked by then.
-- **Fixed**: joining and leaving lock when the challenge period starts. Creating a Team stays open until voting, so a Student without one can still play solo.
-- **Bounded**: 1..maxTeamSize, where maxTeamSize is set per Trip by the Teacher (default 4).
-- **Named by Students, reviewed by a Teacher**: a Team name is free text and may identify Students. A Teacher may rename a Team at any time before the reveal and marks its name **reviewed** (renaming counts as reviewing). Unreviewed names are shown during the Trip and the ceremony, but never survive Erasure.
+### Équipe (Team)
+Regroupement volontaire d'élèves, formé par les élèves eux-mêmes. C'est l'équipe qui est
+créditée des photos. Les équipes sont **facultatives** pour l'élève : celui qui joue seul
+forme une équipe d'une personne (#79). Règles :
+- **Exclusive** : un élève appartient à une seule équipe à la fois.
+- **Solo autorisé** : une équipe peut n'avoir qu'un membre. Un élève sans équipe peut
+  **jouer en solo** pendant la période de défis en créant une équipe d'une personne
+  (nommée comme toute équipe). Personne ne peut la rejoindre, l'adhésion étant alors
+  verrouillée.
+- **Figée** : rejoindre et quitter une équipe se verrouillent au début de la période de
+  défis. Créer une équipe reste possible jusqu'au vote, pour qu'un élève sans équipe
+  puisse encore jouer en solo.
+- **Bornée** : de 1 à maxTeamSize membres, maxTeamSize étant fixé par sortie par
+  l'enseignant (4 par défaut).
+- **Nommée par les élèves, vérifiée par un enseignant** : le nom d'une équipe est un
+  texte libre qui peut identifier des élèves. Un enseignant peut renommer une équipe à
+  tout moment avant la révélation et marque son nom comme **vérifié** (reviewed ;
+  renommer vaut vérification). Les noms non vérifiés s'affichent pendant la sortie et la
+  cérémonie, mais ne survivent jamais à l'effacement.
 
-### Trip
-The top-level container for one school trip and the isolation boundary. Owns the Roster, the Challenges, the config (e.g. maxTeamSize, points table), and the lifecycle phases (challenge period -> voting period -> Erasure). Everything is scoped by `tripId`. Created and owned by a Teacher; a Teacher only sees their own Trip(s). One deployment hosts **many Trips, possibly concurrent**; each Trip has its own encryption key (per-Trip blast radius). A given student email may appear in two Trips' Rosters — those are **separate** Students with separate Access Codes; no data crosses Trips.
+### Sortie (Trip)
+Le conteneur de plus haut niveau pour une sortie scolaire, et la frontière d'isolation.
+Elle possède la liste d'élèves, les défis, la configuration (par ex. maxTeamSize, barème
+des points) et les phases du cycle de vie (période de défis → période de vote →
+effacement). Tout est cloisonné par `tripId`. Créée et possédée par un enseignant ; un
+enseignant ne voit que ses propres sorties. Un même déploiement héberge **de nombreuses
+sorties, éventuellement simultanées** ; chaque sortie a sa propre clé de chiffrement
+(rayon d'impact limité à la sortie). Une même adresse d'élève peut figurer dans les listes
+de deux sorties : ce sont alors **deux élèves distincts** avec des codes d'accès
+distincts ; aucune donnée ne passe d'une sortie à l'autre.
 
-### Challenge
-A task configured by a Teacher, completed by submitting a photo. Attributes: title, instructions/description, one bound QR Code, and a **multiplier** (default 1; e.g. 2 for a "boss" Challenge) that scales its Grand Champion points. Scoped to a Trip.
-_Avoid_: task, quest, mission.
+### Défi (Challenge)
+Une tâche configurée par un enseignant, accomplie en envoyant une photo. Attributs :
+titre, consignes, un QR code associé, et un **multiplicateur** (1 par défaut ; par ex. 2
+pour un défi « boss ») qui pondère ses points pour le grand champion. Rattaché à une
+sortie.
+_À éviter_ : tâche, quête, mission.
 
-### QR Code
-Static printed code bound to one Challenge (encodes a URL to that Challenge; printable once). Scanning opens the Challenge page. Upload requires an authenticated Student session (via Access Code); the Submission is attributed to the Student's Team. Scanning alone grants no access.
+### QR code (QR Code)
+Code imprimé et statique associé à un défi (il encode l'URL du défi ; imprimable une
+fois). Le scanner ouvre la page du défi. L'envoi exige une session élève authentifiée
+(via le code d'accès) ; la photo est attribuée à l'équipe de l'élève. Scanner seul ne
+donne aucun accès.
 
-### Submission
-A photo uploaded by any member of a Team in response to a Challenge. A Team may have many Submissions per Challenge. Subject to erasure. Any team member can upload. Source: live camera capture OR device gallery.
+### Photo (Submission)
+Une photo envoyée par n'importe quel membre d'une équipe pour un défi. Une équipe peut
+avoir plusieurs photos par défi. Soumise à l'effacement. Tout membre de l'équipe peut en
+envoyer. Source : prise de vue directe OU galerie de l'appareil.
 
-During the challenge period a Submission is visible only to its own Team; non-nominated Submissions stay team-only forever (never public). It becomes public only if Nominated **and** Approved by moderation, at voting time. **Teachers of the Trip can view and remove ANY Submission at any time** (not just Nominations) — so inappropriate uploads that never get nominated are still catchable.
+Pendant la période de défis, une photo n'est visible que par sa propre équipe ; les
+photos non sélectionnées restent réservées à l'équipe pour toujours (jamais publiques).
+Une photo ne devient publique que si elle est sélectionnée **et** validée par la
+modération, au moment du vote. **Les enseignants de la sortie peuvent voir et retirer
+N'IMPORTE QUELLE photo à tout moment** (pas seulement celles en lice) — les envois
+inappropriés jamais sélectionnés restent donc rattrapables.
 
-### Moderation
-Two layers. (1) **Nomination review**: a Teacher reviews Nominations before the Voting Period opens; only **Approved** Nominations become votable/public (states `pending -> approved | rejected`); a rejected Nomination is not shown and the Team may re-nominate while the challenge period is open. (2) **Standing oversight**: a Teacher may view and remove **any** Submission in their Trip at any time, independent of nomination — the child-safety backstop for content that never enters the nomination flow.
+### Modération (Moderation)
+Deux niveaux. (1) **Modération des photos en lice** : un enseignant examine les photos
+sélectionnées avant l'ouverture du vote ; seules les photos **validées** deviennent
+votables/publiques (états `pending → approved | rejected`, soit en attente → validée |
+refusée) ; une photo refusée n'est pas montrée et l'équipe peut en sélectionner une autre
+tant que la période de défis est ouverte. (2) **Surveillance permanente** : un enseignant
+peut voir et retirer **n'importe quelle** photo de sa sortie à tout moment,
+indépendamment de la sélection — le filet de sécurité pour les contenus qui n'entrent
+jamais dans le circuit de sélection.
 
-### Nomination
-The single Submission a Team selects (per Challenge) to enter the Voting Period. Only Nominations are votable. If a Team hasn't nominated when voting opens, the **latest** Submission is auto-nominated. Non-nominated Submissions are **kept until final Erasure** (allows re-nomination while challenge period is open). A Teacher moderates each Nomination: **pending**, then **approved** or **rejected**. The Team sees that state on its photos and checklist (#81). A **rejected** Nomination is final: the Team may pick another photo while the challenge period is open, but it is **not** auto-nominated again when voting opens. A Teacher may still reject after voting opened, after a warning that the Team can no longer replace its entry.
+### Photo en lice / sélection (Nomination)
+L'unique photo qu'une équipe sélectionne (par défi) pour participer au vote. Seules les
+photos en lice sont votables. Si une équipe n'a rien sélectionné à l'ouverture du vote,
+sa **dernière** photo est sélectionnée automatiquement. Les photos non sélectionnées
+sont **conservées jusqu'à l'effacement final** (ce qui permet de changer de sélection
+tant que la période de défis est ouverte). Un enseignant modère chaque photo en lice :
+**en attente**, puis **validée** ou **refusée**. L'équipe voit cet état sur ses photos et
+sa liste de défis (#81). Un refus est **définitif** : l'équipe peut choisir une autre
+photo tant que la période de défis est ouverte, mais elle n'est **pas** resélectionnée
+automatiquement à l'ouverture du vote. Un enseignant peut encore refuser après
+l'ouverture du vote, après un avertissement indiquant que l'équipe ne pourra plus
+remplacer sa photo.
 
-### Voting Period
-Phase after the challenge period. Authenticated Students vote to elect a Winner per Challenge. Mechanic is **pairwise (Tinder-style duels)**: a voter is shown two approved Nominations from the same Challenge and picks the better; repeated over rounds. Constraints: no self-voting (a voter is never shown a pair containing their own Team's Nomination), results hidden until the period closes.
+### Période de vote (Voting Period)
+La phase qui suit la période de défis. Les élèves authentifiés votent pour élire un
+gagnant par défi. Le mécanisme est le **vote par paire (duels façon Tinder)** : on montre
+au votant deux photos validées du même défi et il choisit la meilleure ; et ainsi de
+suite. Contraintes : pas de vote pour soi (on ne montre jamais au votant une paire
+contenant la photo de sa propre équipe), résultats cachés jusqu'à la clôture.
 
-### Duel
-One pairwise comparison: two Nominations of the same Challenge shown to a voter, who picks one. Produces a win for the chosen Nomination and a loss for the other. The atomic unit of voting (there is no single "one vote per voter"). Pairing: **least-compared-first** (pick the Nomination with fewest comparisons) vs a random eligible opponent, excluding the voter's own Team; a given pair is not repeated to the same voter. Voters may Duel **unlimited** times per Challenge; the system keeps steering them to under-compared pairs. Because a voter is never shown their own Team's Nomination, a Challenge needs **at least 3 Teams** with approved Nominations before any Duel can be formed — with 2 Teams every voter is one of the two participants, so no valid pair exists and voting cannot proceed.
+### Duel (Duel)
+Une comparaison par paire : deux photos en lice du même défi montrées à un votant, qui en
+choisit une. Cela produit une victoire pour la photo choisie et une défaite pour l'autre.
+C'est l'unité de base du vote (il n'y a pas « un vote par votant »). Appariement : **la
+moins comparée d'abord** (la photo qui a le moins de comparaisons) contre une adversaire
+éligible tirée au hasard, en excluant l'équipe du votant ; une même paire n'est pas
+reproposée au même votant. Les votants peuvent faire des duels **sans limite** par défi ;
+le système les oriente vers les paires les moins comparées. Comme on ne montre jamais au
+votant la photo de sa propre équipe, un défi a besoin d'**au moins 3 équipes** avec des
+photos validées pour qu'un duel soit possible — avec 2 équipes, chaque votant est l'un
+des deux participants, aucune paire valide n'existe et le vote ne peut pas avoir lieu.
 
-### Ranking
-Per Challenge, each Nomination accrues a win/loss record from Duels. Score = **Wilson lower-bound** on win-rate (wins / total comparisons), so unequal/low comparison counts are handled fairly.
+### Classement (Ranking)
+Pour chaque défi, chaque photo en lice accumule un bilan de victoires/défaites issu des
+duels. Score = **borne inférieure de Wilson** du taux de victoire (victoires /
+comparaisons), ce qui traite équitablement des nombres de comparaisons inégaux ou faibles.
 
-### Winner
-The Nomination (and its Team) with the highest Ranking score for a Challenge. Tied Ranking scores **share the placement and its points** (standard competition ranking: two firsts → next is third); per-Challenge ties are **not** hand-broken by the Teacher. One top placement per Challenge (possibly shared).
+### Gagnant (Winner)
+La photo en lice (et son équipe) qui a le meilleur score de classement pour un défi. Des
+scores égaux **partagent la place et ses points** (classement sportif standard : deux
+premiers → le suivant est troisième) ; les égalités par défi ne sont **pas** départagées
+à la main par l'enseignant. Une seule première place par défi (éventuellement partagée).
 
-### Grand Champion
-The overall Trip winner. Each Challenge yields a placement order (from Ranking). The Teacher configures a **points table** per Trip — default depth **top 3** (1st=5, 2nd=3, 3rd=1), rest 0; depth and values editable. Per Challenge, placement points are scaled by the Challenge's **multiplier**, then summed across all Challenges per Team; highest total is Grand Champion. A tie for Grand Champion is broken by an explicit **Teacher** action during the ceremony (all tied Teams surface as co-champions until the Teacher picks one) — this is the **only** tie the Teacher hand-breaks. Results are computed at voting close but revealed via a **teacher-paced ceremony**: a single **shared reveal** (one screen — a projector/room), stepped one Challenge at a time by the Teacher. It is **not** synchronized to each Student's device. Results are **not publicly viewable** until the Teacher completes the ceremony; only then does the full results page unlock (and stays a public keepsake through Erasure).
+### Grand champion (Grand Champion)
+Le gagnant global de la sortie. Chaque défi produit un ordre de placement (issu du
+classement). L'enseignant configure un **barème des points** par sortie — par défaut les
+**3 premiers** (1er = 5, 2e = 3, 3e = 1), 0 pour les autres ; profondeur et valeurs
+modifiables. Pour chaque défi, les points de placement sont multipliés par le
+**multiplicateur** du défi, puis additionnés sur tous les défis pour chaque équipe ; le
+plus haut total est grand champion. Une égalité pour le titre de grand champion est
+départagée par une action explicite de l'**enseignant** pendant la cérémonie (toutes les
+équipes à égalité apparaissent comme co-champions jusqu'à ce que l'enseignant en choisisse
+une) — c'est la **seule** égalité que l'enseignant départage à la main. Les résultats
+sont calculés à la clôture du vote mais dévoilés lors d'une **cérémonie rythmée par
+l'enseignant** : une **révélation partagée** unique (un écran — un vidéoprojecteur, une
+salle), qui avance défi par défi au rythme de l'enseignant. Elle n'est **pas**
+synchronisée sur l'appareil de chaque élève. Les résultats **ne sont pas visibles
+publiquement** tant que l'enseignant n'a pas terminé la cérémonie ; ce n'est qu'ensuite
+que la page complète des résultats se débloque (et reste un souvenir public jusqu'à
+l'effacement).
 
-### Lifecycle
-A Trip moves challenge period -> Voting Period -> Erasure. The Teacher sets planned dates (challenge opens, voting opens, voting closes); the Trip auto-advances into the challenge period and into the Voting Period at those dates, or earlier when the Teacher advances by hand. At the voting-close date voting stops, but the reveal ceremony always starts with a Teacher's click. Erasure auto-fires after the grace window; a Teacher may fire it early.
+### Cycle de vie (Lifecycle)
+Une sortie passe de la période de défis à la période de vote, puis à l'effacement.
+Phases dans le code : `draft` (brouillon) → `challenge` (défis) → `voting` (vote) →
+`reveal` (révélation) → `grace` (délai de grâce) → `erased` (effacée). L'enseignant fixe
+des dates prévues (ouverture des défis, ouverture du vote, clôture du vote) ; la sortie
+passe automatiquement en période de défis puis en période de vote à ces dates, ou plus tôt
+si l'enseignant avance à la main. À la date de clôture, le vote s'arrête, mais la
+cérémonie de révélation démarre toujours par un clic de l'enseignant. L'effacement se
+déclenche automatiquement après le délai de grâce ; un enseignant peut le déclencher plus
+tôt.
 
-### Erasure
-Irreversible destruction of all Student PII and Submissions for a Trip. Core requirement (minors' data).
+### Effacement (Erasure)
+Destruction irréversible de toutes les données personnelles des élèves et de toutes les
+photos d'une sortie. Exigence centrale (données de mineurs).
 
-**Trigger**: voting closes -> Winners shown -> a teacher-configured grace window elapses (default e.g. 7 days) -> automatic wipe. A Teacher may trigger it early. **Hard fallback deadline**: a Trip is force-erased at `tripEndDate + maxRetention` (default 30 days) **regardless of lifecycle phase** — even mid-challenge or mid-voting — so neglected data cannot linger. Teachers are warned before it fires.
+**Déclenchement** : clôture du vote → gagnants dévoilés → un délai de grâce configuré par
+l'enseignant s'écoule (par ex. 7 jours par défaut) → effacement automatique. Un
+enseignant peut le déclencher plus tôt. **Date butoir de secours** : une sortie est
+effacée d'office à `tripEndDate + maxRetention` (30 jours par défaut) **quelle que soit
+la phase** — même en pleine période de défis ou de vote — pour que des données
+oubliées ne puissent pas traîner. Les enseignants sont prévenus avant.
 
-**Scope** — destroys:
-- All Submission photo blobs (object storage) — **including Winners' photos** (a minor's face is personal data even without a name).
-- All student/team/vote/duel DB rows and Roster emails.
-- **Backups & snapshots** — achieved via crypto-erasure: each Trip encrypted under a per-Trip key; Erasure destroys the key, rendering any residual backup unreadable (rather than chasing every snapshot).
-- **Logs & email-delivery records** — scrubbed/rotated so no residual student PII survives.
+**Périmètre** — détruit :
+- Tous les fichiers photo (stockage objet) — **y compris les photos des gagnants** (le
+  visage d'un mineur est une donnée personnelle, même sans nom).
+- Toutes les lignes de base concernant élèves/équipes/votes/duels et les adresses de la
+  liste d'élèves.
+- **Sauvegardes et instantanés** — par effacement cryptographique : chaque sortie est
+  chiffrée sous une clé propre ; l'effacement détruit la clé, ce qui rend toute sauvegarde
+  résiduelle illisible (plutôt que de courir après chaque instantané).
+- **Journaux et traces de distribution des e-mails** — nettoyés/renouvelés pour qu'aucune
+  donnée personnelle d'élève ne subsiste.
 
-**Survives** (non-personal only):
-- A results record such as "Team FOX won Challenge 3" — Challenge title + winning Team name, **no image, no student identity**. Only a **reviewed** Team name survives; an unreviewed one is replaced by a neutral label ("Team 3") at Erasure.
-- The **teacher-action audit log** (e.g. "teacher removed a Submission at T", "Erasure fired") — **PII-free by design** (references opaque IDs and teacher identity, never student PII), which is precisely why it may survive.
+**Subsiste** (uniquement le non personnel) :
+- Un enregistrement de résultat du type « l'équipe RENARD a gagné le défi 3 » — titre du
+  défi + nom de l'équipe gagnante, **sans image ni identité d'élève**. Seul un nom
+  d'équipe **vérifié** subsiste ; un nom non vérifié est remplacé à l'effacement par une
+  étiquette neutre (« Équipe 3 »).
+- Le **journal d'audit des actions des enseignants** (par ex. « un enseignant a retiré une
+  photo à T », « effacement déclenché ») — **sans données personnelles par conception**
+  (il référence des identifiants opaques et l'identité de l'enseignant, jamais des
+  données d'élèves), et c'est précisément pour cela qu'il peut subsister.
 
-## Open Questions
-Domain model settled. Remaining items are minor / implementation-level:
-- Co-teacher invite mechanism (email invite? link?).
-- Channel + timing of the pre-Erasure warning to Teachers (email?).
-- Are all Challenges equal weight for Grand Champion, or can a Challenge carry a multiplier? (currently: equal, single global points table.)
-- Abuse/rate-limiting specifics on Duel submission and Access Code redemption.
+## Questions ouvertes
+
+Le modèle du domaine est stabilisé. Les questions d'origine sont tranchées :
+- Invitation des co-enseignants : un lien personnel envoyé par e-mail, valable 7 jours.
+- Alerte avant effacement : des e-mails progressifs aux enseignants de la sortie.
+- Pondération des défis : chaque défi porte un multiplicateur (1 par défaut).
+- Limitation des abus : limites de débit par IP et par élève connecté, sur toutes les
+  routes dont les duels et l'utilisation des codes d'accès.

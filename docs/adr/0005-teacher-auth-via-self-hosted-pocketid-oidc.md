@@ -1,14 +1,24 @@
-# Teacher authentication via self-hosted PocketID (OIDC)
+# Authentification des enseignants via PocketID auto-hébergé (OIDC)
 
-Teachers authenticate through the operator's self-hosted **PocketID** OIDC provider; the application stores **no local teacher credentials** and delegates MFA/passkey enforcement to PocketID. This keeps admin credentials (the highest-value accounts, able to configure Challenges and trigger Erasure) out of our datastore entirely, and reuses infrastructure the operator already runs.
+Les enseignants s'authentifient auprès du fournisseur OIDC **PocketID** auto-hébergé par
+l'exploitant ; l'application ne stocke **aucun identifiant local d'enseignant** et
+délègue à PocketID l'application de la MFA et des passkeys. Les identifiants
+d'administration (les comptes les plus sensibles, capables de configurer les défis et de
+déclencher l'effacement) restent ainsi entièrement hors de nos données, et l'on réutilise
+une infrastructure que l'exploitant fait déjà tourner.
 
-## Considered Options
+## Options envisagées
 
-- **Password + mandatory TOTP** — rejected: makes us store and protect credentials for the most sensitive role.
-- **Google Workspace SSO** — not applicable; the operator does not use Google and runs their own IdP.
-- **Email magic links** — rejected for an admin role: security would reduce to inbox security.
+- **Mot de passe + TOTP obligatoire** — rejetée : nous obligerait à stocker et protéger
+  les identifiants du rôle le plus sensible.
+- **SSO Google Workspace** — sans objet ; l'exploitant n'utilise pas Google et fait
+  tourner son propre fournisseur d'identité.
+- **Liens magiques par e-mail** — rejetée pour un rôle d'administration : la sécurité se
+  réduirait à celle de la boîte mail.
 
-## Consequences
+## Conséquences
 
-- Availability of teacher login depends on PocketID being reachable; it is an external dependency in the auth path.
-- Auth is coupled to PocketID/OIDC; swapping IdPs later is a real (though standards-bounded) migration.
+- La disponibilité de la connexion enseignant dépend de l'accessibilité de PocketID ;
+  c'est une dépendance externe sur le chemin d'authentification.
+- L'authentification est liée à PocketID/OIDC ; changer de fournisseur d'identité plus
+  tard serait une vraie migration (bien que bornée par les standards).

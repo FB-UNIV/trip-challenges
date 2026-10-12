@@ -1,17 +1,39 @@
-# Teachers may read their Trip's student emails back
+# Les enseignants peuvent relire les e-mails des élèves de leur sortie
 
-Until now no teacher-facing route decrypted a Student's email: the Roster went in, and only counts came out. Teachers on staging could see "4 haven't joined, 1 email failed" but not *who*, so they couldn't chase a straggler or fix a typo'd address. We now decrypt, for a Trip's teachers only, each Student's email in the teacher's student list (with their Joined / Invited / Undelivered status and team), and let them resend a code or correct an undelivered address.
+Jusqu'ici, aucune route côté enseignant ne déchiffrait l'e-mail d'un élève : la liste
+entrait, et seuls des décomptes ressortaient. En préproduction, les enseignants voyaient
+« 4 ne sont pas inscrits, 1 e-mail en échec » mais pas *qui*, et ne pouvaient donc ni
+relancer un retardataire ni corriger une adresse mal saisie. Nous déchiffrons désormais,
+pour les seuls enseignants d'une sortie, l'e-mail de chaque élève dans la liste des élèves
+de l'enseignant (avec son statut inscrit / invité / non distribué et son équipe), et
+permettons de renvoyer un code ou de corriger une adresse non distribuée.
 
-The school is the data controller (ADR-0004) and the teacher acts for it; they typed these addresses in themselves, so reading them back widens no one's knowledge. The email stays the only student PII we hold, under the per-Trip key (ADR-0001), and is destroyed at Erasure like before.
+L'établissement est responsable de traitement (ADR-0004) et l'enseignant agit pour son
+compte ; il a saisi ces adresses lui-même, les relire n'élargit donc la connaissance de
+personne. L'e-mail reste la seule donnée personnelle d'élève que nous détenons, sous la
+clé de la sortie (ADR-0001), et il est détruit à l'effacement comme avant.
 
-## Considered Options
+## Options envisagées
 
-- **Counts only, no per-student list** — no new decryption path, but the teacher can't act on "4 haven't joined"; rejected as it leaves the actual job undone.
-- **Masked emails** (`l•••@school.fr`) — looks safer but isn't: anyone who knows the class can guess them, and it makes a typo impossible to spot.
+- **Décomptes seulement, pas de liste par élève** — aucun nouveau chemin de déchiffrement,
+  mais l'enseignant ne peut rien faire de « 4 ne sont pas inscrits » ; rejetée car elle
+  laisse le vrai travail inachevé.
+- **E-mails masqués** (`l•••@ecole.fr`) — semble plus sûr mais ne l'est pas : quiconque
+  connaît la classe peut les deviner, et une faute de frappe devient impossible à repérer.
 
-## Consequences
+## Conséquences
 
-- A new decryption path for minors' data, guarded like every teacher route (Trip membership; 404 for others).
-- Safeguards: request logging redacts emails and never logs bodies — a test drives these routes, including failed mails whose errors echo the address, through the production logger. The response to a failed send is generic.
-- The audit log records **actions** only (`access_code_resent`, `roster_address_fixed`, `roster_item_retried`), with opaque ids; viewing the list is not audited — teachers are already entitled to these addresses, and the audit log exists to prove what changed or was destroyed. Revisit if a school's DPO requires access logging.
-- Per-student information stays deliberately thin: status and team only — no "last seen", photos or votes per student (no per-child monitoring).
+- Un nouveau chemin de déchiffrement de données de mineurs, protégé comme toute route
+  enseignant (appartenance à la sortie ; 404 pour les autres).
+- Garde-fous : la journalisation des requêtes masque les e-mails et ne journalise jamais
+  les corps — un test fait passer ces routes, y compris les envois en échec dont les
+  erreurs répètent l'adresse, par le journaliseur de production. La réponse à un envoi en
+  échec est générique.
+- Le journal d'audit n'enregistre que des **actions** (`access_code_resent`,
+  `roster_address_fixed`, `roster_item_retried`), avec des identifiants opaques ; consulter
+  la liste n'est pas audité — les enseignants ont déjà droit à ces adresses, et le journal
+  d'audit sert à prouver ce qui a été modifié ou détruit. À revoir si le DPO d'un
+  établissement exige une journalisation des accès.
+- Les informations par élève restent volontairement minces : statut et équipe seulement
+  — pas de « vu pour la dernière fois », ni de photos ou de votes par élève (pas de
+  surveillance individuelle des enfants).

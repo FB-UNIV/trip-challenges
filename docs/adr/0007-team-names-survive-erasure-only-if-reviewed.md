@@ -1,18 +1,43 @@
-# Team names survive Erasure only if a Teacher reviewed them
+# Les noms d'équipe ne survivent à l'effacement que s'ils ont été vérifiés par un enseignant
 
-Results (Challenge title, placement, Team name, points) are the one Trip record kept after Erasure, unencrypted, as a public keepsake. Team names are free text chosen by Students and may identify them ("Léa & Tom 4B"), so ADR-0004 required them to be reviewed before being retained — but nothing enforced it: the raw name was copied into the results at reveal (#92). We now record at reveal whether each Team's name was **reviewed** by a Teacher (marking it, or renaming it) together with a neutral label ("Team N", in Team creation order). At Erasure, before the Trip key is destroyed, every unreviewed name in the results is replaced by its label. Reviewed names survive as chosen.
+Les résultats (titre du défi, place, nom d'équipe, points) sont le seul enregistrement de
+la sortie conservé après l'effacement, non chiffré, comme souvenir public. Les noms
+d'équipe sont du texte libre choisi par les élèves et peuvent les identifier
+(« Léa & Tom 4B ») ; l'ADR-0004 exigeait donc qu'ils soient vérifiés avant d'être
+conservés — mais rien ne l'imposait : le nom brut était copié dans les résultats à la
+révélation (#92). Nous enregistrons désormais à la révélation si le nom de chaque équipe a
+été **vérifié** par un enseignant (en le marquant, ou en le renommant), ainsi qu'une
+étiquette neutre (« Équipe N », dans l'ordre de création des équipes). À l'effacement,
+avant la destruction de la clé de la sortie, chaque nom non vérifié dans les résultats est
+remplacé par son étiquette. Les noms vérifiés survivent tels quels.
 
-The reveal is deliberately **not** blocked on review: the projected ceremony shows the real names the room knows, and an unreviewed name is neutralised later rather than a forgotten review holding up the night.
+La révélation n'est volontairement **pas** bloquée par la vérification : la cérémonie
+projetée montre les vrais noms que la salle connaît, et un nom non vérifié est neutralisé
+plus tard, plutôt qu'une vérification oubliée ne bloque la soirée.
 
-## Considered Options
+## Options envisagées
 
-- **Block the reveal until every name is reviewed** — strongest guarantee, but a forgotten review stops the ceremony in front of the class; rejected by the product owner.
-- **Reminder only, no tracking** — relies on the Teacher remembering; a miss leaves identifying text after Erasure. Fails the erasure guarantee.
-- **Always replace names with labels at Erasure** — simplest and safest, but loses the keepsake value of names the Teacher has explicitly approved.
-- **Accept free-text names as kept** (amend ADR-0004) — rejected: the school is the controller, and nothing a Student types should outlive the Trip unchecked.
+- **Bloquer la révélation tant que tous les noms ne sont pas vérifiés** — la garantie la
+  plus forte, mais une vérification oubliée arrête la cérémonie devant la classe ; rejetée
+  par le responsable produit.
+- **Simple rappel, sans suivi** — repose sur la mémoire de l'enseignant ; un oubli laisse
+  un texte identifiant après l'effacement. Échoue sur la garantie d'effacement.
+- **Toujours remplacer les noms par des étiquettes à l'effacement** — le plus simple et le
+  plus sûr, mais perd la valeur de souvenir des noms explicitement approuvés par
+  l'enseignant.
+- **Accepter de conserver les noms libres** (en amendant l'ADR-0004) — rejetée :
+  l'établissement est responsable de traitement, et rien de ce qu'un élève tape ne doit
+  survivre à la sortie sans vérification.
 
-## Consequences
+## Conséquences
 
-- The default is safe: a Trip whose Teacher never reviews anything keeps only "Team 1…N" after Erasure.
-- Results computed before this change carry no label; Erasure numbers them by name instead. Trips already erased when this shipped had their kept names neutralised by migration `0003` (we cannot know which were reviewed).
-- Teachers need a way to review and rename Team names before the reveal (#94, #95); until then every name is unreviewed and is neutralised at Erasure.
+- Le comportement par défaut est sûr : une sortie dont l'enseignant ne vérifie rien ne
+  conserve que « Équipe 1…N » après l'effacement (« Team 1…N » pour les résultats
+  calculés avant le passage de l'application au français).
+- Les résultats calculés avant ce changement ne portent pas d'étiquette ; l'effacement les
+  numérote alors par nom. Les sorties déjà effacées au moment de cette livraison ont vu
+  leurs noms conservés neutralisés par la migration `0003` (impossible de savoir lesquels
+  avaient été vérifiés).
+- Les enseignants ont besoin d'un moyen de vérifier et de renommer les noms d'équipe avant
+  la révélation (#94, #95, livré) ; sans vérification, un nom est neutralisé à
+  l'effacement.

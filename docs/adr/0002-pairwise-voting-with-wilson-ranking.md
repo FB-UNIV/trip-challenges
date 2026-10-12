@@ -1,14 +1,32 @@
-# Pairwise (Tinder-style) voting ranked by Wilson lower-bound win-rate
+# Vote par paire (façon Tinder) classé par la borne inférieure de Wilson du taux de victoire
 
-Winners are elected by showing each voter two Nominations from the same Challenge and having them pick the better (a Duel), repeated over rounds — not by a single one-vote-per-voter tally. Each Nomination accrues a win/loss record; its score is the **Wilson lower-bound on its win-rate** (wins / comparisons), so Nominations with unequal or low numbers of comparisons are ranked fairly rather than by raw popularity or exposure order.
+Les gagnants sont élus en montrant à chaque votant deux photos en lice du même défi et en
+lui faisant choisir la meilleure (un duel), de façon répétée — et non par un décompte
+d'un vote par votant. Chaque photo en lice accumule un bilan de victoires/défaites ; son
+score est la **borne inférieure de Wilson de son taux de victoire** (victoires /
+comparaisons), de sorte que des photos ayant des nombres de comparaisons inégaux ou
+faibles sont classées équitablement, plutôt que selon leur popularité brute ou l'ordre
+d'exposition.
 
-## Considered Options
+## Options envisagées
 
-- **One vote per voter, winner = most votes** — rejected: the requested UX is swipe/duel-based, and raw counts are biased by how many times each Nomination happens to be shown.
-- **ELO / Bradley-Terry rating** — a natural fit for pairwise duels, but sensitive to comparison ordering and initial-rating choices, and harder to explain to teachers/students than a win-rate with a confidence bound.
-- **Raw like-rate (Wilson on likes/views)** — the binary-swipe variant; superseded once the mechanic became pairwise, so "views/likes" is reframed as "comparisons/wins".
+- **Un vote par votant, gagnant = le plus de voix** — rejetée : l'expérience demandée
+  repose sur le glissement/les duels, et les décomptes bruts sont biaisés par le nombre de
+  fois où chaque photo se trouve montrée.
+- **Classement ELO / Bradley-Terry** — adapté naturellement aux duels par paire, mais
+  sensible à l'ordre des comparaisons et au choix des notes initiales, et plus difficile à
+  expliquer aux enseignants et aux élèves qu'un taux de victoire avec une borne de
+  confiance.
+- **Taux de « j'aime » brut (Wilson sur j'aime/vues)** — la variante à glissement
+  binaire ; remplacée dès que le mécanisme est devenu un vote par paire, « vues/j'aime »
+  devenant « comparaisons/victoires ».
 
-## Consequences
+## Conséquences
 
-- Pairing is **least-compared-first + random eligible opponent**, excluding the voter's own Team and never repeating a pair to the same voter; voters Duel unlimited times per Challenge, coverage-guided. This evens out comparison counts so Wilson intervals tighten fastest.
-- Fairness depends on accumulating enough Duels per Nomination; sparse voting yields wide confidence intervals and low scores across the board.
+- L'appariement suit **la moins comparée d'abord + une adversaire éligible tirée au
+  hasard**, en excluant l'équipe du votant et sans jamais reproposer une paire au même
+  votant ; les votants font autant de duels qu'ils veulent par défi, guidés vers la
+  couverture. Cela égalise les nombres de comparaisons pour que les intervalles de Wilson
+  se resserrent le plus vite possible.
+- L'équité dépend d'un nombre suffisant de duels par photo ; un vote clairsemé donne des
+  intervalles de confiance larges et des scores bas pour tout le monde.
