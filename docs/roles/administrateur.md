@@ -10,15 +10,21 @@ et les décisions qui vous reviennent.
 
 ## Architecture
 
-```
-                 HTTPS                       lien privé (WireGuard)
- téléphones ───────────▶ frontal TLS ─────────────────────────────▶ serveur applicatif
- enseignants             (Traefik ou Caddy)                          ├─ web    (PWA, nginx)
-                         en-têtes de sécurité                         ├─ api    (Fastify)
-                                                                      ├─ postgres
-                                                                      ├─ minio  (ou S3 externe)
- PocketID (OIDC) ◀── connexion des enseignants                        ├─ vault  (clés par sortie)
- relais SMTP     ◀── codes d'accès, alertes                           └─ clamav (antivirus)
+```mermaid
+flowchart LR
+  U["Téléphones des élèves<br/>navigateurs des enseignants"] -->|HTTPS| F["Frontal TLS<br/>Traefik ou Caddy<br/>en-têtes de sécurité"]
+  F -->|"lien privé (WireGuard)<br/>vers APP_BIND_ADDR"| W
+  F -->|"/api"| A
+  subgraph H["Serveur applicatif : docker compose, réseau interne"]
+    W["web<br/>PWA, nginx"]
+    A["api<br/>Fastify"]
+    A --> PG[("postgres")]
+    A --> S3[("minio<br/>ou S3 externe")]
+    A --> V["vault<br/>clés par sortie"]
+    A --> AV["clamav<br/>antivirus"]
+  end
+  A -.->|OIDC| P["PocketID<br/>connexion des enseignants"]
+  A -.->|SMTP| M["Relais e-mail<br/>codes, alertes"]
 ```
 
 Seuls `web` et `api` sont exposés, et uniquement à `APP_BIND_ADDR` (l'IP privée vue par le

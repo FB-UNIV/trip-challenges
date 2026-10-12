@@ -166,10 +166,11 @@ Documentez le résultat.
   publié** en production (la publication de ports de `docker-compose.dev.yml` est réservée
   au dev).
 - Le TLS et les en-têtes de sécurité (HSTS, CSP) sont terminés par **Traefik**
-  (`traefik/dynamic.yml`). Les cookies ne sont `Secure` qu'avec `NODE_ENV=production` :
-  la production **doit** donc le définir.
-- `/api/auth/teacher/dev-login` refuse de fonctionner si `NODE_ENV` vaut `production`.
-  Vérifiez qu'il répond 404/403 en production (avec `curl`, dans votre test de fumée).
+  (`traefik/dynamic.yml`), ou par Caddy avec les mêmes en-têtes. Les cookies ne sont
+  `Secure` qu'avec `NODE_ENV=production`, que `docker-compose.yml` impose à l'api : ne
+  retirez pas cette ligne.
+- `/api/auth/teacher/dev-login` n'est pas enregistrée quand `NODE_ENV` vaut `production`.
+  Vérifiez qu'elle répond 404 (avec `curl`, dans votre test de fumée).
 
 ---
 
@@ -204,7 +205,7 @@ d'accès dans un journal ou un message d'erreur.** Une fuite ici met l'effacemen
 Appliqué dans le code et les tests (`packages/api/src/lib/logging.ts`, `test/logging.test.ts`) :
 
 - les URL de requête sont journalisées **sans leur query string** (jetons d'invitation, identifiants) ;
-- les clés `email` / `code` sont masquées à toute profondeur, ainsi que les cookies et `Authorization` ;
+- les clés `email` / `code` sont masquées (jusqu'à deux niveaux d'imbrication), ainsi que les cookies et `Authorization` ;
 - un e-mail de code d'accès en échec ne journalise que le **code** d'erreur SMTP (les
   erreurs SMTP répètent le destinataire) ;
 - avec `NODE_ENV=production` et sans `SMTP_HOST`, le mailer **refuse** d'envoyer au lieu
@@ -265,8 +266,9 @@ L'effacement se déclenche normalement tout seul après le délai de grâce (ou 
 butoir de la sortie). Pour le forcer immédiatement (incident, retrait du consentement,
 envoi erroné) :
 
-- **Par sortie, dans l'application :** enseignant → sortie → Paramètres → **Effacer
-  maintenant** (double confirmation). Cela passe par le même chemin `destroyTripKey`.
+- **Par sortie, dans l'application :** enseignant → sortie → Paramètres → Zone de danger →
+  **Effacer toutes les données des élèves**, en tapant le nom de la sortie. Cela passe par
+  le même chemin `destroyTripKey`.
 - **Par sortie, à la main** (application arrêtée) : détruisez directement la clé — c'est
   irréversible et rend immédiatement illisible tout le chiffré de cette sortie, où qu'il
   se trouve :

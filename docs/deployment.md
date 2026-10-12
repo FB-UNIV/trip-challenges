@@ -6,21 +6,22 @@ tourner » ; une fois que c'est le cas, suivez
 vrais mineurs : il couvre Vault, les sauvegardes et la garantie d'effacement.
 
 - **Architecture** → [ADR-0003](./adr/0003-self-hosted-docker-compose-over-managed-ha.md)
-- **Référence des variables** → [`.env.example`](https://github.com/FB-UNIV/trip-challenges/blob/main/.env.example) (chaque variable, commentée)
+- **Référence des variables** → [§ 8](#8-référence-des-variables-denvironnement), et [`.env.example`](https://github.com/FB-UNIV/trip-challenges/blob/main/.env.example) (chaque variable, commentée)
 - **Environnement de dev** → [`development.md`](./development.md)
 
 ---
 
 ## 1. Ce qui tourne
 
-`docker-compose.yml` démarre six services sur un réseau bridge privé :
+`docker-compose.yml` démarre cinq services sur un réseau bridge privé, plus MinIO, fourni
+mais **commenté** (à activer si vous n'avez pas de stockage S3 externe, voir § 4) :
 
 | Service | Image | Exposé ? | Rôle |
 |---|---|---|---|
 | `web` | `trip-web` (nginx) | `${APP_BIND_ADDR}:8080 → 80` | bundle statique de la PWA |
 | `api` | `trip-api` (Fastify) | `${APP_BIND_ADDR}:3000 → 3000` | toute la logique métier ; écoute `0.0.0.0:3000` dans le conteneur |
-| `postgres` | `postgres:16` | interne uniquement | données relationnelles (données personnelles chiffrées) |
-| `minio` | `minio` | interne uniquement | stockage objet — **facultatif** (voir § 4) |
+| `postgres` | `postgres:16-alpine` | interne uniquement | données relationnelles (données personnelles chiffrées) |
+| `minio` | `minio/minio` | interne uniquement | stockage objet — **commenté par défaut** (voir § 4) |
 | `vault` | `hashicorp/vault` | interne uniquement | clés cryptographiques par sortie (le mécanisme d'effacement) |
 | `clamav` | `clamav/clamav` | interne uniquement | analyse des envois avant stockage |
 
@@ -169,7 +170,9 @@ L'API parle le protocole S3 ; le stockage est choisi entièrement par les variab
 `S3_*`. Les photos sont chiffrées par enveloppe avant l'envoi : le stockage ne contient
 jamais que du chiffré.
 
-**MinIO fourni (par défaut).** Gardez le service `minio` et pointez l'API dessus :
+**MinIO fourni.** Dans `docker-compose.yml`, décommentez le bloc du service `minio`, la
+ligne `minio:` du `depends_on:` de l'api et le volume `minio_data`, puis pointez l'API
+dessus (ce sont les valeurs de `.env.example`) :
 
 ```
 S3_ENDPOINT=http://minio:9000
@@ -182,10 +185,8 @@ MINIO_ROOT_USER=trip-minio          # les identifiants propres au serveur minio
 MINIO_ROOT_PASSWORD=<aléatoire et robuste>
 ```
 
-**S3 externe (AWS / R2 / B2).** Pointez `S3_*` vers le fournisseur et **retirez le MinIO
-fourni** pour économiser des ressources : supprimez le bloc du service `minio`, le volume
-`minio_data` et la ligne `minio:` dans le `depends_on:` de l'api de `docker-compose.yml`.
-Puis :
+**S3 externe (AWS / R2 / B2).** Laissez le bloc `minio` commenté, supprimez
+`MINIO_ROOT_USER`/`MINIO_ROOT_PASSWORD` de `.env` et pointez `S3_*` vers le fournisseur :
 
 ```
 # AWS S3 (créez le bucket à l'avance ; pas de S3_ENDPOINT)
@@ -242,8 +243,8 @@ santé du proxy ou de l'orchestrateur vers `/readyz`, et alertez dessus.
 
 - Ouvrez `https://<HÔTE_PUBLIC>/teacher` et connectez-vous avec PocketID.
 - Vérifiez que la porte dérobée de dev est fermée en production :
-  `curl -s https://<hôte>/api/auth/teacher/dev-login` ne doit **pas** vous connecter (la
-  route n'est pas enregistrée quand `NODE_ENV=production`).
+  `curl -s -o /dev/null -w '%{http_code}\n' -X POST https://<hôte>/api/auth/teacher/dev-login`
+  doit afficher `404` (la route n'est pas enregistrée quand `NODE_ENV=production`).
 - Créez une sortie, importez une liste d'une ligne, vérifiez qu'un e-mail de code d'accès
   arrive.
 - Envoyez une photo ; vérifiez qu'elle est analysée et stockée (voir
@@ -391,7 +392,7 @@ Workflows dans [`.github/workflows/`](https://github.com/FB-UNIV/trip-challenges
 tests → build (et une construction Docker) sur chaque PR et chaque push ; `release.yml`
 utilise release-please pour publier des versions semver et pousse les images `trip-api` +
 `trip-web` sur GHCR. Mettez ensuite les tags publiés dans `IMAGE_API`/`IMAGE_WEB` de
-`.env` (par ex. `ghcr.io/fb-univ/trip-api:0.9.2`) puis `docker compose up -d` pour
+`.env` (par ex. `ghcr.io/fb-univ/trip-api:<version>`) puis `docker compose up -d` pour
 déployer les images publiées au lieu de construire sur le serveur. Les images sont
 publiques : pas besoin de `docker login`. Voir la section CI/CD du README.
 
@@ -400,7 +401,7 @@ workflow de release, et embarque un SBOM et une provenance de construction. Vér
 de déployer :
 
 ```bash
-cosign verify ghcr.io/fb-univ/trip-api:0.9.2 \
+cosign verify ghcr.io/fb-univ/trip-api:<version> \
   --certificate-identity-regexp '^https://github\.com/FB-UNIV/trip-challenges/\.github/workflows/release\.yml@refs/heads/main$' \
   --certificate-oidc-issuer https://token.actions.githubusercontent.com
 ```
@@ -408,3 +409,61 @@ cosign verify ghcr.io/fb-univ/trip-api:0.9.2 \
 Une signature prouve que l'image a été construite par le workflow de release de ce dépôt
 sur `main`. Les images antérieures à l'ajout de la signature (≤ 0.9.2) ne sont pas
 signées.
+
+## 8. Référence des variables d'environnement
+
+### Lues par l'API
+
+L'API vérifie ces variables au démarrage et s'arrête en nommant celle qui manque ou qui est
+invalide.
+
+<!-- AUTO-GENERATED from packages/api/src/env-schema.ts (names, required, defaults) — keep in sync -->
+| Variable | Obligatoire | Défaut | Rôle |
+|---|---|---|---|
+| `API_PORT` | — | `3000` | Port d'écoute de l'API dans le conteneur. |
+| `NODE_ENV` | — | `development` | `production` en production (imposé par `docker-compose.yml`) : cookies `Secure`, pas de `/dev-login`, refus d'afficher les e-mails sans SMTP. |
+| `PUBLIC_BASE_URL` | **oui** |  | URL publique de l'instance ; intégrée aux QR codes et aux liens des e-mails. |
+| `POSTGRES_HOST` | **oui** |  | Hôte Postgres (`postgres` avec compose). |
+| `POSTGRES_PORT` | — | `5432` |  |
+| `POSTGRES_DB` | **oui** |  |  |
+| `POSTGRES_USER` | **oui** |  |  |
+| `POSTGRES_PASSWORD` | **oui** |  | Aléatoire et robuste. |
+| `S3_ENDPOINT` | non |  | Point d'accès S3 (MinIO, R2, B2) ; à omettre pour AWS. |
+| `S3_REGION` | — | `us-east-1` |  |
+| `S3_ACCESS_KEY_ID` | **oui** |  | Doit pouvoir `Get/Put/List/DeleteObject` sur le bucket. |
+| `S3_SECRET_ACCESS_KEY` | **oui** |  |  |
+| `S3_BUCKET` | — | `submissions` | Créé au démarrage si les droits le permettent. |
+| `S3_FORCE_PATH_STYLE` | — | `true` | `true` pour MinIO ; `false` pour AWS et R2. |
+| `VAULT_ADDR` | **oui** |  | Adresse de Vault (TLS en production). |
+| `VAULT_TOKEN` | **oui** |  | Jeton restreint à la politique transit, jamais root en production. |
+| `VAULT_TRANSIT_MOUNT` | — | `transit` | Point de montage du moteur transit. |
+| `OIDC_ISSUER` | **oui** |  | URL du fournisseur d'identité (PocketID). Contacté à la première connexion seulement. |
+| `OIDC_CLIENT_ID` | **oui** |  |  |
+| `OIDC_CLIENT_SECRET` | **oui** |  |  |
+| `OIDC_REDIRECT_URI` | **oui** |  | `PUBLIC_BASE_URL` + `/api/auth/teacher/callback`. |
+| `SESSION_SECRET` | **oui** |  | 32 caractères minimum ; signe les cookies enseignants et les jetons de duel. Le changer déconnecte tous les enseignants, pas les élèves. |
+| `TRUST_PROXY` | — | `loopback,linklocal,uniquelocal` | Proxys autorisés à fournir `X-Forwarded-For`. |
+| `RATE_LIMIT_MAX` | — | `6000` | Requêtes par minute et par IP, toutes routes. |
+| `RATE_LIMIT_STUDENT_MAX` | — | `600` | Requêtes par minute et par élève connecté. |
+| `RATE_LIMIT_AUTH_MAX` | — | `5` | Essais par minute et par code d'accès. |
+| `RATE_LIMIT_REISSUE_MAX` | — | `20` | Demandes de nouveau code par minute et par IP. |
+| `AV_SCAN_ENABLED` | — | `false` | **`true` en production** (valeur de `.env.example`) : envois refusés si clamd est injoignable. |
+| `CLAMAV_HOST` | — | `clamav` |  |
+| `CLAMAV_PORT` | — | `3310` |  |
+| `SMTP_HOST` | non |  | Sans lui : e-mails affichés dans la console en dev, refusés en production. |
+| `SMTP_PORT` | — | `587` |  |
+| `SMTP_USER` | non |  |  |
+| `SMTP_PASSWORD` | non |  |  |
+| `SMTP_FROM` | — | `Trip Challenges <no-reply@example.org>` | Expéditeur des e-mails. |
+| `ALERT_EMAIL` | non |  | Reçoit aussi les alertes d'échec d'effacement. |
+| `HEARTBEAT_URL` | non |  | Appelée après chaque cycle sain du planificateur (« dead man's switch »). |
+<!-- END AUTO-GENERATED -->
+
+### Lues par `docker-compose.yml`
+
+| Variable | Rôle |
+|---|---|
+| `APP_HOST` | Nom d'hôte public ; obligatoire (règles Traefik). |
+| `APP_BIND_ADDR` | Adresse à laquelle `web` et `api` publient leurs ports (`127.0.0.1` par défaut) ; jamais `0.0.0.0`. |
+| `IMAGE_API`, `IMAGE_WEB` | Images publiées à utiliser au lieu de construire (`trip-api:local`, `trip-web:local` par défaut). |
+| `MINIO_ROOT_USER`, `MINIO_ROOT_PASSWORD` | Identifiants du MinIO fourni, s'il est activé ; identiques à `S3_ACCESS_KEY_ID` / `S3_SECRET_ACCESS_KEY`. |

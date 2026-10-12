@@ -99,8 +99,9 @@ docker compose build
 docker compose up -d
 ```
 
-Cela lance `web` + `api` (liés à `APP_BIND_ADDR`) ainsi que `postgres` + `minio` +
-`vault` sur un réseau privé. Le schéma de la base est appliqué automatiquement au
+Cela lance `web` + `api` (liés à `APP_BIND_ADDR`) ainsi que `postgres`, `vault` et
+`clamav` sur un réseau privé ; `minio` aussi si vous avez décommenté son bloc (sinon,
+stockage S3 externe). Le schéma de la base est appliqué automatiquement au
 premier démarrage.
 
 **4. Configurez le Traefik frontal.** Copiez [`traefik/dynamic.yml`](./traefik/dynamic.yml)

@@ -32,6 +32,23 @@ Ne la publiez pas : utilisez le [signalement privé](https://github.com/FB-UNIV/
 
 ## 1. Comptes et sessions
 
+Le parcours d'un code d'accès :
+
+```mermaid
+sequenceDiagram
+  actor E as Enseignant
+  participant API
+  participant M as Relais SMTP
+  actor S as Élève (téléphone)
+  E->>API: importe les adresses
+  API->>API: adresse chiffrée (Vault),<br/>code aléatoire de 128 bits, stocké haché (argon2)
+  API->>M: e-mail « Ton code d'accès… » avec le lien personnel
+  M->>S: e-mail
+  S->>API: ouvre le lien (5 essais par minute et par code)
+  API->>S: cookie de session lié à l'appareil, le code est consommé
+  Note over S,API: Un nouveau code demandé puis utilisé révoque la session précédente.
+```
+
 | Scénario | Protections | Risque résiduel / recommandations |
 |---|---|---|
 | **Deviner ou forcer un code d'accès** | Code aléatoire de 128 bits, haché avec argon2 ; 5 essais par minute et par code ; réponse identique pour un code inconnu, déjà utilisé ou faux. | Négligeable. |
@@ -57,6 +74,18 @@ Ne la publiez pas : utilisez le [signalement privé](https://github.com/FB-UNIV/
 | **Enseignant malveillant** | Il ne voit que ses sorties ; ses actions sensibles (retraits, effacements, renvois de codes…) sont au journal d'audit. | Il voit toutes les photos et adresses de sa sortie, peut l'effacer, et un co-enseignant a les mêmes droits. Les consultations ne sont pas tracées. Limitez les comptes ; cadre déontologique. |
 
 ## 3. Contenus envoyés
+
+Le chemin d'une photo, de l'envoi au stockage :
+
+```mermaid
+flowchart LR
+  A["Téléphone"] -->|"envoi, 15 Mo max"| B{"Antivirus<br/>clamd"}
+  B -->|"infecté : 422"| X["Refusé"]
+  B -->|"indisponible : 503"| X
+  B -->|sain| C["Décodage et ré-encodage JPEG<br/>2000 px max, sans EXIF ni GPS"]
+  C --> D["Chiffrement sur le serveur<br/>clé de données émise par Vault"]
+  D --> S[("Stockage objet")]
+```
 
 | Scénario | Protections | Risque résiduel / recommandations |
 |---|---|---|

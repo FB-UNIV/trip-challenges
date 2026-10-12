@@ -50,10 +50,13 @@ protéger.
 
 ## Le principe en une image
 
-```
-brouillon ──▶ défis ──▶ vote ──▶ révélation ──▶ délai de grâce ──▶ effacée
- équipes      photos +    duels     cérémonie     résultats          clé de la sortie
- formées      sélection   par paire               visibles           détruite
+```mermaid
+flowchart LR
+  B["Brouillon<br/>équipes formées"] --> D["Défis<br/>photos et sélection"]
+  D --> V["Vote<br/>duels par paire"]
+  V --> R["Révélation<br/>cérémonie"]
+  R --> G["Délai de grâce<br/>résultats visibles"]
+  G --> X["Effacée<br/>clé de la sortie détruite"]
 ```
 
 Trip Challenges est un logiciel libre (AGPL-3.0), **auto-hébergé** : l'établissement ou son

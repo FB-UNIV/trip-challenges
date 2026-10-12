@@ -22,7 +22,7 @@ Cette page rassemble ce qu'il faut vérifier, avec pour chaque garantie **où el
 
 | Garantie | Mise en œuvre | Comment la vérifier |
 |---|---|---|
-| **Chiffrement au repos par sortie** | E-mails et noms d'équipe chiffrés par Vault ; photos chiffrées par enveloppe sous la clé de la sortie ([ADR 0001](../adr/0001-crypto-erasure-with-vault-per-trip-keys.md), [modèle de données](../data-model.md#frontière-du-chiffrement-clé-de-la-sortie)) | Demander à l'hébergeur un extrait de la base : les colonnes `email`, `name` sont illisibles ; le bucket ne contient que du chiffré. |
+| **Chiffrement au repos par sortie** | E-mails et noms d'équipe chiffrés par Vault ; photos chiffrées par enveloppe sous la clé de la sortie ([ADR 0001](../adr/0001-crypto-erasure-with-vault-per-trip-keys.md), [modèle de données](../data-model.md#frontière-du-chiffrement-clé-de-la-sortie)) | Demander à l'hébergeur un extrait de la base : les colonnes `email_enc`, `name_enc` sont illisibles ; le bucket ne contient que du chiffré. |
 | **Effacement vérifiable** | Destruction de la clé Vault de la sortie, qui rend illisible toute copie, sauvegardes comprises | Exiger le test décrit au [durcissement § 2](../production-hardening.md#2-sauvegardes-et-garantie-deffacement) : restaurer une sauvegarde antérieure à un effacement et constater que les photos ne se déchiffrent pas. |
 | **Effacement même en cas d'oubli** | Date butoir forcée quelle que soit la phase ; nouvelles tentatives chaque minute en cas d'échec, alertes e-mail, sonde de surveillance | Demander la configuration `ALERT_EMAIL` / `HEARTBEAT_URL` de l'hébergeur. |
 | **Séparation des sauvegardes** | Règle d'exploitation : stockage Vault sauvegardé à part | Demander le plan de sauvegarde écrit. **C'est le point le plus important.** |
@@ -32,6 +32,29 @@ Cette page rassemble ce qu'il faut vérifier, avec pour chaque garantie **où el
 | **Cloisonnement** | Chaque route vérifie le rôle, la sortie et la phase ; un test échoue si une route n'est pas protégée | Code : `packages/api/src/auth/guard.ts`, `test/guard.test.ts` |
 | **Antivirus** | Chaque envoi est analysé avant stockage ; refusé si l'antivirus est indisponible | Fichier de test EICAR refusé ([durcissement § 4](../production-hardening.md#4-antivirus-sur-les-envois)) |
 | **Pas de pistage** | Aucun script tiers ; un seul cookie de session (élève) ou de connexion (enseignant) | Politique de sécurité du contenu (CSP) `script-src 'self'` |
+
+### Ce que protège la clé de la sortie
+
+```mermaid
+flowchart LR
+  subgraph V["Vault"]
+    K["clé de la sortie<br/>trip-{id}"]
+  end
+  subgraph PG["Postgres"]
+    E["chiffré :<br/>student.email_enc<br/>team.name_enc<br/>roster_import_item.email_enc"]
+    H["email_lookup<br/>(HMAC sous la clé)"]
+    C["en clair, sans donnée d'élève :<br/>enseignants, défis, configuration,<br/>result, audit_log"]
+  end
+  subgraph S3["Stockage objet"]
+    P["photos chiffrées<br/>+ clé de données enveloppée"]
+  end
+  K -- chiffre --> E
+  K -- calcule --> H
+  K -- enveloppe --> P
+```
+
+Détruire la clé rend illisible tout ce qu'elle protège, y compris dans les sauvegardes de
+Postgres et du stockage. Ce qui est en clair ne contient aucune donnée d'élève.
 
 ## Le journal d'audit
 
