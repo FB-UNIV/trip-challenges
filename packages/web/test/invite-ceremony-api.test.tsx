@@ -142,8 +142,9 @@ describe("ceremony (/ceremony/:id)", () => {
     expect(screen.getByText("(égalité — l'enseignant tranche)")).toBeInTheDocument();
   });
 
-  // #166: the photos that won, on the projector. Ties all make the podium.
-  it("shows each podium photo, every team tied for a place included", async () => {
+  // #166 + #170: the photos that won, on the projector, one full-screen slide per team,
+  // 3rd → 1st; tied teams each get their slide. The name comes in after the photo (CSS delay).
+  it("reveals the podium photo by photo, 3rd to 1st, every tied team included", async () => {
     const shot = (r: ReturnType<typeof row>, photo: string | null) => ({ ...r, photo_id: photo });
     server.use(http.get("/api/trips/t1/results", () => HttpResponse.json({ results: [
       shot(row("1", "Gelato", 1, "Foxes", 5), "p1"), shot(row("2", "Gelato", 2, "Owls", 3), "p2"),
@@ -153,18 +154,29 @@ describe("ceremony (/ceremony/:id)", () => {
     ] })));
     renderAt("/ceremony/t1");
     await screen.findByText("Et les gagnants sont…");
+    const reveal = () => fireEvent.click(screen.getByRole("button", { name: "Dévoiler →" }));
+    /** What the slide shows: its place, its team, and its photo if any. */
+    const slide = () => ({
+      place: screen.getByTestId("place").textContent,
+      team: screen.getByTestId("team").textContent,
+      photo: screen.queryByRole("img")?.getAttribute("src") ?? null,
+    });
 
-    fireEvent.click(screen.getByRole("button", { name: "Dévoiler →" }));
-    expect([...document.querySelectorAll("h2 + div > div")].map((d) => d.textContent))
-      .toEqual(["🥉Moles1 pts", "🥉Bats1 pts", "🥈Owls3 pts", "🥇Foxes5 pts"]); // tied 3rds both; 5th not
-    const shots = screen.getAllByRole("img").map((i) => [i.getAttribute("alt"), i.getAttribute("src")]);
-    expect(shots).toEqual([
-      ["Photo de Bats", "/api/submissions/p3/photo"],
-      ["Photo de Owls", "/api/submissions/p2/photo"],
-      ["Photo de Foxes", "/api/submissions/p1/photo"],
-    ]); // Moles has no photo: its name and points only
+    reveal();
+    expect(screen.getByRole("heading", { name: "Gelato" })).toBeInTheDocument();
+    expect(slide()).toEqual({ place: "🥉 3e place (ex aequo)", team: "Bats · 1 pts", photo: "/api/submissions/p3/photo" });
+    expect(screen.getByRole("img", { name: "Photo de Bats" })).toBeInTheDocument();
+    reveal();
+    expect(slide()).toEqual({ place: "🥉 3e place (ex aequo)", team: "Moles · 1 pts", photo: null }); // no photo: its name only
+    reveal();
+    expect(slide()).toEqual({ place: "🥈 2e place", team: "Owls · 3 pts", photo: "/api/submissions/p2/photo" });
+    reveal();
+    expect(slide()).toEqual({ place: "🥇 1re place", team: "Foxes · 5 pts", photo: "/api/submissions/p1/photo" });
 
-    fireEvent.click(screen.getByRole("button", { name: "Dévoiler →" }));
+    fireEvent.click(screen.getByRole("button", { name: "← Retour" })); // back slides the other way
+    expect(slide().team).toBe("Owls · 3 pts");
+    reveal();
+    reveal(); // no recap slide: 1st place goes straight on (5th place is never shown)
     expect(screen.getByText("Grand champion")).toBeInTheDocument();
     expect(screen.getByRole("img", { name: "Photo de Foxes" })).toHaveAttribute("src", "/api/submissions/p1/photo");
   });
