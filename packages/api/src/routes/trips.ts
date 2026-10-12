@@ -199,18 +199,30 @@ export async function tripRoutes(app: FastifyInstance) {
     if (!phase) return { results: [] };
 
     const published = phase === "grace" || phase === "erased";
-    if (!published) {
-      const teacher = readTeacher(req, reply);
-      if (!teacher || !(await assertTripAccess(teacher.teacherId, id))) {
-        return { results: [] }; // not yet published; not a Trip teacher
-      }
-    }
+    const teacher = readTeacher(req, reply);
+    const tripTeacher = !!teacher && (await assertTripAccess(teacher.teacherId, id));
+    if (!published && !tripTeacher) return { results: [] }; // not yet published; not a Trip teacher
 
+    // photo_id (#166): each podium's photo for the ceremony, which runs on the projector from
+    // a teacher's session. Only the Trip's teachers get it (owner decision: no photos in the
+    // students' results), never for a removed photo, and Erasure clears the link. A Grand
+    // Champion row shows that team's best-placed photo.
     const { rows } = await pool.query(
-      `SELECT id, challenge_title, placement, team_name_vetted, points, is_grand_champion
-         FROM result WHERE trip_id = $1
-        ORDER BY is_grand_champion DESC, challenge_title, placement`,
-      [id],
+      `SELECT r.id, r.challenge_title, r.placement, r.team_name_vetted, r.points, r.is_grand_champion,
+              CASE WHEN $2::boolean THEN COALESCE(own.id, best.id) END AS photo_id
+         FROM result r
+         LEFT JOIN submission own ON own.id = r.submission_id AND own.removed_by_teacher_id IS NULL
+         LEFT JOIN LATERAL (
+              SELECT s.id
+                FROM result o
+                JOIN submission s ON s.id = o.submission_id AND s.removed_by_teacher_id IS NULL
+               WHERE r.is_grand_champion AND o.trip_id = r.trip_id AND NOT o.is_grand_champion
+                 AND o.team_label = r.team_label
+               ORDER BY o.placement, o.points DESC, o.challenge_title
+               LIMIT 1) best ON true
+        WHERE r.trip_id = $1
+        ORDER BY r.is_grand_champion DESC, r.challenge_title, r.placement, r.team_name_vetted`,
+      [id, tripTeacher],
     );
     return { results: rows };
   });

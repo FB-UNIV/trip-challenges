@@ -25,6 +25,9 @@ export async function eraseTrip(tripId: string): Promise<void> {
         WHERE r.id = x.id`,
       [tripId],
     );
+    // The ceremony's link to each podium photo (#166) dies with the photos (the FK would
+    // null it anyway when the submissions go; explicit, like the deletes below).
+    await c.query(`UPDATE result SET submission_id = NULL WHERE trip_id = $1`, [tripId]);
     // Children cascade off these, but delete explicitly for clarity/order.
     await c.query(`DELETE FROM duel WHERE trip_id = $1`, [tripId]);
     await c.query(
