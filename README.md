@@ -267,3 +267,11 @@ crypto-erasure and escalating pre-erasure warning emails.
 Backend logic, crypto and erasure are solid; the remaining items are edges — recovery,
 reveal enforcement, tie-breaks, and post-creation editing. See git history / the ADRs for
 decisions.
+
+## Contributing & license
+
+Contributions are welcome — see [`CONTRIBUTING.md`](./CONTRIBUTING.md). Report security
+issues privately per [`SECURITY.md`](./SECURITY.md).
+
+Licensed under the [GNU Affero General Public License v3.0](./LICENSE) or later. If you
+run a modified version as a network service, you must offer its source to its users.
