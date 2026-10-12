@@ -84,6 +84,13 @@ describe("OIDC login flow", () => {
 
     const forged = await app.inject({ method: "GET", url: "/api/auth/teacher/callback", headers: { cookie: "oidc_state=x; oidc_nonce=y; oidc_cv=z" } });
     expect(forged.statusCode).toBe(400);
+
+    // No checks at all (cookies blocked, or a callback URL opened in another browser).
+    oidc.callbackChecks = null;
+    const bare = await app.inject({ method: "GET", url: "/api/auth/teacher/callback?code=abc" });
+    expect(bare.statusCode).toBe(400);
+    expect(bare.json().error).toBe("bad_state");
+    expect(oidc.callbackChecks).toBeNull(); // never reached the IdP token exchange
   });
 });
 

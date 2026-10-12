@@ -481,6 +481,30 @@ describe("trip admin", () => {
       }]);
     });
 
+    it("shows planned dates in local time, and saves retention, end date and points edits", async () => {
+      const api = adminApi({ challenge_opens_at: "2029-12-20T08:00:00.000Z" });
+      const { user } = renderAt("/teacher/trips/t1/settings");
+      const opens = await screen.findByLabelText("Ouverture des défis");
+      expect(new Date((opens as HTMLInputElement).value).toISOString()).toBe("2029-12-20T08:00:00.000Z"); // round-trips
+
+      for (const [label, value] of [["Délai de grâce (jours)", "3"], ["Conservation max. (jours)", "60"]] as const) {
+        await user.clear(screen.getByLabelText(label));
+        await user.type(screen.getByLabelText(label), value);
+      }
+      await user.clear(screen.getByLabelText("Date de fin de la sortie"));
+      await user.type(screen.getByLabelText("Date de fin de la sortie"), "2030-02-01");
+      await user.clear(screen.getByLabelText("Points pour la place 1"));
+      await user.type(screen.getByLabelText("Points pour la place 1"), "8");
+      await user.click(screen.getByRole("button", { name: "− retirer la dernière" }));
+      await user.click(screen.getByRole("button", { name: "Enregistrer les paramètres" }));
+
+      expect(await screen.findByText("Enregistré.")).toBeInTheDocument();
+      expect(api.patches).toEqual([{
+        graceDays: 3, maxRetentionDays: 60, tripEndDate: "2030-02-01",
+        pointsTable: [{ placement: 1, points: 8 }],
+      }]);
+    });
+
     it("says when there is nothing to save", async () => {
       adminApi();
       const { user } = renderAt("/teacher/trips/t1/settings");
@@ -682,6 +706,50 @@ describe("trip admin", () => {
       expect(await screen.findByText(/3 sur 3 en file d'attente/)).toBeInTheDocument();
       expect(api.calls).toContain("roster a@school.test,b@school.test,c@school.test");
       expect(box).toHaveValue("");
+    });
+
+    it("follows an import until every code is out", async () => {
+      vi.useFakeTimers({ shouldAdvanceTime: true });
+      const api = adminApi();
+      api.roster = { pending: 0, done: 0, failed: 0, students: 0 };
+      const { user } = renderAt("/teacher/trips/t1/students");
+      await user.type(await screen.findByLabelText(/E-mails des élèves/), "a@school.test, b@school.test");
+      await user.click(screen.getByRole("button", { name: "Importer et envoyer les codes" }));
+      await screen.findByText(/2 sur 2 en file d'attente/);
+
+      api.roster = { pending: 1, done: 1, failed: 0, students: 2 };
+      await act(() => vi.advanceTimersByTimeAsync(2100));
+      expect(await screen.findByText("1 codes envoyés sur 2 — envoi…")).toBeInTheDocument();
+
+      api.roster = { pending: 0, done: 2, failed: 0, students: 2 };
+      await act(() => vi.advanceTimersByTimeAsync(2100));
+      expect(await screen.findByText("2 codes envoyés sur 2")).toBeInTheDocument();
+    });
+
+    it("lists the students without a team", async () => {
+      adminApi();
+      const { user } = renderAt("/teacher/trips/t1/students");
+      const chips = await screen.findByRole("group", { name: "Filtrer les élèves" });
+      await user.click(within(chips).getByRole("button", { name: /^Sans équipe/ }));
+      const items = within(await list()).getAllByRole("listitem");
+      expect(items.length).toBeGreaterThan(0);
+      expect(within(students()).queryByText("ana@school.test")).not.toBeInTheDocument(); // in a team
+      expect(within(students()).getByText("tom@school.test")).toBeInTheDocument();
+    });
+
+    it("cancels a correction or a rename without sending anything", async () => {
+      const api = adminApi();
+      const { user } = renderAt("/teacher/trips/t1/students");
+      await list();
+      await user.click(within(row("lea@shcool.test")).getByRole("button", { name: "Corriger l'adresse" }));
+      await user.click(within(row("lea@shcool.test")).getByRole("button", { name: "Annuler" }));
+      expect(screen.queryByLabelText("Adresse corrigée pour lea@shcool.test")).not.toBeInTheDocument();
+
+      const t = await screen.findByRole("article", { name: "Léa & Tom 4B" });
+      await user.click(within(t).getByRole("button", { name: "Renommer" }));
+      await user.click(within(t).getByRole("button", { name: "Annuler" }));
+      expect(screen.queryByLabelText("Nouveau nom pour Léa & Tom 4B")).not.toBeInTheDocument();
+      expect(api.calls.filter((c) => /^(fix|retry|rename) /.test(c))).toEqual([]);
     });
 
     it("offers the lost-code recovery link to copy", async () => {

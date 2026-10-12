@@ -81,6 +81,25 @@ describe("scanBuffer (clamd INSTREAM over TCP)", () => {
     clam.port = live;
   });
 
+  it("rejects (fails closed) when clamd accepts but never answers", async () => {
+    const live = clam.port;
+    const silent = net.createServer(() => {}); // takes the connection, then says nothing
+    await new Promise<void>((r) => silent.listen(0, "127.0.0.1", r));
+    clam.port = (silent.address() as net.AddressInfo).port;
+    // The real deadline is 15 s; shorten it for the test.
+    const setTimeoutReal = net.Socket.prototype.setTimeout;
+    const spy = vi.spyOn(net.Socket.prototype, "setTimeout").mockImplementation(function (this: net.Socket, _ms: number, cb?: () => void) {
+      return setTimeoutReal.call(this, 50, cb);
+    });
+    try {
+      await expect(scanBuffer(Buffer.from("x"))).rejects.toThrow("clamd timeout");
+    } finally {
+      spy.mockRestore();
+      clam.port = live;
+      silent.close();
+    }
+  });
+
   it("exposes the enable flag", () => {
     expect(avScanEnabled()).toBe(true);
   });
