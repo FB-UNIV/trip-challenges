@@ -4,6 +4,7 @@ import type { Me } from "./api.js";
 import { useMe, useMyChallenges } from "./query.js";
 import { ConfirmProvider, LightboxProvider, TabBar, type Tab } from "./ui.js";
 import { canVote } from "./routes/vote-progress.js";
+import { EntryToasts } from "./entry-toasts.js";
 
 // Student screens get the bottom tab bar; teacher screens and /join never do.
 const STUDENT_PAGE = /^\/(team|challenges|vote|c)?(\/|$)/;
@@ -33,6 +34,7 @@ export function App() {
           <Link to="/confidentialite">Tes données et ta vie privée</Link>
         </p>
       </main>
+      {shell && <EntryToasts tripId={shell.me.tripId} challenges={shell.loaded} />}
       {tabs && <TabBar tabs={tabs} />}
     </div>
   );
@@ -44,7 +46,9 @@ function useStudentShell(pathname: string) {
   const me = useMe({ enabled: onStudentPage });
   // Badges are a nice-to-have: the tab bar works without them.
   const list = useMyChallenges({ enabled: onStudentPage && !!me.data });
-  return onStudentPage && me.data ? { me: me.data, challenges: list.data?.challenges ?? [] } : null;
+  return onStudentPage && me.data
+    ? { me: me.data, challenges: list.data?.challenges ?? [], loaded: list.data?.challenges }
+    : null;
 }
 
 function studentTabs(me: Me, challenges: StudentChallenge[]): Tab[] {
