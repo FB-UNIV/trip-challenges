@@ -25,6 +25,15 @@ beforeEach(async () => {
   asOwner = { cookie: teacherCookie(app, owner) };
 });
 
+/** A calendar date `n` days from today (UTC), as the date picker sends it. */
+const daysFromNow = (n: number) => {
+  const d = new Date();
+  d.setUTCDate(d.getUTCDate() + n);
+  return d.toISOString().slice(0, 10);
+};
+const eraseAt = async (id: string) =>
+  (await pool.query<{ hard_erase_at: Date }>(`SELECT hard_erase_at FROM trip WHERE id = $1`, [id])).rows[0]!.hard_erase_at;
+
 const phaseOf = async (id: string) =>
   (await pool.query<{ phase: string }>(`SELECT phase FROM trip WHERE id = $1`, [id])).rows[0]?.phase;
 
@@ -64,6 +73,34 @@ describe("POST /api/trips", () => {
     expect(rows[0]!.hard_erase_at.toISOString().slice(0, 10)).toBe("2030-06-11");
     expect(await count("trip_teacher", "trip_id = $1 AND teacher_id = $2 AND role = 'owner'", [id, owner])).toBe(1);
     expect(await auditActions(id)).toContain("trip_created");
+  });
+
+  // A past end date put hard_erase_at in the past too: the next sweep erased the new trip at once.
+  it("refuses an end date in the past, which would have the trip erased at once", async () => {
+    const res = await app.inject({
+      method: "POST", url: "/api/trips", headers: asOwner,
+      payload: { name: "Rome", tripEndDate: daysFromNow(-60) },
+    });
+    expect(res.statusCode).toBe(400);
+    expect(res.json()).toMatchObject({ error: "end_date_past", message: "La date de fin de la sortie ne peut pas être passée." });
+    expect(await count("trip")).toBe(0);
+    expect(keyCount()).toBe(0);
+    expect(await findTripsDueForErasure()).toEqual([]);
+  });
+
+  it("refuses an end date two days ago", async () => {
+    const res = await app.inject({
+      method: "POST", url: "/api/trips", headers: asOwner, payload: { name: "Rome", tripEndDate: daysFromNow(-2) },
+    });
+    expect(res.statusCode).toBe(400);
+  });
+
+  it("accepts today, and yesterday (a teacher ahead of UTC late in the evening)", async () => {
+    for (const day of [daysFromNow(0), daysFromNow(-1)]) {
+      const res = await app.inject({ method: "POST", url: "/api/trips", headers: asOwner, payload: { name: "Rome", tripEndDate: day } });
+      expect(res.statusCode).toBe(201);
+    }
+    expect(await findTripsDueForErasure()).toEqual([]);
   });
 
   it("destroys the freshly created key when the DB write fails (no orphaned key)", async () => {
@@ -283,6 +320,53 @@ describe("PATCH /api/trips/:id (phase-gated config edits)", () => {
     const erase = new Date(at("2030-02-01"));
     erase.setDate(erase.getDate() + t.max_retention_days);
     expect(t.hard_erase_at.toISOString().slice(0, 10)).toBe(erase.toISOString().slice(0, 10));
+  });
+
+  // Editing the end date (or the retention) could pull hard_erase_at into the past: an
+  // immediate erasure of a trip full of photos, without the "Effacer maintenant" confirmation.
+  describe("never brings the erasure within 24 hours", () => {
+    const soon = { error: "erasure_too_soon" };
+
+    it("refuses an end date that puts the erasure in the past, and changes nothing", async () => {
+      const id = await makeTrip(owner, { phase: "challenge" });
+      const res = await patch(id, { tripEndDate: daysFromNow(-60), name: "Renamed" });
+      expect(res.statusCode).toBe(400);
+      expect(res.json()).toMatchObject(soon);
+      expect(res.json().message).toContain("Effacer maintenant");
+      expect((await eraseAt(id)).toISOString()).toBe("2030-02-01T00:00:00.000Z");
+      expect(await findTripsDueForErasure()).toEqual([]);
+      expect(await auditActions(id)).not.toContain("trip_config_edited");
+    });
+
+    it("refuses a shorter retention that makes the erasure due", async () => {
+      const id = await makeTrip(owner, { phase: "voting" });
+      await pool.query(`UPDATE trip SET trip_end_date = $2, hard_erase_at = $3 WHERE id = $1`, [id, daysFromNow(-10), daysFromNow(20)]);
+      const res = await patch(id, { maxRetentionDays: 5 });
+      expect(res.statusCode).toBe(400);
+      expect(res.json()).toMatchObject(soon);
+    });
+
+    it("refuses an erasure less than a day away", async () => {
+      const id = await makeTrip(owner);
+      await pool.query(`UPDATE trip SET trip_end_date = $2 WHERE id = $1`, [id, daysFromNow(-5)]);
+      expect((await patch(id, { maxRetentionDays: 5 })).statusCode).toBe(400); // erasure today, at midnight
+    });
+
+    it("allows an earlier erasure more than a day away", async () => {
+      const id = await makeTrip(owner);
+      expect((await patch(id, { tripEndDate: daysFromNow(3), maxRetentionDays: 1 })).statusCode).toBe(200);
+      expect((await eraseAt(id)).toISOString().slice(0, 10)).toBe(daysFromNow(4));
+    });
+
+    it("always allows putting a close erasure further off, and edits that don't move it", async () => {
+      const id = await makeTrip(owner, { phase: "grace" });
+      const inTwelveHours = new Date(Date.now() + 12 * 3600_000);
+      await pool.query(`UPDATE trip SET trip_end_date = $2, max_retention_days = 30, hard_erase_at = $3 WHERE id = $1`,
+        [id, daysFromNow(-30), inTwelveHours]);
+      expect((await patch(id, { name: "Still here" })).statusCode).toBe(200);
+      expect((await patch(id, { maxRetentionDays: 60 })).statusCode).toBe(200);
+      expect((await eraseAt(id)).toISOString().slice(0, 10)).toBe(daysFromNow(30));
+    });
   });
 
   it("locks maxTeamSize after draft and points after voting", async () => {
