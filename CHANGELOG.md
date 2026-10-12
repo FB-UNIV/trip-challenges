@@ -1,5 +1,27 @@
 # Changelog
 
+## [0.10.0](https://github.com/FB-UNIV/trip-challenges/compare/v0.9.2...v0.10.0) (2026-10-12)
+
+
+### Features
+
+* **api:** French error messages, team labels and emails ([#135](https://github.com/FB-UNIV/trip-challenges/issues/135)) ([3f2fac8](https://github.com/FB-UNIV/trip-challenges/commit/3f2fac8e0817db970e1a044f53c7721ac6e88fb4))
+* **web:** French user interface ([#133](https://github.com/FB-UNIV/trip-challenges/issues/133)) ([9b7dfc5](https://github.com/FB-UNIV/trip-challenges/commit/9b7dfc5cbcac79b97d3fce2469e311fe2dac97e9))
+* **web:** privacy page for students and families, and a GDPR guide for schools ([#142](https://github.com/FB-UNIV/trip-challenges/issues/142)) ([55af61d](https://github.com/FB-UNIV/trip-challenges/commit/55af61d2c5d8763675298f6d9eaa4e5553d380a0))
+
+
+### Bug Fixes
+
+* **api:** erasure labels pre-label results « Équipe N » too ([#139](https://github.com/FB-UNIV/trip-challenges/issues/139)) ([89c3152](https://github.com/FB-UNIV/trip-challenges/commit/89c3152c575c2a00f9c41664778cae51a104a069))
+* **api:** teacher sessions expire server-side; production compose always runs NODE_ENV=production ([#144](https://github.com/FB-UNIV/trip-challenges/issues/144)) ([b9b5fc4](https://github.com/FB-UNIV/trip-challenges/commit/b9b5fc49922efff6af26bd189ef1675168508606))
+* **api:** the grace period starts when the results are published ([#151](https://github.com/FB-UNIV/trip-challenges/issues/151)) ([1d019e2](https://github.com/FB-UNIV/trip-challenges/commit/1d019e28e9be72eb199ea211865171708bb304aa))
+* **deploy:** route Traefik by APP_HOST instead of a hardcoded hostname ([#129](https://github.com/FB-UNIV/trip-challenges/issues/129)) ([fb067fd](https://github.com/FB-UNIV/trip-challenges/commit/fb067fd1301ea4f580fdc5dcd476cfe77f42a482))
+* **deps:** patch proxy-addr, busboy and fast-uri advisories ([#134](https://github.com/FB-UNIV/trip-challenges/issues/134)) ([d323967](https://github.com/FB-UNIV/trip-challenges/commit/d323967a98d65f161503b61978db458f333091de))
+* **deps:** upgrade nodemailer to 10 ([#141](https://github.com/FB-UNIV/trip-challenges/issues/141)) ([65b5c24](https://github.com/FB-UNIV/trip-challenges/commit/65b5c24944e141eab4aad59c14a5b484d535e2c4))
+* **deps:** upgrade to Fastify 5 and matching plugins ([#140](https://github.com/FB-UNIV/trip-challenges/issues/140)) ([aad4c20](https://github.com/FB-UNIV/trip-challenges/commit/aad4c20007076bb089663a12f4b427f94320da6f))
+* **deps:** upgrade to react-router 7 ([#143](https://github.com/FB-UNIV/trip-challenges/issues/143)) ([9df3621](https://github.com/FB-UNIV/trip-challenges/commit/9df3621d0a2c0cac04af052e3a440c447fb6fa2f))
+* **deps:** upgrade vitest to 4, vite to 6.4 and vite-plugin-pwa to 1 ([#149](https://github.com/FB-UNIV/trip-challenges/issues/149)) ([12ca76f](https://github.com/FB-UNIV/trip-challenges/commit/12ca76ffb93759d65546e00a0f7f40fcb8d5e601))
+
 ## [0.9.2](https://github.com/FB-UNIV/trip-challenges/compare/v0.9.1...v0.9.2) (2026-10-09)
 
 
