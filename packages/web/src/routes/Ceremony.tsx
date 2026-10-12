@@ -1,7 +1,8 @@
 // Full-screen awards ceremony for the reveal phase. Steps through each challenge's
 // podium (revealed bottom-up for suspense) and finishes on the Grand Champion.
 // Advance with click / Space / →, go back with ←. Reads the non-PII results that
-// survive Erasure, so it keeps working as a keepsake afterwards.
+// survive Erasure, so it keeps working as a keepsake afterwards. Until then, the trip's
+// teachers also get each podium's photo (#166): shown here, on the projector, only.
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useParams } from "react-router";
 import { api, type ResultRow } from "../api.js";
@@ -24,7 +25,8 @@ function buildScenes(results: ResultRow[]): Scene[] {
   }
   const scenes: Scene[] = [{ kind: "intro" }];
   for (const [title, rows] of byChallenge) {
-    scenes.push({ kind: "challenge", title, podium: [...rows].sort((a, b) => a.placement - b.placement).slice(0, 3) });
+    // Every team on the podium: tied teams share a place ("1224" ranking), so not just 3 rows.
+    scenes.push({ kind: "challenge", title, podium: rows.filter((r) => r.placement <= 3).sort((a, b) => a.placement - b.placement) });
   }
   if (champs.length) scenes.push({ kind: "champion", teams: champs });
   return scenes.length === 1 ? [{ kind: "empty" }] : scenes;
@@ -88,15 +90,20 @@ function SceneView({ scene }: { scene: Scene }) {
   if (scene.kind === "challenge") {
     // Render bottom-up (3rd first, 1st last) so the winner lands last and biggest.
     const rows = [...scene.podium].reverse();
+    const withPhotos = rows.some((r) => r.photo_id);
     return (
-      <div style={S.center}>
+      <div style={withPhotos ? S.wide : S.center}>
         <h2 style={{ ...S.chTitle, animation: "rise .5s both" }}>{scene.title}</h2>
-        <div style={S.podium}>
+        <div style={withPhotos ? S.podiumPhotos : S.podium}>
           {rows.map((r) => {
             const place = r.placement; // 1..3
             const delay = (4 - place) * 0.5; // 3rd first, 1st last
             return (
-              <div key={r.placement} style={{ ...S.row, ...placeStyle(place), animation: `rise .55s ${delay}s both` }}>
+              <div
+                key={r.id}
+                style={{ ...(withPhotos ? { ...S.card, order: PODIUM_ORDER[place - 1] } : S.row), ...placeStyle(place), animation: `rise .55s ${delay}s both` }}
+              >
+                {r.photo_id && <Photo id={r.photo_id} team={r.team_name_vetted} place={place} />}
                 <span style={S.medal}>{MEDAL[place - 1] ?? `#${place}`}</span>
                 <span style={S.team}>{r.team_name_vetted}</span>
                 <span style={S.pts}>{r.points} pts</span>
@@ -112,18 +119,38 @@ function SceneView({ scene }: { scene: Scene }) {
       <div style={S.center}>
         <div style={{ fontSize: 120, animation: "pop .7s both" }}>👑</div>
         <p style={{ ...S.sub, animation: "rise .5s .2s both" }}>Grand champion</p>
-        {scene.teams.map((t, n) => (
-          <h1 key={n} style={{ ...S.champ, animation: `pop .7s ${0.4 + n * 0.2}s both` }}>
-            {t.team_name_vetted}
-            <span style={S.champPts}> · {t.points} pts</span>
-          </h1>
-        ))}
+        <div style={S.champs}>
+          {scene.teams.map((t, n) => (
+            <div key={t.id} style={{ ...S.card, animation: `pop .7s ${0.4 + n * 0.2}s both` }}>
+              {t.photo_id && <Photo id={t.photo_id} team={t.team_name_vetted} place={0} />}
+              <h1 style={S.champ}>
+                {t.team_name_vetted}
+                <span style={S.champPts}> · {t.points} pts</span>
+              </h1>
+            </div>
+          ))}
+        </div>
         {scene.teams.length > 1 && <p style={S.sub}>(égalité — l'enseignant tranche)</p>}
       </div>
     );
   }
   return null;
 }
+
+/** A winning photo, framed in its medal's colour; the winner's is the biggest. `place` 0: the Grand Champion. */
+function Photo({ id, team, place }: { id: string; team: string; place: number }) {
+  const height = place === 1 ? "min(46vh, 440px)" : place === 0 ? "min(38vh, 360px)" : "min(34vh, 320px)";
+  return (
+    <img
+      src={api.photoUrl(id)} alt={`Photo de ${team}`}
+      style={{ ...S.photo, height, borderColor: FRAME[Math.max(place, 1) - 1] }}
+    />
+  );
+}
+
+// Classic podium, left to right: 2nd, 1st, 3rd (the DOM stays 3rd → 1st for the reveal).
+const PODIUM_ORDER = [2, 1, 3];
+const FRAME = ["#f6d079", "#e5e7eb", "#fdba74"];
 
 function placeStyle(place: number): React.CSSProperties {
   if (place === 1) return { fontSize: 40, color: "#f6d079", fontWeight: 800 };
@@ -149,6 +176,11 @@ const S: Record<string, React.CSSProperties> = {
   sub: { color: "#b7aac9", fontSize: 20, margin: 6 },
   chTitle: { fontSize: 34, color: "#b499f2", marginBottom: 24, fontWeight: 700 },
   podium: { display: "flex", flexDirection: "column", gap: 14, alignItems: "center" },
+  wide: { textAlign: "center", padding: "24px 24px 96px", width: "100%", maxWidth: 1400 },
+  podiumPhotos: { display: "flex", flexWrap: "wrap", gap: 28, alignItems: "flex-end", justifyContent: "center" },
+  card: { display: "flex", flexDirection: "column", gap: 8, alignItems: "center" },
+  photo: { maxWidth: "min(30vw, 420px)", objectFit: "cover", borderRadius: 18, border: "5px solid", boxShadow: "0 24px 60px rgba(0,0,0,.5)", background: "#201830", display: "block" },
+  champs: { display: "flex", flexWrap: "wrap", gap: 32, justifyContent: "center", alignItems: "flex-end" },
   row: { display: "flex", gap: 16, alignItems: "center", justifyContent: "center" },
   medal: { fontSize: "1.2em" },
   team: {},

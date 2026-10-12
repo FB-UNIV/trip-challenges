@@ -146,8 +146,11 @@ voté, **jamais pour qui**.
 encore les résultats.
 
 Dans **Résultats**, **Lancer la cérémonie** ouvre un plein écran pour le vidéoprojecteur :
-clic, Espace ou → pour dévoiler le podium de chaque défi, ← pour revenir, jusqu'au **grand
-champion**. En cas d'égalité pour le titre, choisissez le gagnant avec **Couronner cette
+clic, Espace ou → pour dévoiler le podium de chaque défi, avec la **photo gagnante** de
+chaque place (toutes les équipes à égalité sont sur le podium), ← pour revenir, jusqu'au
+**grand champion** et sa meilleure photo. Les photos n'apparaissent que dans la cérémonie
+(votre session enseignant), jamais dans les résultats des élèves ; une photo retirée n'est
+pas montrée. En cas d'égalité pour le titre, choisissez le gagnant avec **Couronner cette
 équipe**.
 
 Ensuite, **Publier les résultats** (carte Maintenant) les rend visibles aux élèves et ouvre
