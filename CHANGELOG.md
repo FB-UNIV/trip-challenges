@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.11.0](https://github.com/FB-UNIV/trip-challenges/compare/v0.10.0...v0.11.0) (2026-10-12)
+
+
+### Features
+
+* **web:** review a taken photo full screen, then celebrate and offer it as the team's entry ([#156](https://github.com/FB-UNIV/trip-challenges/issues/156)) ([56e9e68](https://github.com/FB-UNIV/trip-challenges/commit/56e9e68d4751471136965a3d46a7ed447234c718))
+* **web:** students send photos straight from the camera or gallery, shrunk on the phone, with progress ([#153](https://github.com/FB-UNIV/trip-challenges/issues/153)) ([760067f](https://github.com/FB-UNIV/trip-challenges/commit/760067f8c95abfccf624b70e93c2abb7f118b345))
+
 ## [0.10.0](https://github.com/FB-UNIV/trip-challenges/compare/v0.9.2...v0.10.0) (2026-10-12)
 
 
