@@ -228,9 +228,10 @@ Classement par défi = tri par `wilson_score` décroissant (ADR-0002).
 | is_grand_champion | bool | |
 | team_label | text | étiquette neutre « Équipe N » (ordre de création des équipes dans la sortie), enregistrée à la révélation (les résultats calculés avant le passage au français portent « Team N ») |
 | team_name_reviewed | bool | copie de `team.name_reviewed` à la révélation |
+| submission_id | uuid fk → submission, `ON DELETE SET NULL` | la photo gagnante, pour la cérémonie (#166) ; transmise aux seuls enseignants de la sortie, jamais pour une photo retirée ; remise à `NULL` par l'effacement (qui supprime aussi les envois) |
 
 Rempli pendant la cérémonie rythmée par l'enseignant ; ne contient **ni image, ni
-identité d'élève**.
+identité d'élève**, et après l'effacement plus aucun lien vers une photo.
 
 ### audit_log — sans données personnelles par conception
 | colonne | type | remarques |
@@ -283,7 +284,7 @@ sequenceDiagram
 1. Supprimer les objets MinIO de la sortie (suppression définitive des fichiers en
    production, au mieux).
 2. Remplacer chaque nom d'équipe non vérifié dans `result` par son étiquette neutre
-   (ADR-0007), puis supprimer toutes les lignes rattachées à la sortie (student, team,
+   (ADR-0007) et effacer le lien `result.submission_id`, puis supprimer toutes les lignes rattachées à la sortie (student, team,
    submission, nomination, duel, stats, sessions, invitations, file d'import, défis).
 3. Rien à nettoyer dans les journaux : aucune donnée personnelle d'élève n'y entre (voir
    [durcissement § 5](./production-hardening.md#5-hygiène-des-journaux-audit-régulier)) ;

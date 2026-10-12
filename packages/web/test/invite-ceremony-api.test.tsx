@@ -142,6 +142,33 @@ describe("ceremony (/ceremony/:id)", () => {
     expect(screen.getByText("(égalité — l'enseignant tranche)")).toBeInTheDocument();
   });
 
+  // #166: the photos that won, on the projector. Ties all make the podium.
+  it("shows each podium photo, every team tied for a place included", async () => {
+    const shot = (r: ReturnType<typeof row>, photo: string | null) => ({ ...r, photo_id: photo });
+    server.use(http.get("/api/trips/t1/results", () => HttpResponse.json({ results: [
+      shot(row("1", "Gelato", 1, "Foxes", 5), "p1"), shot(row("2", "Gelato", 2, "Owls", 3), "p2"),
+      shot(row("3", "Gelato", 3, "Bats", 1), "p3"), shot(row("4", "Gelato", 3, "Moles", 1), null),
+      shot(row("5", "Gelato", 5, "Eels", 0), "p5"),
+      shot(row("6", "", 1, "Foxes", 5, true), "p1"),
+    ] })));
+    renderAt("/ceremony/t1");
+    await screen.findByText("Et les gagnants sont…");
+
+    fireEvent.click(screen.getByRole("button", { name: "Dévoiler →" }));
+    expect([...document.querySelectorAll("h2 + div > div")].map((d) => d.textContent))
+      .toEqual(["🥉Moles1 pts", "🥉Bats1 pts", "🥈Owls3 pts", "🥇Foxes5 pts"]); // tied 3rds both; 5th not
+    const shots = screen.getAllByRole("img").map((i) => [i.getAttribute("alt"), i.getAttribute("src")]);
+    expect(shots).toEqual([
+      ["Photo de Bats", "/api/submissions/p3/photo"],
+      ["Photo de Owls", "/api/submissions/p2/photo"],
+      ["Photo de Foxes", "/api/submissions/p1/photo"],
+    ]); // Moles has no photo: its name and points only
+
+    fireEvent.click(screen.getByRole("button", { name: "Dévoiler →" }));
+    expect(screen.getByText("Grand champion")).toBeInTheDocument();
+    expect(screen.getByRole("img", { name: "Photo de Foxes" })).toHaveAttribute("src", "/api/submissions/p1/photo");
+  });
+
   it("says when there are no results yet", async () => {
     server.use(http.get("/api/trips/t1/results", () => HttpResponse.json({ results: [] })));
     renderAt("/ceremony/t1");

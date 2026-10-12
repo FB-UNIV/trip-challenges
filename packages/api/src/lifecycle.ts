@@ -115,8 +115,8 @@ async function computeResultsIn(c: PoolClient, tripId: string): Promise<void> {
   const reviewed = new Map(teams.map((t) => [t.id, t.name_reviewed]));
 
   for (const ch of challenges) {
-    const { rows: noms } = await c.query<{ team_id: string; name_enc: Buffer; wilson: number }>(
-      `SELECT n.team_id, tm.name_enc, COALESCE(ns.wilson_score, 0) AS wilson
+    const { rows: noms } = await c.query<{ team_id: string; submission_id: string; name_enc: Buffer; wilson: number }>(
+      `SELECT n.team_id, n.submission_id, tm.name_enc, COALESCE(ns.wilson_score, 0) AS wilson
          FROM nomination n
          JOIN team tm ON tm.id = n.team_id
          LEFT JOIN nomination_stats ns ON ns.nomination_id = n.id
@@ -144,9 +144,9 @@ async function computeResultsIn(c: PoolClient, tripId: string): Promise<void> {
       }
       const points = (ptsMap.get(placement) ?? 0) * Number(ch.multiplier);
       await c.query(
-        `INSERT INTO result (trip_id, challenge_title, placement, team_name_vetted, points, team_label, team_name_reviewed)
-         VALUES ($1,$2,$3,$4,$5,$6,$7)`,
-        [tripId, ch.title, placement, nameCache.get(nom.team_id), points, labelOf.get(nom.team_id), reviewed.get(nom.team_id)],
+        `INSERT INTO result (trip_id, challenge_title, placement, team_name_vetted, points, team_label, team_name_reviewed, submission_id)
+         VALUES ($1,$2,$3,$4,$5,$6,$7,$8)`,
+        [tripId, ch.title, placement, nameCache.get(nom.team_id), points, labelOf.get(nom.team_id), reviewed.get(nom.team_id), nom.submission_id],
       );
       teamTotals.set(nom.team_id, (teamTotals.get(nom.team_id) ?? 0) + points);
     }
