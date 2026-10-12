@@ -388,8 +388,9 @@ Mesuré sur un portable 12 cœurs, avec le même scénario pour chaque version :
 
 ## 7. CI/CD (GitHub Actions)
 
-Workflows dans [`.github/workflows/`](https://github.com/FB-UNIV/trip-challenges/tree/main/.github/workflows) : `ci.yml` lance typecheck →
-tests → build (et une construction Docker) sur chaque PR et chaque push ; `release.yml`
+Workflows dans [`.github/workflows/`](https://github.com/FB-UNIV/trip-challenges/tree/main/.github/workflows) : `ci.yml` lance l'analyse des
+workflows (zizmor) → typecheck → tests → build (et une construction Docker) sur chaque PR et
+chaque push ; `release.yml`
 utilise release-please pour publier des versions semver et pousse les images `trip-api` +
 `trip-web` sur GHCR. Mettez ensuite les tags publiés dans `IMAGE_API`/`IMAGE_WEB` de
 `.env` (par ex. `ghcr.io/fb-univ/trip-api:<version>`) puis `docker compose up -d` pour
@@ -408,7 +409,8 @@ cosign verify ghcr.io/fb-univ/trip-api:<version> \
 
 Une signature prouve que l'image a été construite par le workflow de release de ce dépôt
 sur `main`. Les images antérieures à l'ajout de la signature (≤ 0.9.2) ne sont pas
-signées.
+signées. Les tags `v*` du dépôt sont protégés et les releases GitHub sont immuables (à partir
+de 0.12.0) : une version publiée ne peut plus être modifiée.
 
 ## 8. Référence des variables d'environnement
 

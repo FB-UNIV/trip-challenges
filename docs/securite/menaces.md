@@ -91,7 +91,7 @@ flowchart LR
 |---|---|---|
 | **Photo inappropriée ou illégale** | Rien n'est montré aux autres équipes sans validation ; tout enseignant de la sortie peut retirer n'importe quelle photo à tout moment. | Les membres de l'équipe la voient. Modérez tôt ; en cas de contenu illégal, suivez la procédure de l'établissement. |
 | **Fichier piégé** (virus, fichier polyglotte) | Analyse antivirus **avant** stockage, refus si l'antivirus est indisponible ; l'image est décodée puis ré-encodée en JPEG, ce qui élimine les contenus cachés et les métadonnées. | Dépend de `AV_SCAN_ENABLED=true` et de signatures à jour. |
-| **Fuite de la position via les métadonnées** | Toutes les métadonnées (EXIF, GPS) sont supprimées au ré-encodage. | Le décor de la photo peut lui-même révéler un lieu. |
+| **Fuite de la position via les métadonnées** | Le téléphone réduit et ré-encode la photo avant l'envoi quand son navigateur sait la décoder : les métadonnées (EXIF, GPS) ne quittent alors pas l'appareil. Le serveur les supprime dans tous les cas au ré-encodage. | Le décor de la photo peut lui-même révéler un lieu. |
 | **Image « bombe »** (fichier énorme ou dimensions démesurées) | 15 Mo maximum par envoi ; limite de pixels du décodeur ; images réduites à 2000 px. | Une rafale d'envois coûteux peut ralentir le serveur ; limites de débit par élève et par IP. |
 | **Injection de script** (XSS) via un nom d'équipe ou un titre | L'interface n'insère jamais de HTML brut ; CSP `script-src 'self'`. | Nécessite les en-têtes du frontal (fournis pour Traefik ; à reproduire pour Caddy). |
 
@@ -130,9 +130,10 @@ flowchart LR
 
 | Scénario | Protections | Risque résiduel / recommandations |
 |---|---|---|
-| **Dépendance compromise ou vulnérable** | Alertes Dependabot, analyse CodeQL, tests à chaque modification. | Mettez à jour régulièrement ; suivez les avis de sécurité du dépôt. |
+| **Dépendance compromise ou vulnérable** | Alertes et mises à jour Dependabot, analyse CodeQL, tests à chaque modification ; actions GitHub limitées à une liste autorisée et épinglées par SHA. | Mettez à jour régulièrement ; suivez les avis de sécurité du dépôt. |
 | **Image Docker falsifiée** | Images publiées signées (cosign, sans clé), avec SBOM et provenance. | Vérifiez la signature avant de déployer ; ou construisez vous-même depuis les sources. |
-| **Compte d'un mainteneur compromis** | Modifications de `main` uniquement par PR avec vérifications obligatoires. | Une version malveillante resterait signée par le workflow officiel : lisez les notes de version. |
+| **Workflow CI détourné** (vol du jeton, injection) | Jeton par défaut en lecture seule ; aucun `pull_request_target` ; le jeton de checkout n'est pas conservé sur le disque ; [zizmor](https://docs.zizmor.sh) analyse les workflows à chaque PR (vérification obligatoire) ; le jeton de release n'est lisible que depuis l'environnement protégé `release` (branche `main`). | Une première contribution externe doit être approuvée avant que ses workflows ne tournent. |
+| **Compte d'un mainteneur compromis** | Modifications de `main` uniquement par PR, sans contournement possible (administrateurs compris), avec vérifications obligatoires (CI, e2e, CodeQL) ; tags `v*` impossibles à déplacer ou supprimer ; releases immuables une fois publiées. | Une version malveillante resterait signée par le workflow officiel : lisez les notes de version. |
 
 ## Ce que l'effacement garantit — et ne garantit pas
 

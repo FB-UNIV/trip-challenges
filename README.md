@@ -239,8 +239,9 @@ ce sont eux qui déterminent la version.
 
 Les workflows sont dans [`.github/workflows/`](./.github/workflows) :
 
-- **`ci.yml`** — chaque PR et chaque push sur `main` : `npm ci` → typecheck → tests →
-  build, plus une construction Docker (sans publication) des deux images.
+- **`ci.yml`** — chaque PR et chaque push sur `main` : analyse de sécurité des workflows
+  ([zizmor](https://docs.zizmor.sh)) → `npm ci` → typecheck → tests → build, plus une
+  construction Docker (sans publication) des deux images.
 - **`e2e.yml`** — les tests Playwright sur la pile complète.
 - **`pr-title.yml`** — refuse les titres de PR qui ne sont pas des Conventional Commits.
 - **`release.yml`** — [release-please](https://github.com/googleapis/release-please)
@@ -253,9 +254,15 @@ Les workflows sont dans [`.github/workflows/`](./.github/workflows) :
 Montées de version : `fix:` → patch, `feat:` → mineure, `feat!:` / `BREAKING CHANGE:` →
 majeure (mineure tant que < 1.0). Les autres types ne publient pas de release.
 
-Secret facultatif `RELEASE_PLEASE_TOKEN` (PAT à portée fine, écriture contents +
-pull-requests) : sans lui, les PR de release ne déclenchent pas la CI et ne peuvent pas
-satisfaire les vérifications requises.
+Secret facultatif `RELEASE_PLEASE_TOKEN` (PAT à portée fine limité à ce dépôt, écriture
+contents + pull-requests), rangé dans l'environnement protégé `release` (déploiements depuis
+`main` uniquement) et non dans les secrets du dépôt : sans lui, les PR de release ne
+déclenchent pas la CI et ne peuvent pas satisfaire les vérifications requises.
+
+`main` est protégée par un ruleset sans contournement possible (administrateurs compris) :
+PR obligatoire, fusion en squash, vérifications `check`, `docker (api)`, `docker (web)`,
+`pr-title` et `e2e` réussies, aucune nouvelle alerte CodeQL élevée. Les tags `v*` ne peuvent
+être ni déplacés ni supprimés, et une release publiée est immuable.
 
 ## Effacement
 
@@ -273,8 +280,10 @@ tous deux sans données personnelles. Voir
 Le parcours complet est en place : connexion enseignant OIDC, création de sortie avec sa
 clé Vault, import de la liste d'élèves en arrière-plan avec envoi des codes d'accès,
 sessions élèves liées à l'appareil et nouveau code en cas de perte, équipes (et jeu en
-solo), envoi par QR avec analyse antivirus bloquante, suppression des EXIF et chiffrement
-par enveloppe, sélection et modération par l'enseignant, duels par paire avec classement
+solo), envoi de photos par QR depuis l'appareil photo ou la galerie (photo réduite et
+débarrassée de ses EXIF sur le téléphone, progression et nouvel essai), analyse antivirus
+bloquante, suppression des EXIF et chiffrement par enveloppe côté serveur, sélection et
+modération par l'enseignant avec notification des élèves, duels par paire avec classement
 de Wilson (paires déjà votées exclues), calcul des résultats avec gestion des égalités et
 départage du grand champion, cérémonie de révélation sur vidéoprojecteur (résultats
 invisibles pour les élèves avant publication), modification de la configuration selon la
