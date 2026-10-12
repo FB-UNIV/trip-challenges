@@ -3,7 +3,7 @@ import { useParams } from "react-router";
 import type { EntryState } from "@trip/shared";
 import { api, errorText, HttpError, isBadCode } from "../api.js";
 import { qk, useLoad, useMe, useOptimistic, useRefresh } from "../query.js";
-import { Button, Card, Celebrate, Field, PhasePill, phaseMeta, Progress, Skeleton } from "../ui.js";
+import { Button, Card, Celebrate, Field, PhasePill, phaseMeta, Progress, Skeleton, useLightbox } from "../ui.js";
 import { shrinkPhoto } from "../photo.js";
 import { PlaySolo } from "./PlaySolo.js";
 
@@ -65,6 +65,7 @@ function UploadAndNominate({ challengeId }: { challengeId: string }) {
   const refresh = useRefresh();
   const changed = () => refresh(qk.submissions(challengeId), qk.myChallenges); // the photos here, the checklist, the badge
   const optimistic = useOptimistic();
+  const openLightbox = useLightbox();
   type Subs = Awaited<ReturnType<typeof api.listSubmissions>>;
   // One photo is looked at full screen before it goes (`review`); once it's in, the team may make it their entry (`sent`).
   const [sheet, setSheet] = useState<Sheet | null>(null);
@@ -131,7 +132,12 @@ function UploadAndNominate({ challengeId }: { challengeId: string }) {
         <div className="grid2" style={{ marginTop: 10 }}>
           {subs.data?.submissions.map((s) => (
             <div key={s.id} className="photo-cell">
-              <img src={api.photoUrl(s.id)} alt="" className="photo" style={{ aspectRatio: "1" }} />
+              <button
+                type="button" className="photo-btn" aria-label="Agrandir la photo"
+                onClick={() => openLightbox({ src: api.photoUrl(s.id), subtitle: s.entry ? ENTRY_LABEL[s.entry] : undefined })}
+              >
+                <img src={api.photoUrl(s.id)} alt="" className="photo" style={{ aspectRatio: "1" }} />
+              </button>
               {s.entry && <span className={`entry-badge entry-${s.entry}`}>{ENTRY_LABEL[s.entry]}</span>}
               <Button variant={s.nominated ? "gold" : "ghost"} size="mini" onClick={() => nominate(s.id)}>{s.nominated ? "Sélectionnée ✓" : "Sélectionner"}</Button>
             </div>
