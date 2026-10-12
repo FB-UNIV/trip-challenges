@@ -210,7 +210,7 @@ identité d'élève**.
 | id | uuid pk | |
 | trip_id | uuid | opaque |
 | teacher_id | uuid | auteur de l'action (personnel) |
-| action | text | par ex. `submission_removed`, `nomination_rejected`, `erasure_fired`, `voting_closed` |
+| action | text | par ex. `submission_removed`, `team_renamed`, `phase_reveal`, `erasure_fired` (liste complète : [guide du DPO](./roles/dpo.md#le-journal-daudit)) |
 | target_opaque_id | uuid null | référence un identifiant, jamais une donnée personnelle d'élève |
 | at | timestamptz | |
 

@@ -5,7 +5,7 @@ Monter un environnement local pour faire tourner et modifier Trip Challenges. Le
 nécessite soit un fournisseur OIDC, soit le raccourci de connexion de dev intégré
 (ci-dessous).
 
-- Architecture et glossaire → [`../CONTEXT.md`](../CONTEXT.md), [`adr/`](./adr)
+- Architecture et glossaire → [glossaire](./glossaire.md), [ADR](./adr/index.md)
 - Production → [`deployment.md`](./deployment.md)
 
 ---

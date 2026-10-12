@@ -7,7 +7,7 @@
 
 Ce guide aide un établissement à documenter l'usage de Trip Challenges : qui est
 responsable de quoi, quelles données sont traitées et combien de temps, et comment en
-informer les familles. Le détail technique est dans [`CONTEXT.md`](../CONTEXT.md),
+informer les familles. Le détail technique est dans le [glossaire](./glossaire.md),
 [`data-model.md`](./data-model.md) et les ADR
 [0001](./adr/0001-crypto-erasure-with-vault-per-trip-keys.md) (effacement cryptographique),
 [0004](./adr/0004-roster-import-school-as-controller.md) (rôles) et

@@ -17,7 +17,10 @@
     "typecheck": "npm run typecheck --workspaces --if-present",
     "test": "npm run test --workspaces --if-present",
     "e2e:services": "docker compose -f docker-compose.dev.yml -f e2e/docker-compose.e2e.yml up -d && node e2e/scripts/wait-for-services.mjs",
-    "test:e2e": "npm run e2e --workspace @trip/e2e"
+    "test:e2e": "npm run e2e --workspace @trip/e2e",
+    "docs:dev": "vitepress dev docs",
+    "docs:build": "vitepress build docs",
+    "docs:preview": "vitepress preview docs"
   },
   "engines": {
     "node": ">=20"
