@@ -72,7 +72,8 @@ plus rien ne change.
 | id | uuid pk | |
 | trip_id | uuid fk | |
 | email | citext | collègue invité (personnel) |
-| token_hash | text | à usage unique, avec expiration |
+| token_hash | text | à usage unique |
+| expires_at | timestamptz | 7 jours après l'invitation |
 | accepted_at | timestamptz null | rattachée à l'enseignant lors de sa connexion PocketID |
 
 ### student — un participant mineur, unique par sortie
@@ -80,10 +81,11 @@ plus rien ne change.
 |---|---|---|
 | id | uuid pk | |
 | trip_id | uuid fk | |
-| email 🔒 | bytea | chiffré par Vault ; la seule donnée personnelle de l'élève |
+| email_enc 🔒 | bytea | chiffré par Vault ; la seule donnée personnelle de l'élève |
 | email_lookup | text | HMAC(email) sous une clé MAC propre à la sortie, pour dédoublonner/retrouver sans déchiffrer |
 | access_code_hash | text | argon2id du code à usage unique de 128 bits ; jamais stocké en clair |
 | access_code_state | text enum | `unredeemed \| redeemed \| reissued` |
+| access_code_sent_at | timestamptz null | le code courant a bien été envoyé par e-mail (0002) |
 | created_at | timestamptz | |
 
 Même e-mail dans deux sorties = deux lignes dans deux sorties, avec des `email_lookup`
@@ -106,7 +108,7 @@ Code à usage unique → une session active ; un nouveau code révoque l'ancienn
 |---|---|---|
 | id | uuid pk | |
 | trip_id | uuid fk | |
-| name 🔒 | bytea | chiffré par Vault (peut contenir de vrais noms → traité comme donnée personnelle). Copié dans `result` à la révélation ; il ne survit à l'effacement que s'il a été vérifié (voir `result`). |
+| name_enc 🔒 | bytea | chiffré par Vault (peut contenir de vrais noms → traité comme donnée personnelle). Copié dans `result` à la révélation ; il ne survit à l'effacement que s'il a été vérifié (voir `result`). |
 | name_reviewed | bool | un enseignant a vérifié le nom (renommer compte). Seuls les noms vérifiés survivent à l'effacement (ADR-0007). |
 | created_at | timestamptz | fixe aussi l'ordre de l'étiquette neutre (« Équipe N ») |
 
@@ -222,8 +224,9 @@ personnelles d'élèves (CONTEXT : Effacement › Subsiste).
 ## Frontière du chiffrement (clé de la sortie)
 
 🔒 sous la clé Vault transit `trip-<tripId>` :
-- `student.email`
-- `team.name`
+- `student.email_enc`
+- `team.name_enc`
+- `roster_import_item.email_enc` (file d'import des adresses, en attente d'envoi)
 - les **octets** des photos (`submission`) dans MinIO (enveloppe : clé de données émise
   par Vault, enveloppée sous la clé de la sortie)
 
@@ -232,17 +235,19 @@ personnelles d'élèves (CONTEXT : Effacement › Subsiste).
 stocker tels quels ; ils ne contiennent plus aucune donnée personnelle récupérable une fois
 la clé de la sortie / la clé MAC détruite.
 
-**Non** chiffrés (survivent) : identité des enseignants, contenu des défis, `result`,
-`audit_log`, configuration de la sortie.
+**Non** chiffrés : identité des enseignants, contenu des défis, `result`, `audit_log`,
+configuration de la sortie. Survivent à l'effacement : enseignants, `result` (qui garde le
+titre de chaque défi), `audit_log` et la ligne `trip` ; les défis sont supprimés.
 
 ## Procédure d'effacement (correspond à l'ADR-0001)
 1. Supprimer les objets MinIO de la sortie (suppression définitive des fichiers en
    production, au mieux).
 2. Remplacer chaque nom d'équipe non vérifié dans `result` par son étiquette neutre
    (ADR-0007), puis supprimer toutes les lignes rattachées à la sortie (student, team,
-   submission, nomination, duel, stats, sessions, invites) — en cascade par `trip_id`.
-3. Nettoyer les traces de distribution des e-mails et les journaux applicatifs de tout
-   identifiant/donnée personnelle de la sortie ; les renouveler.
+   submission, nomination, duel, stats, sessions, invitations, file d'import, défis).
+3. Rien à nettoyer dans les journaux : aucune donnée personnelle d'élève n'y entre (voir
+   [durcissement § 5](./production-hardening.md#5-hygiène-des-journaux-audit-régulier)) ;
+   les journaux du relais SMTP relèvent de sa durée de conservation.
 4. **Détruire la clé Vault transit `trip-<tripId>`** — l'étape décisive : toute copie
    résiduelle dans les sauvegardes de la base ou de MinIO devient définitivement
    illisible.
@@ -259,7 +264,9 @@ draft -> challenge -> voting -> reveal -> grace -> erased
 - challenge→voting et voting→reveal : confirmés par l'enseignant ou automatiques à la
   date prévue.
 - reveal→grace : une fois la cérémonie terminée.
-- grace→erased : automatique après grace_days (l'enseignant peut le déclencher plus tôt).
+- grace→erased : automatique `grace_days` après `voting_closes_at` (la clôture **prévue**
+  du vote) ; sans cette date, seule la date butoir s'applique. L'enseignant peut effacer
+  plus tôt.
 - n'importe laquelle→erased : forcé à hard_erase_at, avec des alertes progressives
   (7 j / 1 j / 1 h, par e-mail et bandeau).
 
