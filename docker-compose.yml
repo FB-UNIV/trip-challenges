@@ -20,7 +20,7 @@ services:
       - "${APP_BIND_ADDR:-127.0.0.1}:8080:80"
     labels:
       - "traefik.enable=true"
-      - "traefik.http.routers.challenges.rule=Host(`challenges.quicheandco.fr`)"
+      - "traefik.http.routers.challenges.rule=Host(`${APP_HOST:?set APP_HOST in .env}`)"
       - "traefik.http.routers.challenges.entrypoints=websecure"
       - "traefik.http.routers.challenges.service=challenges-web-svc"
       - "traefik.http.services.challenges-web-svc.loadbalancer.server.port=8080"
@@ -43,7 +43,7 @@ services:
     # HA: run a second app host + list both in traefik/dynamic.yml (Traefik LB + health-checks)
     labels:
       - "traefik.enable=true"
-      - "traefik.http.routers.challenges-api.rule=Host(`challenges.quicheandco.fr`) && PathPrefix(`/api`)"
+      - "traefik.http.routers.challenges-api.rule=Host(`${APP_HOST:?set APP_HOST in .env}`) && PathPrefix(`/api`)"
       - "traefik.http.routers.challenges-api.entrypoints=websecure"
       - "traefik.http.routers.challenges-api.service=challenges-api-svc"
       - "traefik.http.services.challenges-api-svc.loadbalancer.server.port=3000"
