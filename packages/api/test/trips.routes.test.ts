@@ -10,8 +10,10 @@ import { tripRoutes } from "../src/routes/trips.js";
 import { hasKey, keyCount } from "./support/fake-vault.js";
 import { s3faults } from "./support/fake-s3.js";
 import { findTripsDueForErasure } from "../src/erasure.js";
+import { advanceTrip } from "../src/lifecycle.js";
 import {
   pool, resetAll, buildApp, teacherCookie, makeTeacher, makeTrip, auditActions, count,
+  makeStudent, makeTeam, makeChallenge, makeSubmission, makeNomination, setStats,
 } from "./support/harness.js";
 
 const app = await buildApp([tripRoutes, "/api/trips"]);
@@ -234,6 +236,61 @@ describe("GET /api/trips/:id/results (reveal gating)", () => {
     await seedResult(id);
     const res = await app.inject({ method: "GET", url: `/api/trips/${id}/results` });
     expect(res.json().results[0].team_name_vetted).toBe("Foxes");
+  });
+});
+
+// #166: the ceremony shows each podium's photo, on the projector only (owner decision): the
+// trip's teachers get the link, nobody else, and it never survives Erasure.
+describe("GET /api/trips/:id/results: podium photos (#166)", () => {
+  /** A voted trip at the reveal: Foxes 1st, Owls 2nd on "Boss"; Foxes is Grand Champion. */
+  async function revealed() {
+    const trip = await makeTrip(owner, { phase: "voting" });
+    const boss = await makeChallenge(trip, { title: "Boss" });
+    const entry = async (team: string, wilson: number) => {
+      const s = await makeStudent(trip);
+      const teamId = await makeTeam(trip, team, [s.id]);
+      const sub = await makeSubmission(trip, boss, teamId, s.id);
+      await setStats(trip, await makeNomination(trip, boss, teamId, sub), wilson);
+      return sub;
+    };
+    const foxes = await entry("Foxes", 0.8);
+    const owls = await entry("Owls", 0.5);
+    await advanceTrip(trip, "reveal");
+    return { trip, foxes, owls };
+  }
+  const read = async (trip: string, headers?: { cookie: string }) =>
+    (await app.inject({ method: "GET", url: `/api/trips/${trip}/results`, headers })).json().results as
+      { team_name_vetted: string; is_grand_champion: boolean; photo_id: string | null }[];
+  const photos = (rows: Awaited<ReturnType<typeof read>>) =>
+    rows.map((r) => [r.is_grand_champion ? "champion" : r.team_name_vetted, r.photo_id]);
+
+  it("gives the trip's teachers each podium photo, and the grand champion their best-placed one", async () => {
+    const { trip, foxes, owls } = await revealed();
+    expect(photos(await read(trip, asOwner))).toEqual([["champion", foxes], ["Foxes", foxes], ["Owls", owls]]);
+  });
+
+  it("gives no photo to anyone else: the public (students included), another school's teacher", async () => {
+    const { trip } = await revealed();
+    await advanceTrip(trip, "grace"); // results published
+    const stranger = { cookie: teacherCookie(app, await makeTeacher()) };
+    for (const rows of [await read(trip), await read(trip, stranger)]) {
+      expect(rows).toHaveLength(3);
+      expect(rows.every((r) => r.photo_id === null)).toBe(true);
+    }
+  });
+
+  it("never shows a photo a teacher removed", async () => {
+    const { trip, owls } = await revealed();
+    await pool.query(`UPDATE submission SET removed_by_teacher_id = $2 WHERE id = $1`, [owls, owner]);
+    expect(photos(await read(trip, asOwner))).toContainEqual(["Owls", null]);
+  });
+
+  it("keeps no link to the photos after Erasure", async () => {
+    const { trip } = await revealed();
+    await app.inject({ method: "POST", url: `/api/trips/${trip}/erase`, headers: asOwner });
+    expect(await count("result", "trip_id = $1", [trip])).toBe(3);
+    expect(await count("result", "trip_id = $1 AND submission_id IS NOT NULL", [trip])).toBe(0);
+    expect((await read(trip, asOwner)).every((r) => r.photo_id === null)).toBe(true);
   });
 });
 
