@@ -47,14 +47,14 @@ export async function studentAuthRoutes(app: FastifyInstance) {
     async (req, reply) => {
       const parsed = RedeemAccessCode.safeParse(req.body);
       if (!parsed.success) {
-        return reply.code(400).send({ error: "bad_request", message: "invalid code" });
+        return reply.code(400).send({ error: "bad_request", message: "Code non valide." });
       }
       const { code } = parsed.data;
 
       // Code format: "<studentId>.<secret>" — look up by id, verify secret hash.
       const [studentId, secret] = code.split(".", 2);
       if (!studentId || !secret) {
-        return reply.code(401).send({ error: "unauthorized", message: "bad code" });
+        return reply.code(401).send({ error: "unauthorized", message: "Code non valide ou déjà utilisé." });
       }
 
       const { rows } = await pool.query<{
@@ -74,7 +74,7 @@ export async function studentAuthRoutes(app: FastifyInstance) {
       // Single-use: only an 'unredeemed' code redeems. A spent ('redeemed') or dead code
       // is refused — the lost-device path is /reissue, which mints a fresh 'unredeemed' one.
       if (!student || !ok || student.access_code_state !== "unredeemed") {
-        return reply.code(401).send({ error: "unauthorized", message: "bad code" });
+        return reply.code(401).send({ error: "unauthorized", message: "Code non valide ou déjà utilisé." });
       }
 
       // Issue a device-bound session; mark the code spent.
@@ -102,7 +102,7 @@ export async function studentAuthRoutes(app: FastifyInstance) {
         );
         return true;
       });
-      if (!spent) return reply.code(401).send({ error: "unauthorized", message: "bad code" });
+      if (!spent) return reply.code(401).send({ error: "unauthorized", message: "Code non valide ou déjà utilisé." });
 
       reply.setCookie("student_session", `${student.id}.${token}`, {
         httpOnly: true,
@@ -125,7 +125,7 @@ export async function studentAuthRoutes(app: FastifyInstance) {
     async (req, reply) => {
       const parsed = ReissueAccessCode.safeParse(req.body);
       if (!parsed.success) {
-        return reply.code(400).send({ error: "bad_request", message: "invalid" });
+        return reply.code(400).send({ error: "bad_request", message: "Données invalides." });
       }
       const { tripId } = parsed.data;
       const email = parsed.data.email.trim().toLowerCase();

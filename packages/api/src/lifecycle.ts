@@ -19,7 +19,7 @@ export async function advanceTrip(tripId: string, to: string): Promise<void> {
     const { rows } = await c.query<{ phase: string }>(`SELECT phase FROM trip WHERE id = $1 FOR UPDATE`, [tripId]);
     const from = rows[0]?.phase;
     if (!from) throw new Error("no such trip");
-    if (NEXT[from] !== to) throw Object.assign(new Error(`illegal ${from}->${to}`), { illegal: true });
+    if (NEXT[from] !== to) throw Object.assign(new Error(`illegal ${from}->${to}`), { illegal: true, from, to });
 
     if (to === "voting") await autoNominateLatest(c, tripId);
     if (to === "reveal") await computeResultsIn(c, tripId);
@@ -109,7 +109,7 @@ async function computeResultsIn(c: PoolClient, tripId: string): Promise<void> {
     `SELECT id, name_reviewed FROM team WHERE trip_id = $1 ORDER BY created_at, id`,
     [tripId],
   );
-  const labelOf = new Map(teams.map((t, i) => [t.id, `Team ${i + 1}`]));
+  const labelOf = new Map(teams.map((t, i) => [t.id, `Équipe ${i + 1}`]));
   const reviewed = new Map(teams.map((t) => [t.id, t.name_reviewed]));
 
   for (const ch of challenges) {

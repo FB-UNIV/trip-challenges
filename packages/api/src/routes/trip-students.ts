@@ -95,7 +95,7 @@ export async function tripStudentRoutes(app: FastifyInstance) {
       const { rowCount: taken } = await pool.query(
         `SELECT 1 FROM student WHERE trip_id = $1 AND email_lookup = $2 AND id <> $3`, [tripId, lookup, s.id],
       );
-      if (taken) return reply.code(409).send({ error: "already_on_roster", message: "Another student already has this address." });
+      if (taken) return reply.code(409).send({ error: "already_on_roster", message: "Un autre élève a déjà cette adresse." });
       const old = (await decrypt(tripId, s.email_enc.toString("utf8"))).toString("utf8");
       const enc = await encrypt(tripId, Buffer.from(email, "utf8"));
       await pool.query(`UPDATE student SET email_enc = $2, email_lookup = $3 WHERE id = $1`, [s.id, Buffer.from(enc, "utf8"), lookup]);
@@ -118,7 +118,7 @@ export async function tripStudentRoutes(app: FastifyInstance) {
           WHERE id = $1 AND trip_id = $2 AND status = 'failed'`,
         [itemId, tripId, enc],
       );
-      if (!rowCount) return reply.code(404).send({ error: "not_found", message: "no failed address to retry" });
+      if (!rowCount) return reply.code(404).send({ error: "not_found", message: "Aucune adresse en échec à relancer." });
       await audit(tripId, teacherOf(req).teacherId, "roster_item_retried", itemId);
       setImmediate(() => void processRosterBatch().catch(() => {}));
       return reply.code(202).send({ ok: true });
@@ -145,9 +145,9 @@ async function notJoined(tripId: string, studentId: string, reply: FastifyReply)
        FROM student s WHERE s.id = $1 AND s.trip_id = $2`,
     [studentId, tripId],
   );
-  if (!s) { reply.code(404).send({ error: "not_found", message: "student" }); return null; }
+  if (!s) { reply.code(404).send({ error: "not_found", message: "Élève introuvable." }); return null; }
   if (s.joined) {
-    reply.code(409).send({ error: "joined", message: "This student has joined; they can get a new code from the lost-code link." });
+    reply.code(409).send({ error: "joined", message: "Cet élève est déjà inscrit ; il peut obtenir un nouveau code avec le lien de récupération." });
     return null;
   }
   return s;
@@ -171,7 +171,7 @@ async function deliver(
   try {
     await sendAccessCode(email, trip!.name, joinUrlFor(studentId, secret));
   } catch {
-    return reply.code(502).send({ error: "mail_failed", message: "The email couldn't be sent. Check the address and try again." });
+    return reply.code(502).send({ error: "mail_failed", message: "L'e-mail n'a pas pu être envoyé. Vérifie l'adresse et réessaie." });
   }
   await pool.query(`UPDATE student SET access_code_sent_at = now() WHERE id = $1`, [studentId]);
   const resolved = (await openItems(tripId)).filter((it) => it.status === "failed" && bounced.includes(it.email));

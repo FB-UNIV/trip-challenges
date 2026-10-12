@@ -1,4 +1,4 @@
-// SMTP mailer for Access Codes + Erasure warnings. In dev (no SMTP configured),
+// SMTP mailer for Access Codes + Erasure warnings, in French (the app is for French schools). In dev (no SMTP configured),
 // messages are logged instead of sent. NEVER log the code in production.
 import nodemailer from "nodemailer";
 import { config } from "../config.js";
@@ -28,19 +28,19 @@ export async function sendMail(to: string, subject: string, text: string): Promi
 export async function sendAccessCode(to: string, tripName: string, joinUrl: string): Promise<void> {
   await sendMail(
     to,
-    `Your access code for ${tripName}`,
-    `Open this link on your phone to join "${tripName}":\n\n${joinUrl}\n\n` +
-      `This link is personal — please don't share it.`,
+    `Ton code d'accès pour ${tripName}`,
+    `Ouvre ce lien sur ton téléphone pour rejoindre « ${tripName} » :\n\n${joinUrl}\n\n` +
+      `Ce lien est personnel — ne le partage avec personne.`,
   );
 }
 
 export async function sendCoTeacherInvite(to: string, tripName: string, acceptUrl: string): Promise<void> {
   await sendMail(
     to,
-    `You've been invited to co-manage ${tripName}`,
-    `You've been added as a co-teacher for "${tripName}".\n\n` +
-      `Sign in and accept here:\n\n${acceptUrl}\n\n` +
-      `This invite is personal and expires in 7 days.`,
+    `Invitation à co-gérer ${tripName}`,
+    `Tu as été ajouté comme co-enseignant de « ${tripName} ».\n\n` +
+      `Connecte-toi et accepte ici :\n\n${acceptUrl}\n\n` +
+      `Cette invitation est personnelle et expire dans 7 jours.`,
   );
 }
 
@@ -52,18 +52,22 @@ export async function sendErasureFailedAlert(
 ): Promise<void> {
   await sendMail(
     to,
-    `ACTION NEEDED: erasure failed for ${tripName}`,
-    `Erasing the student data for "${tripName}" (trip ${tripId}) failed:\n\n${detail}\n\n` +
-      `It is retried automatically every minute. If this keeps happening, check Vault, ` +
-      `the object store and the API logs: until erasure completes, the data still exists.`,
+    `ACTION REQUISE : échec de l'effacement de ${tripName}`,
+    `L'effacement des données des élèves de « ${tripName} » (sortie ${tripId}) a échoué :\n\n${detail}\n\n` +
+      `Il est relancé automatiquement chaque minute. Si l'échec persiste, vérifie Vault, ` +
+      `le stockage objet et les journaux de l'API : tant que l'effacement n'a pas abouti, les données existent encore.`,
   );
 }
 
 export async function sendErasureWarning(to: string, tripName: string, when: Date): Promise<void> {
   await sendMail(
     to,
-    `Data for ${tripName} will be erased`,
-    `All photos and student data for "${tripName}" will be permanently erased on ` +
-      `${when.toISOString()}. This cannot be undone.`,
+    `Les données de ${tripName} vont être effacées`,
+    `Toutes les photos et données des élèves de « ${tripName} » seront définitivement effacées le ` +
+      `${frenchDate(when)} (heure de Paris). C'est irréversible.`,
   );
 }
+
+// « lundi 12 octobre 2026 à 14:00 » — the schools are in France.
+const frenchDate = (d: Date) =>
+  d.toLocaleString("fr-FR", { dateStyle: "full", timeStyle: "short", timeZone: "Europe/Paris" });

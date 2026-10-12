@@ -1,5 +1,6 @@
 // Trip lifecycle. Creating a Trip provisions its Vault key (ADR-0001) up front,
 // so every subsequent 🔒 write has a key to encrypt under.
+import { invalidFields, phaseLabel } from "../lib/errors.js";
 import type { FastifyInstance } from "fastify";
 import { randomUUID } from "node:crypto";
 import { TripConfig, TripConfigPatch } from "@trip/shared";
@@ -19,7 +20,7 @@ export async function tripRoutes(app: FastifyInstance) {
     const teacher = teacherOf(req);
     const parsed = TripConfig.safeParse(req.body);
     if (!parsed.success) {
-      return reply.code(400).send({ error: "bad_request", message: parsed.error.message });
+      return reply.code(400).send({ error: "bad_request", message: invalidFields(parsed.error) });
     }
     const cfg = parsed.data;
 
@@ -90,11 +91,14 @@ export async function tripRoutes(app: FastifyInstance) {
   app.post("/:id/advance", { preHandler: member }, async (req, reply) => {
     const id = tripOf(req).id;
     const to = (req.body as { to?: string })?.to;
-    if (!to) return reply.code(400).send({ error: "bad_request", message: "to" });
+    if (!to) return reply.code(400).send({ error: "bad_request", message: "Données invalides : to." });
     try {
       await advanceTrip(id, to);
     } catch (e: any) {
-      if (e?.illegal) return reply.code(409).send({ error: "illegal_transition", message: e.message });
+      if (e?.illegal) {
+        const message = `Impossible de passer de « ${phaseLabel(e.from)} » à « ${phaseLabel(e.to)} ».`;
+        return reply.code(409).send({ error: "illegal_transition", message });
+      }
       throw e;
     }
     return { ok: true, phase: to };
@@ -166,7 +170,7 @@ export async function tripRoutes(app: FastifyInstance) {
       return reply.code(503).send({
         error: "erasure_pending",
         message:
-          "Erasure could not finish yet. It will retry automatically; teachers will be alerted if it keeps failing.",
+          "L'effacement n'a pas encore pu se terminer. Il sera relancé automatiquement ; les enseignants seront prévenus si l'échec persiste.",
         requestId: req.id,
       });
     }
@@ -213,20 +217,20 @@ export async function tripRoutes(app: FastifyInstance) {
       role: "teacher",
       trip: tripFrom.trip("params.id"),
       phases: ["reveal"],
-      closed: { status: 409, body: { error: "wrong_phase", message: "tie-break is only available during the reveal" } },
+      closed: { status: 409, body: { error: "wrong_phase", message: "Le départage n'est possible que pendant la révélation." } },
     }),
   }, async (req, reply) => {
     const teacher = teacherOf(req);
     const id = tripOf(req).id;
     const resultId = (req.body as { resultId?: string })?.resultId;
-    if (!resultId) return reply.code(400).send({ error: "bad_request", message: "resultId" });
+    if (!resultId) return reply.code(400).send({ error: "bad_request", message: "Données invalides : resultId." });
 
     // The chosen row must be one of THIS trip's co-champion rows.
     const { rowCount } = await pool.query(
       `SELECT 1 FROM result WHERE id = $1 AND trip_id = $2 AND is_grand_champion`,
       [resultId, id],
     );
-    if (!rowCount) return reply.code(404).send({ error: "not_found", message: "not a co-champion of this trip" });
+    if (!rowCount) return reply.code(404).send({ error: "not_found", message: "Cette équipe n'est pas à égalité pour le titre de grand champion de cette sortie." });
 
     await pool.query(
       `DELETE FROM result
@@ -248,13 +252,13 @@ export async function tripRoutes(app: FastifyInstance) {
       role: "teacher",
       trip: tripFrom.trip("params.id"),
       phases: LIVE,
-      closed: { status: 409, body: { error: "erased", message: "trip is erased" } },
+      closed: { status: 409, body: { error: "erased", message: "Cette sortie a été effacée." } },
     }),
   }, async (req, reply) => {
     const teacher = teacherOf(req);
     const id = tripOf(req).id;
     const parsed = TripConfigPatch.safeParse(req.body);
-    if (!parsed.success) return reply.code(400).send({ error: "bad_request", message: parsed.error.message });
+    if (!parsed.success) return reply.code(400).send({ error: "bad_request", message: invalidFields(parsed.error) });
     const patch = parsed.data;
 
     const { phase } = tripOf(req);
@@ -283,7 +287,7 @@ export async function tripRoutes(app: FastifyInstance) {
     if (blocked.length) {
       return reply.code(409).send({
         error: "locked_in_phase",
-        message: `not editable in phase '${phase}': ${blocked.join(", ")}`,
+        message: `Pas modifiable dans la phase « ${phaseLabel(phase)} » : ${blocked.join(", ")}.`,
       });
     }
 

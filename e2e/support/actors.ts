@@ -14,7 +14,7 @@ export const uniqueEmail = (tag: string) => `${unique(tag)}@e2e.test`;
 export type Teacher = { email: string; context: BrowserContext; page: Page; api: TeacherApi };
 export type Student = { email: string; context: BrowserContext; page: Page; api: StudentApi };
 
-export const ACCESS_CODE_SUBJECT = /^Your access code for /;
+export const ACCESS_CODE_SUBJECT = /^Ton code d'accès pour /;
 
 export async function signInTeacher(browser: Browser, email = uniqueEmail("teacher")): Promise<Teacher> {
   // A real school's timezone, so date inputs are checked against UTC conversion.

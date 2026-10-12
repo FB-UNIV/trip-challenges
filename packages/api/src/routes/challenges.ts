@@ -1,5 +1,6 @@
 // Challenges (Teacher-authored). Each gets a static qr_slug; the printed QR encodes
 // PUBLIC_BASE_URL/c/<slug>. Challenge content is non-PII and survives Erasure.
+import { invalidFields } from "../lib/errors.js";
 import type { FastifyInstance } from "fastify";
 import { randomBytes } from "node:crypto";
 import QRCode from "qrcode";
@@ -37,11 +38,11 @@ export async function challengeRoutes(app: FastifyInstance) {
   // Edit content (teacher). Title/instructions/multiplier only; the qr_slug never changes.
   // Allowed until results are computed (phase < reveal) — see data-model.md#editability.
   app.patch("/:id", {
-    preHandler: ofMyChallenge(["draft", "challenge", "voting"], "challenges can't be edited once results are computed"),
+    preHandler: ofMyChallenge(["draft", "challenge", "voting"], "Les défis ne sont plus modifiables une fois les résultats calculés."),
   }, async (req, reply) => {
     const id = (req.params as { id: string }).id;
     const parsed = ChallengePatch.safeParse(req.body);
-    if (!parsed.success) return reply.code(400).send({ error: "bad_request", message: parsed.error.message });
+    if (!parsed.success) return reply.code(400).send({ error: "bad_request", message: invalidFields(parsed.error) });
 
     const sets: string[] = [];
     const vals: unknown[] = [];
@@ -58,7 +59,7 @@ export async function challengeRoutes(app: FastifyInstance) {
   // Delete (teacher) — draft only: once a Trip leaves draft the QR may be printed/distributed,
   // and deleting would leave a dead QR in the wild (data-model.md#editability).
   app.delete("/:id", {
-    preHandler: ofMyChallenge(["draft"], "a challenge can only be deleted while the trip is in draft"),
+    preHandler: ofMyChallenge(["draft"], "Un défi ne peut être supprimé que lorsque la sortie est en brouillon."),
   }, async (req) => {
     const id = (req.params as { id: string }).id;
     await pool.query(`DELETE FROM challenge WHERE id = $1`, [id]);
@@ -133,7 +134,7 @@ export async function challengeRoutes(app: FastifyInstance) {
       `SELECT id, title, instructions FROM challenge WHERE qr_slug = $1`,
       [slug],
     );
-    if (!rows[0]) return reply.code(404).send({ error: "not_found", message: "challenge" });
+    if (!rows[0]) return reply.code(404).send({ error: "not_found", message: "Défi introuvable." });
     return rows[0];
   });
 

@@ -11,6 +11,7 @@ import { pool } from "../db.js";
 import { requireStudent, type StudentCtx } from "./student.js";
 import { overStudentBudget } from "../lib/student-rate.js";
 import { config } from "../config.js";
+import { invalidFields, phaseLabel } from "../lib/errors.js";
 import { assertTripAccess, readTeacher, type TeacherCtx } from "./teacher.js";
 
 export type Phase = "draft" | "challenge" | "voting" | "reveal" | "grace" | "erased";
@@ -55,10 +56,10 @@ const via = (notFound: string, sql: string) => (ref: Ref): TripSource => ({
 
 /** The entity a route is about, and so the Trip it belongs to. */
 export const tripFrom = {
-  trip: via("no such trip", `SELECT id AS trip_id FROM trip WHERE id = $1`),
-  challenge: via("challenge", `SELECT trip_id FROM challenge WHERE id = $1`),
-  nomination: via("nomination", `SELECT trip_id FROM nomination WHERE id = $1 AND active`),
-  submission: via("submission", `SELECT trip_id FROM submission WHERE id = $1`),
+  trip: via("Sortie introuvable.", `SELECT id AS trip_id FROM trip WHERE id = $1`),
+  challenge: via("Défi introuvable.", `SELECT trip_id FROM challenge WHERE id = $1`),
+  nomination: via("Photo en lice introuvable.", `SELECT trip_id FROM nomination WHERE id = $1 AND active`),
+  submission: via("Photo introuvable.", `SELECT trip_id FROM submission WHERE id = $1`),
 };
 
 export type GuardOpts = {
@@ -88,13 +89,13 @@ export function guard(opts: GuardOpts): preHandlerAsyncHookHandler {
   const handler = async (req: FastifyRequest, reply: FastifyReply) => {
     if (opts.role === "teacher") {
       const teacher = readTeacher(req, reply);
-      if (!teacher) return reply.code(401).send({ error: "unauthorized", message: "teacher login required" });
+      if (!teacher) return reply.code(401).send({ error: "unauthorized", message: "Connexion enseignant requise." });
       req.teacher = teacher;
     } else if (opts.role === "student") {
       const student = await requireStudent(req);
-      if (!student) return reply.code(401).send({ error: "unauthorized", message: "no session" });
+      if (!student) return reply.code(401).send({ error: "unauthorized", message: "Tu n'es pas connecté." });
       if (overStudentBudget(student.studentId, config.RATE_LIMIT_STUDENT_MAX)) {
-        return reply.code(429).send({ error: "rate_limited", message: "Too many requests — try again in a minute." });
+        return reply.code(429).send({ error: "rate_limited", message: "Trop de requêtes — réessaie dans une minute." });
       }
       req.student = student;
     }
@@ -104,10 +105,7 @@ export function guard(opts: GuardOpts): preHandlerAsyncHookHandler {
       if (!schema) continue;
       const parsed = schema.safeParse(req[where] ?? {});
       if (!parsed.success) {
-        const message = where === "body"
-          ? parsed.error.message
-          : [...new Set(parsed.error.issues.map((i) => i.path.join(".")))].join(", ");
-        return reply.code(400).send({ error: "bad_request", message });
+        return reply.code(400).send({ error: "bad_request", message: invalidFields(parsed.error) });
       }
       req[where] = parsed.data;
     }
@@ -134,7 +132,7 @@ export function guard(opts: GuardOpts): preHandlerAsyncHookHandler {
     if (opts.phases && !opts.phases.includes(trip.phase)) {
       const closed = opts.closed ?? {
         status: 409,
-        body: { error: "wrong_phase", message: `not available in phase '${trip.phase}'` },
+        body: { error: "wrong_phase", message: `Pas disponible dans la phase « ${phaseLabel(trip.phase)} ».` },
       };
       return reply.code(closed.status).send(closed.body);
     }

@@ -99,32 +99,32 @@ describe("a student of another trip", () => {
     await setPhase(phase);
     const res = await call(method, url + ids.ch, outsider.cookie);
     expect(res.statusCode).toBe(404);
-    expect(res.json()).toEqual({ error: "not_found", message: "challenge", requestId: expect.any(String) });
+    expect(res.json()).toEqual({ error: "not_found", message: "Défi introuvable.", requestId: expect.any(String) });
   });
 });
 
 describe("outside its phases", () => {
   const cases: ["teacher" | "student", Method, string, (i: Ids) => object | undefined, string, object][] = [
     ["teacher", "POST", "/api/trips/{trip}/grand-champion", (i) => ({ resultId: i.trip }), "voting",
-      { error: "wrong_phase", message: "tie-break is only available during the reveal" }],
+      { error: "wrong_phase", message: "Le départage n'est possible que pendant la révélation." }],
     ["teacher", "PATCH", "/api/trips/{trip}", () => ({ name: "Late" }), "erased",
-      { error: "erased", message: "trip is erased" }],
+      { error: "erased", message: "Cette sortie a été effacée." }],
     ["teacher", "PATCH", "/api/challenges/{ch}", () => ({ title: "Late" }), "reveal",
-      { error: "locked_in_phase", message: "challenges can't be edited once results are computed" }],
+      { error: "locked_in_phase", message: "Les défis ne sont plus modifiables une fois les résultats calculés." }],
     ["teacher", "DELETE", "/api/challenges/{ch}", () => undefined, "challenge",
-      { error: "locked_in_phase", message: "a challenge can only be deleted while the trip is in draft" }],
+      { error: "locked_in_phase", message: "Un défi ne peut être supprimé que lorsque la sortie est en brouillon." }],
     ["student", "POST", "/api/nominations", (i) => ({ challengeId: i.ch, submissionId: i.sub }), "voting",
-      { error: "closed", message: "nominations are closed" }],
+      { error: "closed", message: "La sélection des photos est fermée." }],
     ["student", "POST", "/api/submissions?challengeId={ch}", () => undefined, "voting",
-      { error: "closed", message: "submissions are closed" }],
+      { error: "closed", message: "L'envoi de photos est fermé." }],
     ["student", "POST", "/api/teams", () => ({ name: "Late" }), "voting",
-      { error: "locked", message: "teams are locked" }],
+      { error: "locked", message: "Les équipes sont verrouillées." }],
     ["student", "POST", "/api/teams/join", (i) => ({ teamId: i.trip }), "challenge",
-      { error: "locked", message: "teams are locked" }],
+      { error: "locked", message: "Les équipes sont verrouillées." }],
     ["student", "POST", "/api/teams/leave", () => undefined, "challenge",
-      { error: "locked", message: "teams are locked" }],
+      { error: "locked", message: "Les équipes sont verrouillées." }],
     ["student", "POST", "/api/duels/cast", (i) => ({ pairToken: "x", winnerNominationId: i.nom }), "reveal",
-      { error: "closed", message: "closed" }],
+      { error: "closed", message: "Le vote est fermé." }],
   ];
 
   it.each(cases)("%s %s %s is refused", async (who, method, template, payload, phase, body) => {

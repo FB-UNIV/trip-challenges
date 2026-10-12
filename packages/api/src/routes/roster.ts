@@ -4,6 +4,7 @@
 //
 // The request only ENQUEUES (encrypt + persist); the heavy per-student work
 // (argon2 + SMTP) runs in a background worker so large rosters don't block/timeout.
+import { invalidFields } from "../lib/errors.js";
 import type { FastifyInstance } from "fastify";
 import { RosterImport } from "@trip/shared";
 import { pool } from "../db.js";
@@ -19,7 +20,7 @@ export async function rosterRoutes(app: FastifyInstance) {
     const tripId = tripOf(req).id;
     const parsed = RosterImport.safeParse(req.body);
     if (!parsed.success) {
-      return reply.code(400).send({ error: "bad_request", message: parsed.error.message });
+      return reply.code(400).send({ error: "bad_request", message: invalidFields(parsed.error) });
     }
 
     const queued = await enqueueRoster(tripId, parsed.data.emails);

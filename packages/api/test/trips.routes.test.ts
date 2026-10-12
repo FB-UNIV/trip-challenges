@@ -156,7 +156,7 @@ describe("POST /api/trips/:id/erase", () => {
     const res = await app.inject({ method: "POST", url: `/api/trips/${id}/erase`, headers: asOwner });
     expect(res.statusCode).toBe(503);
     expect(res.json()).toMatchObject({ error: "erasure_pending", requestId: expect.any(String) });
-    expect(res.json().message).toMatch(/retr/i);
+    expect(res.json().message).toMatch(/relancé/i);
     expect(await phaseOf(id)).toBe("voting");
     expect(hasKey(id)).toBe(true);
     expect(await findTripsDueForErasure()).toContain(id);

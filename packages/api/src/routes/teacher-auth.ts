@@ -64,7 +64,7 @@ export async function teacherAuthRoutes(app: FastifyInstance) {
     const nonce = reply.unsignCookie(req.cookies["oidc_nonce"] ?? "");
     const cv = reply.unsignCookie(req.cookies["oidc_cv"] ?? "");
     if (!state.valid || !nonce.valid || !cv.valid) {
-      return reply.code(400).send({ error: "bad_state", message: "missing/invalid oidc checks" });
+      return reply.code(400).send({ error: "bad_state", message: "La connexion a échoué (vérifications OIDC manquantes ou non valides). Réessaie." });
     }
 
     const tokenSet = await client.callback(
@@ -122,12 +122,12 @@ export async function teacherAuthRoutes(app: FastifyInstance) {
   app.get("/me", open, async (req, reply) => {
     const raw = req.cookies["teacher_session"];
     const un = raw ? reply.unsignCookie(raw) : { valid: false, value: null };
-    if (!un.valid || !un.value) return reply.code(401).send({ error: "unauthorized", message: "no session" });
+    if (!un.valid || !un.value) return reply.code(401).send({ error: "unauthorized", message: "Tu n'es pas connecté." });
     const { rows } = await pool.query(
       `SELECT id, email, display_name FROM teacher WHERE id = $1`,
       [un.value],
     );
-    if (!rows[0]) return reply.code(401).send({ error: "unauthorized", message: "no session" });
+    if (!rows[0]) return reply.code(401).send({ error: "unauthorized", message: "Tu n'es pas connecté." });
     return rows[0];
   });
 }

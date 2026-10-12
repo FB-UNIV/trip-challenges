@@ -17,7 +17,7 @@ test("the owner invites a co-teacher by email; only the invited account can acce
   await teachers.getByRole("button", { name: "Envoyer l'invitation" }).click();
   await expect(teachers.getByText(`Invitation envoyée à ${coEmail}.`)).toBeVisible();
 
-  const mail = await waitForMail(coEmail, { subject: /^You've been invited to co-manage / });
+  const mail = await waitForMail(coEmail, { subject: /^Invitation à co-gérer / });
   const acceptPath = relative(linkIn(mail, "/teacher/accept?token="));
 
   await test.step("a forwarded link opened by someone else is refused", async () => {

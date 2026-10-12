@@ -39,11 +39,14 @@ export async function buildServer(): Promise<FastifyInstance> {
   await app.register(rateLimit, {
     max: config.RATE_LIMIT_MAX, // per client IP — global floor
     timeWindow: "1 minute",
-    errorResponseBuilder: (_req, ctx) => ({
-      statusCode: 429,
-      error: "rate_limited",
-      message: `Too many requests — try again in ${ctx.after}.`,
-    }),
+    errorResponseBuilder: (_req, ctx) => {
+      const minutes = Math.max(1, Math.ceil(ctx.ttl / 60_000));
+      return {
+        statusCode: 429,
+        error: "rate_limited",
+        message: `Trop de requêtes — réessaie dans ${minutes} minute${minutes > 1 ? "s" : ""}.`,
+      };
+    },
   });
   await app.register(multipart, { limits: { fileSize: 15 * 1024 * 1024, files: 1 } });
 

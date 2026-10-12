@@ -63,9 +63,9 @@ describe("GET /api/trips/:id/teams", () => {
 
     const teams = await list(trip);
     expect(teams.map((t) => [t.name, t.label, t.nameReviewed, t.members.length])).toEqual([
-      ["Léa & Tom 4B", "Team 1", false, 2],
-      ["Ghosts", "Team 2", false, 0],
-      ["Les Owls", "Team 3", true, 1],
+      ["Léa & Tom 4B", "Équipe 1", false, 2],
+      ["Ghosts", "Équipe 2", false, 0],
+      ["Les Owls", "Équipe 3", true, 1],
     ]);
     expect(teams[0]!.members.sort()).toEqual([a.id, b.id].sort());
     expect(teams[0]).toMatchObject({ photos: 3, challengesEntered: 2, nominations: { pending: 1, approved: 0, rejected: 0 } });

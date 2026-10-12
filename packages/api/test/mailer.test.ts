@@ -57,21 +57,21 @@ describe("mailer", () => {
     await m.sendErasureWarning("owner@school.test", "Rome", new Date("2030-01-02T03:04:05Z"));
 
     const [code, invite, warn] = transport.sendMail.mock.calls.map((c) => c[0] as { subject: string; text: string });
-    expect(code!.subject).toBe("Your access code for Rome");
+    expect(code!.subject).toBe("Ton code d'accès pour Rome");
     expect(code!.text).toContain("http://app.test/join?code=x");
-    expect(invite!.subject).toBe("You've been invited to co-manage Rome");
-    expect(invite!.text).toContain("expires in 7 days");
-    expect(warn!.subject).toBe("Data for Rome will be erased");
-    expect(warn!.text).toContain("2030-01-02T03:04:05.000Z");
+    expect(invite!.subject).toBe("Invitation à co-gérer Rome");
+    expect(invite!.text).toContain("expire dans 7 jours");
+    expect(warn!.subject).toBe("Les données de Rome vont être effacées");
+    expect(warn!.text).toContain("mercredi 2 janvier 2030 à 04:04 (heure de Paris)");
   });
 
   it("formats the erasure-failure alert", async () => {
     const m = await loadMailer({ SMTP_HOST: "smtp.test" });
     await m.sendErasureFailedAlert("ops@school.test", "Rome", "trip-uuid", "vault 503 sealed");
     const mail = transport.sendMail.mock.calls[0]![0] as { subject: string; text: string };
-    expect(mail.subject).toBe("ACTION NEEDED: erasure failed for Rome");
+    expect(mail.subject).toBe("ACTION REQUISE : échec de l'effacement de Rome");
     expect(mail.text).toContain("trip-uuid");
     expect(mail.text).toContain("vault 503 sealed");
-    expect(mail.text).toContain("retried automatically");
+    expect(mail.text).toContain("relancé automatiquement");
   });
 });

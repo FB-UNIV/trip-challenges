@@ -14,7 +14,7 @@ export async function teamRoutes(app: FastifyInstance) {
   const formable = guard({
     role: "student",
     phases: ["draft"],
-    closed: { status: 409, body: { error: "locked", message: "teams are locked" } },
+    closed: { status: 409, body: { error: "locked", message: "Les équipes sont verrouillées." } },
   });
 
   // List teams (to join). Names decrypted for display within the Trip.
@@ -41,15 +41,15 @@ export async function teamRoutes(app: FastifyInstance) {
   const creatable = guard({
     role: "student",
     phases: ["draft", "challenge"],
-    closed: { status: 409, body: { error: "locked", message: "teams are locked" } },
+    closed: { status: 409, body: { error: "locked", message: "Les équipes sont verrouillées." } },
   });
 
   // Create a team (creator becomes its first member). After draft: playing solo.
   app.post("/", { preHandler: creatable }, async (req, reply) => {
     const ctx = studentOf(req);
-    if (ctx.teamId) return reply.code(409).send({ error: "in_team", message: "leave your team first" });
+    if (ctx.teamId) return reply.code(409).send({ error: "in_team", message: "Quitte d'abord ton équipe." });
     const parsed = CreateTeam.safeParse(req.body);
-    if (!parsed.success) return reply.code(400).send({ error: "bad_request", message: "name" });
+    if (!parsed.success) return reply.code(400).send({ error: "bad_request", message: "Données invalides : name." });
 
     const nameEnc = await encrypt(ctx.tripId, Buffer.from(parsed.data.name, "utf8"));
     const teamId = await tx(async (c) => {
@@ -70,9 +70,9 @@ export async function teamRoutes(app: FastifyInstance) {
   // Join an existing team.
   app.post("/join", { preHandler: formable }, async (req, reply) => {
     const ctx = studentOf(req);
-    if (ctx.teamId) return reply.code(409).send({ error: "in_team", message: "leave your team first" });
+    if (ctx.teamId) return reply.code(409).send({ error: "in_team", message: "Quitte d'abord ton équipe." });
     const parsed = JoinTeam.safeParse(req.body);
-    if (!parsed.success) return reply.code(400).send({ error: "bad_request", message: "teamId" });
+    if (!parsed.success) return reply.code(400).send({ error: "bad_request", message: "Données invalides : teamId." });
     const { rows: trip } = await pool.query<{ max_team_size: number }>(
       `SELECT max_team_size FROM trip WHERE id = $1`,
       [ctx.tripId],
@@ -103,9 +103,9 @@ export async function teamRoutes(app: FastifyInstance) {
         );
       });
     } catch (e: any) {
-      if (e?.httpNotFound) return reply.code(404).send({ error: "not_found", message: "no such team" });
-      if (e?.httpFull) return reply.code(409).send({ error: "full", message: "team is full" });
-      if (e?.code === "23505") return reply.code(409).send({ error: "in_team", message: "already in a team" });
+      if (e?.httpNotFound) return reply.code(404).send({ error: "not_found", message: "Équipe introuvable." });
+      if (e?.httpFull) return reply.code(409).send({ error: "full", message: "Cette équipe est complète." });
+      if (e?.code === "23505") return reply.code(409).send({ error: "in_team", message: "Tu es déjà dans une équipe." });
       throw e;
     }
     return { ok: true };
@@ -114,7 +114,7 @@ export async function teamRoutes(app: FastifyInstance) {
   // Leave your team (deletes the team if it becomes empty).
   app.post("/leave", { preHandler: formable }, async (req, reply) => {
     const ctx = studentOf(req);
-    if (!ctx.teamId) return reply.code(409).send({ error: "no_team", message: "not in a team" });
+    if (!ctx.teamId) return reply.code(409).send({ error: "no_team", message: "Tu n'es dans aucune équipe." });
 
     await tx(async (c) => {
       await c.query(`DELETE FROM team_member WHERE team_id = $1 AND student_id = $2`, [

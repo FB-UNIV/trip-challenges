@@ -8,6 +8,7 @@
 import type { FastifyError, FastifyInstance, FastifyReply, FastifyRequest } from "fastify";
 import type { IncomingMessage } from "node:http";
 import { randomUUID } from "node:crypto";
+import type { ZodError } from "zod";
 
 export type Dependency = "storage" | "keystore" | "database";
 
@@ -29,14 +30,19 @@ export const requestIdOptions = {
 };
 
 const UNAVAILABLE: Record<Dependency, string> = {
-  storage: "Photo storage is unavailable right now. Try again in a moment.",
-  keystore: "The encryption service is unavailable right now. Try again in a moment.",
-  database: "The database is unavailable right now. Try again in a moment.",
+  storage: "Le stockage des photos est indisponible pour le moment. Réessaie dans un instant.",
+  keystore: "Le service de chiffrement est indisponible pour le moment. Réessaie dans un instant.",
+  database: "La base de données est indisponible pour le moment. Réessaie dans un instant.",
 };
 
 const CLIENT_ERRORS: Record<number, string> = {
   400: "bad_request", 401: "unauthorized", 403: "forbidden", 404: "not_found", 405: "method_not_allowed",
   409: "conflict", 413: "payload_too_large", 415: "unsupported_media_type", 429: "rate_limited",
+};
+
+const CLIENT_MESSAGES: Record<number, string> = {
+  400: "La requête n'est pas valide.", 404: "Introuvable.", 405: "Méthode non autorisée.",
+  413: "Le fichier est trop volumineux.", 415: "Ce type de fichier n'est pas accepté.",
 };
 
 // Socket-level failures. Storage and keystore errors are tagged at their client, so an
@@ -71,11 +77,14 @@ export function classifyError(err: Loose): Classified {
   const status = Number(err.statusCode);
   if (status >= 400 && status < 500) {
     const own = typeof err.error === "string" && /^[a-z_]+$/.test(err.error) ? err.error : undefined;
-    return { status, error: own ?? CLIENT_ERRORS[status] ?? "request_failed", message: err.message || "Request failed." };
+    // Fastify's own refusals (FST_*: size limits, bad JSON, unsupported type…) carry English text.
+    const fastify = typeof err.code === "string" && err.code.startsWith("FST_");
+    const message = fastify || !err.message ? CLIENT_MESSAGES[status] ?? "La requête a été refusée." : err.message;
+    return { status, error: own ?? CLIENT_ERRORS[status] ?? "request_failed", message };
   }
   const dependency = outage(err);
   if (dependency) return { status: 503, error: `${dependency}_unavailable`, message: UNAVAILABLE[dependency], dependency };
-  return { status: 500, error: "internal_error", message: "Something went wrong on our side." };
+  return { status: 500, error: "internal_error", message: "Une erreur est survenue de notre côté." };
 }
 
 const routeOf = (req: FastifyRequest) => req.routeOptions?.url;
@@ -123,6 +132,18 @@ export function installErrorHandling(app: FastifyInstance): void {
   });
 
   app.setNotFoundHandler((req, reply) => {
-    return reply.code(404).send({ error: "not_found", message: "No such endpoint.", requestId: req.id });
+    return reply.code(404).send({ error: "not_found", message: "Cette adresse n'existe pas.", requestId: req.id });
   });
 }
+
+/** A refused request: the fields at fault (the client checks values before sending). */
+export function invalidFields(error: ZodError): string {
+  const fields = [...new Set(error.issues.map((i) => i.path.join(".")).filter(Boolean))];
+  return fields.length ? `Données invalides : ${fields.join(", ")}.` : "Données invalides.";
+}
+
+/** A Trip phase as people read it (the same labels as the web app's phase pills). */
+const PHASES: Record<string, string> = {
+  draft: "Brouillon", challenge: "Défis", voting: "Vote", reveal: "Révélation", grace: "Délai de grâce", erased: "Effacée",
+};
+export const phaseLabel = (phase: string) => PHASES[phase] ?? phase;
