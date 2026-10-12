@@ -19,6 +19,7 @@ import { TripSettings } from "./routes/teacher/TripSettings.js";
 import { AcceptInvite } from "./routes/teacher/AcceptInvite.js";
 import { Ceremony } from "./routes/Ceremony.js";
 import { QrSheet } from "./routes/teacher/QrSheet.js";
+import { Privacy } from "./routes/Privacy.js";
 
 export const routes: RouteObject[] = [
   {
@@ -32,6 +33,7 @@ export const routes: RouteObject[] = [
       { path: "c/:qrSlug", element: <ChallengePage /> }, // QR target (and checklist rows)
       { path: "vote", element: <VoteHome /> },
       { path: "vote/:challengeId", element: <VotePage /> },
+      { path: "confidentialite", element: <Privacy /> }, // linked from the footer; for students and families
       { path: "teacher", element: <TeacherHome /> },
       { path: "teacher/accept", element: <AcceptInvite /> }, // ?token=... from invite email
       {

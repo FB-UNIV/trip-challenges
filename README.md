@@ -15,6 +15,7 @@ comprises, devient illisible).
 - Schéma de la base → [`docs/data-model.md`](./docs/data-model.md)
 - **Déployer en production** → [`docs/deployment.md`](./docs/deployment.md) · puis [`docs/production-hardening.md`](./docs/production-hardening.md)
 - **Monter un environnement de développement** → [`docs/development.md`](./docs/development.md)
+- **RGPD : rôles, fiche de traitement, note aux familles** → [`docs/rgpd.md`](./docs/rgpd.md)
 
 ## Fonctionnement
 

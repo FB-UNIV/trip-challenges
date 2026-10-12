@@ -29,6 +29,9 @@ export function App() {
             <Outlet />
           </ConfirmProvider>
         </LightboxProvider>
+        <p className="center tiny muted">
+          <Link to="/confidentialite">Tes données et ta vie privée</Link>
+        </p>
       </main>
       {tabs && <TabBar tabs={tabs} />}
     </div>
