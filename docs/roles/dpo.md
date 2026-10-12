@@ -33,6 +33,29 @@ Cette page rassemble ce qu'il faut vérifier, avec pour chaque garantie **où el
 | **Antivirus** | Chaque envoi est analysé avant stockage ; refusé si l'antivirus est indisponible | Fichier de test EICAR refusé ([durcissement § 4](../production-hardening.md#4-antivirus-sur-les-envois)) |
 | **Pas de pistage** | Aucun script tiers ; un seul cookie de session (élève) ou de connexion (enseignant) | Politique de sécurité du contenu (CSP) `script-src 'self'` |
 
+### Ce que protège la clé de la sortie
+
+```mermaid
+flowchart LR
+  subgraph V["Vault"]
+    K["clé de la sortie<br/>trip-{id}"]
+  end
+  subgraph PG["Postgres"]
+    E["chiffré :<br/>student.email_enc<br/>team.name_enc<br/>roster_import_item.email_enc"]
+    H["email_lookup<br/>(HMAC sous la clé)"]
+    C["en clair, sans donnée d'élève :<br/>enseignants, défis, configuration,<br/>result, audit_log"]
+  end
+  subgraph S3["Stockage objet"]
+    P["photos chiffrées<br/>+ clé de données enveloppée"]
+  end
+  K -- chiffre --> E
+  K -- calcule --> H
+  K -- enveloppe --> P
+```
+
+Détruire la clé rend illisible tout ce qu'elle protège, y compris dans les sauvegardes de
+Postgres et du stockage. Ce qui est en clair ne contient aucune donnée d'élève.
+
 ## Le journal d'audit
 
 Il trace les **actions des enseignants** (et quelques événements système), avec des

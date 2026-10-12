@@ -1,6 +1,7 @@
 // The documentation site (GitHub Pages): role guides first, then the technical reference.
 // Pages stay readable on GitHub too, so links between them are relative `.md` links.
 import { defineConfig } from "vitepress";
+import { withMermaid } from "vitepress-plugin-mermaid";
 
 const repo = "https://github.com/FB-UNIV/trip-challenges";
 
@@ -8,7 +9,8 @@ const repo = "https://github.com/FB-UNIV/trip-challenges";
 const slugify = (s: string) =>
   s.trim().toLowerCase().replace(/<[^>]*>/g, "").replace(/[^\p{L}\p{N}\p{M}\- _]/gu, "").replace(/ /g, "-");
 
-export default defineConfig({
+// Diagrams are ```mermaid blocks: rendered here by the plugin, and natively on github.com.
+export default withMermaid(defineConfig({
   lang: "fr-FR",
   title: "Trip Challenges",
   description: "Défis photo pour les sorties scolaires, avec effacement vérifiable des données des élèves.",
@@ -108,4 +110,5 @@ export default defineConfig({
     langMenuLabel: "Langue",
     notFound: { title: "Page introuvable", quote: "Cette page n'existe pas ou a été déplacée.", linkText: "Retour à l'accueil" },
   },
-});
+  mermaid: { theme: "neutral" },
+}));

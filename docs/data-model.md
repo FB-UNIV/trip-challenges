@@ -10,6 +10,31 @@ Notation : 🔒 = chiffré au repos sous la **clé de la sortie** (clé Vault tr
 (ADR-0001). Les colonnes en clair ne sont pas des données personnelles et survivent à
 l'effacement.
 
+## Vue d'ensemble
+
+```mermaid
+erDiagram
+  teacher ||--o{ trip_teacher : "anime"
+  trip ||--|{ trip_teacher : "a pour enseignants"
+  trip ||--o{ trip_teacher_invite : "invitations"
+  trip ||--o{ roster_import_item : "file d'import"
+  trip ||--o{ student : "élèves"
+  trip ||--o{ team : "équipes"
+  trip ||--o{ challenge : "défis"
+  student ||--o{ student_session : "appareil"
+  student ||--o| team_member : "membre de"
+  team ||--|{ team_member : "membres"
+  team ||--o{ submission : "photos"
+  challenge ||--o{ submission : "pour"
+  submission ||--o{ nomination : "sélectionnée"
+  nomination ||--o| nomination_stats : "score"
+  nomination ||--o{ duel : "comparée"
+  student ||--o{ duel : "vote"
+```
+
+`result` et `audit_log` n'ont pas de clé étrangère vers `trip` : ils survivent à
+l'effacement.
+
 ---
 
 ## Global (non rattaché à une sortie, persiste d'une sortie à l'autre)
@@ -46,9 +71,10 @@ simultanées).
 | challenge_opens_at | timestamptz | prévue |
 | voting_opens_at | timestamptz | prévue |
 | voting_closes_at | timestamptz | prévue |
-| grace_days | int | 7 par défaut (effacement automatique après le vote) |
+| grace_days | int | 7 par défaut : durée entre la publication des résultats et l'effacement |
 | trip_end_date | date | pour la date butoir |
 | max_retention_days | int | 30 par défaut |
+| grace_started_at | timestamptz null | publication des résultats (passage `reveal → grace`) ; le délai de grâce part de là (0004) |
 | hard_erase_at | timestamptz | = trip_end_date + max_retention_days ; effacement forcé quelle que soit la phase |
 | vault_key_name | text | `trip-<id>` ; simple référence, la clé vit dans Vault |
 | created_at | timestamptz | |
@@ -240,6 +266,20 @@ configuration de la sortie. Survivent à l'effacement : enseignants, `result` (q
 titre de chaque défi), `audit_log` et la ligne `trip` ; les défis sont supprimés.
 
 ## Procédure d'effacement (correspond à l'ADR-0001)
+
+```mermaid
+sequenceDiagram
+  participant P as Planificateur (chaque minute)
+  participant S3 as Stockage objet
+  participant DB as Postgres
+  participant V as Vault
+  P->>S3: 1. supprimer les photos de la sortie
+  P->>DB: 2. noms non vérifiés remplacés par « Équipe N » dans result,<br/>puis suppression des lignes de la sortie
+  P->>V: 4. détruire la clé trip-{id}
+  P->>DB: 5. phase = erased, audit_log erasure_fired
+  Note over P,V: En cas d'échec : nouvelle tentative à la minute suivante,<br/>alerte e-mail au plus une fois par heure
+```
+
 1. Supprimer les objets MinIO de la sortie (suppression définitive des fichiers en
    production, au mieux).
 2. Remplacer chaque nom d'équipe non vérifié dans `result` par son étiquette neutre
@@ -256,17 +296,28 @@ titre de chaque défi), `audit_log` et la ligne `trip` ; les défis sont supprim
    restent.
 
 ## Machine à états (trip.phase)
+```mermaid
+stateDiagram-v2
+  direction LR
+  [*] --> draft
+  draft --> challenge: enseignant, ou challenge_opens_at
+  challenge --> voting: enseignant, ou voting_opens_at
+  voting --> reveal: enseignant (fermer le vote)
+  reveal --> grace: enseignant (publier les résultats)
+  grace --> erased: fin du délai de grâce
+  draft --> erased: hard_erase_at
+  challenge --> erased: hard_erase_at
+  voting --> erased: hard_erase_at
+  reveal --> erased: hard_erase_at
+  erased --> [*]
 ```
-draft -> challenge -> voting -> reveal -> grace -> erased
-                                                   ^
-        hard_erase_at atteinte dans N'IMPORTE QUELLE phase ┘ (forcé)
-```
+
+Un enseignant peut aussi effacer depuis n'importe quelle phase.
 - challenge→voting et voting→reveal : confirmés par l'enseignant ou automatiques à la
   date prévue.
 - reveal→grace : une fois la cérémonie terminée.
-- grace→erased : automatique `grace_days` après `voting_closes_at` (la clôture **prévue**
-  du vote) ; sans cette date, seule la date butoir s'applique. L'enseignant peut effacer
-  plus tôt.
+- grace→erased : automatique `grace_days` après `grace_started_at` (la publication des
+  résultats). L'enseignant peut effacer plus tôt.
 - n'importe laquelle→erased : forcé à hard_erase_at, avec des alertes progressives
   (7 j / 1 j / 1 h, par e-mail et bandeau).
 

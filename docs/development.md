@@ -78,7 +78,12 @@ SESSION_SECRET=dev-secret-please-change-32chars-min   # ≥ 32 caractères
 
 AV_SCAN_ENABLED=false        # le compose de dev n'a pas de clamav ; laissez désactivé
 
-# OIDC_* — seulement pour tester la vraie connexion enseignant ; inutile avec dev-login (§ 6)
+# OIDC_* : obligatoires au démarrage, mais l'API ne contacte le fournisseur qu'à la première
+# connexion OIDC. Avec dev-login (§ 6), ces valeurs factices suffisent.
+OIDC_ISSUER=http://localhost:1411
+OIDC_CLIENT_ID=dev
+OIDC_CLIENT_SECRET=dev
+OIDC_REDIRECT_URI=http://localhost:5173/api/auth/teacher/callback
 ```
 
 L'API **s'arrête immédiatement** s'il manque une variable obligatoire — c'est voulu. Si
