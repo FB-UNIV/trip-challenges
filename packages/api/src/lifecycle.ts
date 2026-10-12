@@ -103,7 +103,7 @@ async function computeResultsIn(c: PoolClient, tripId: string): Promise<void> {
 
   const nameCache = new Map<string, string>();
   const teamTotals = new Map<string, number>();
-  // Each team's neutral label ("Team N", trip-wide creation order) and whether a teacher
+  // Each team's neutral label ("Équipe N", trip-wide creation order) and whether a teacher
   // reviewed its name: Erasure keeps only reviewed names (#92, ADR 0007).
   const { rows: teams } = await c.query<{ id: string; name_reviewed: boolean }>(
     `SELECT id, name_reviewed FROM team WHERE trip_id = $1 ORDER BY created_at, id`,
