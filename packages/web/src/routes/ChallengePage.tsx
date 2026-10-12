@@ -1,9 +1,10 @@
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState, type ChangeEvent } from "react";
 import { useParams } from "react-router";
 import type { EntryState } from "@trip/shared";
 import { api, errorText, HttpError, isBadCode } from "../api.js";
 import { qk, useLoad, useMe, useOptimistic, useRefresh } from "../query.js";
-import { Button, Card, Field, PhasePill, phaseMeta, Skeleton } from "../ui.js";
+import { Button, Card, Field, PhasePill, phaseMeta, Progress, Skeleton } from "../ui.js";
+import { shrinkPhoto } from "../photo.js";
 import { PlaySolo } from "./PlaySolo.js";
 
 export function ChallengePage() {
@@ -65,31 +66,31 @@ function UploadAndNominate({ challengeId }: { challengeId: string }) {
   const changed = () => refresh(qk.submissions(challengeId), qk.myChallenges); // the photos here, the checklist, the badge
   const optimistic = useOptimistic();
   type Subs = Awaited<ReturnType<typeof api.listSubmissions>>;
-  const fileRef = useRef<HTMLInputElement>(null);
-  const [busy, setBusy] = useState(false);
+  const uploads = useUploads(challengeId, changed);
   const [err, setErr] = useState("");
+  const pick = (e: ChangeEvent<HTMLInputElement>) => {
+    const files = [...(e.target.files ?? [])];
+    e.target.value = ""; // the same photo can be picked again
+    uploads.add(files);
+  };
 
   return (
     <>
       <Card>
         <div className="upload">
-          <span className="cam">📸</span>
-          <b>Ajouter une photo</b>
-          <span className="muted tiny">Tous les membres de l'équipe peuvent ajouter des photos à ce défi</span>
-          {/* capture opens the camera on mobile; users can also pick from gallery */}
-          <input ref={fileRef} type="file" accept="image/*" capture="environment" className="file-input" />
-          <Button
-            disabled={busy}
-            onClick={async () => {
-              const f = fileRef.current?.files?.[0];
-              if (!f) return;
-              setBusy(true); setErr("");
-              try { await api.uploadSubmission(challengeId, f); if (fileRef.current) fileRef.current.value = ""; await changed(); }
-              catch (e) { setErr(e instanceof HttpError ? e.reason : "Échec de l'envoi"); }
-              finally { setBusy(false); }
-            }}
-          >{busy ? "Envoi…" : "Envoyer"}</Button>
-          {err && <p className="err tiny" style={{ margin: 0 }}>{err}</p>}
+          <span className="cam" aria-hidden="true">📸</span>
+          <b>Ajoute vos photos</b>
+          <span className="muted tiny">Tous les membres de l'équipe peuvent en ajouter</span>
+          <div className="upload-acts">
+            <label className="btn btn-lg">
+              <span aria-hidden="true">📸</span> Prendre une photo
+              <input type="file" accept="image/*" capture="environment" className="sr-only" onChange={pick} />
+            </label>
+            <label className="btn btn-lg btn-soft">
+              <span aria-hidden="true">🖼️</span> Galerie
+              <input type="file" accept="image/*" multiple className="sr-only" onChange={pick} />
+            </label>
+          </div>
         </div>
       </Card>
 
@@ -99,7 +100,7 @@ function UploadAndNominate({ challengeId }: { challengeId: string }) {
           <span className="muted tiny" style={{ fontWeight: 600, marginLeft: "auto" }}>choisis celle à mettre en lice</span>
         </h3>
         {subs.loading && <Skeleton photos={2} />}
-        {subs.data?.submissions.length === 0 && <p className="muted">Pas encore de photo.</p>}
+        {subs.data?.submissions.length === 0 && uploads.items.length === 0 && <p className="muted">Pas encore de photo.</p>}
         {/* #81: say why the entry is gone, instead of the mark just vanishing. */}
         {subs.data && !subs.data.submissions.some((s) => s.nominated) && subs.data.submissions.some((s) => s.entry === "rejected") && (
           <p className="warncard">Ton enseignant a refusé ta photo. Choisis-en une autre.</p>
@@ -131,8 +132,75 @@ function UploadAndNominate({ challengeId }: { challengeId: string }) {
               >{s.nominated ? "Sélectionnée ✓" : "Sélectionner"}</Button>
             </div>
           ))}
+          {uploads.items.map((u) => (
+            <div key={u.key} className="photo-cell photo-sending">
+              <img src={u.preview} alt="Photo en cours d'envoi" className="photo" style={{ aspectRatio: "1" }} />
+              {u.error ? (
+                <>
+                  <p className="err tiny" style={{ margin: 0 }}>{u.error}</p>
+                  <div className="row">
+                    <Button size="mini" onClick={() => uploads.retry(u)}>Réessayer</Button>
+                    <Button size="mini" variant="ghost" onClick={() => uploads.drop(u)}>Retirer</Button>
+                  </div>
+                </>
+              ) : u.sent === null ? (
+                <span className="muted tiny">En attente…</span>
+              ) : (
+                <Progress value={Math.round(u.sent * 100)} max={100} label="Envoi de la photo" />
+              )}
+            </div>
+          ))}
         </div>
+        {err && <p className="err tiny" style={{ marginBottom: 0 }}>{err}</p>}
       </Card>
     </>
   );
+}
+
+/** A photo on its way: `sent` is 0 → 1 while it uploads, null while it waits its turn. */
+type Upload = { key: number; file: File; preview: string; sent: number | null; error?: string };
+
+/** Photos send one at a time, in the order picked; a failed one stays on screen to retry or drop. */
+function useUploads(challengeId: string, onSent: () => Promise<unknown>) {
+  const [items, setItems] = useState<Upload[]>([]);
+  const queue = useRef(Promise.resolve());
+  const keys = useRef(0);
+  const previews = useRef(new Set<string>());
+  useEffect(() => () => previews.current.forEach((url) => URL.revokeObjectURL(url)), []);
+
+  const patch = (key: number, change: Partial<Upload>) =>
+    setItems((all) => all.map((u) => (u.key === key ? { ...u, ...change } : u)));
+  const drop = (u: Upload) => {
+    URL.revokeObjectURL(u.preview);
+    previews.current.delete(u.preview);
+    setItems((all) => all.filter((x) => x.key !== u.key));
+  };
+  const send = (u: Upload) => {
+    queue.current = queue.current.then(async () => {
+      patch(u.key, { sent: 0 });
+      try {
+        const photo = await shrinkPhoto(u.file);
+        await api.uploadSubmission(challengeId, photo, (sent) => patch(u.key, { sent }));
+        await onSent(); // listed before its preview goes: no flicker
+        drop(u);
+      } catch (e) {
+        patch(u.key, { sent: null, error: errorText(e, "Échec de l'envoi.") });
+      }
+    });
+  };
+
+  return {
+    items,
+    drop,
+    add: (files: File[]) => {
+      const fresh = files.map((file) => ({ key: keys.current++, file, preview: URL.createObjectURL(file), sent: null }));
+      fresh.forEach((u) => previews.current.add(u.preview));
+      setItems((all) => [...all, ...fresh]);
+      fresh.forEach(send);
+    },
+    retry: (u: Upload) => {
+      patch(u.key, { error: undefined });
+      send(u);
+    },
+  };
 }

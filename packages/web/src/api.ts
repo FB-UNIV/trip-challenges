@@ -97,17 +97,20 @@ export const api = {
   joinTeam: (teamId: string) =>
     req<{ ok: true }>("/api/teams/join", { method: "POST", body: JSON.stringify({ teamId }) }),
   leaveTeam: () => req<{ ok: true }>("/api/teams/leave", { method: "POST", body: "{}" }),
-  uploadSubmission: async (challengeId: string, file: File) => {
-    const fd = new FormData();
-    fd.append("file", file);
-    const res = await send(`/api/submissions?challengeId=${challengeId}`, {
-      method: "POST",
-      credentials: "include",
-      body: fd,
-    });
-    if (!res.ok) throw await failure(res);
-    return (await res.json()) as { id: string };
-  },
+  /** XMLHttpRequest, not fetch: only it reports upload progress (`onProgress`, 0 → 1). */
+  uploadSubmission: (challengeId: string, file: File, onProgress?: (sent: number) => void) =>
+    new Promise<void>((resolve, reject) => {
+      const fd = new FormData();
+      fd.append("file", file);
+      const xhr = new XMLHttpRequest();
+      xhr.open("POST", `/api/submissions?challengeId=${challengeId}`);
+      xhr.withCredentials = true;
+      xhr.upload.onprogress = (e) => { if (e.lengthComputable) onProgress?.(e.loaded / e.total); };
+      xhr.onload = () => (xhr.status < 300 ? resolve()
+        : reject(new HttpError(xhr.status, xhr.responseText, xhr.getResponseHeader("x-request-id"))));
+      xhr.onerror = () => reject(new HttpError(0, ""));
+      xhr.send(fd);
+    }),
   myChallenges: () => req<StudentChallengeList>("/api/challenges/for-student"),
   listSubmissions: (challengeId: string) =>
     req<{ submissions: { id: string; created_at: string; nominated: boolean; entry: EntryState | null }[] }>(
