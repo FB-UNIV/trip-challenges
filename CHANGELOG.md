@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.12.1](https://github.com/FB-UNIV/trip-challenges/compare/v0.12.0...v0.12.1) (2026-10-12)
+
+
+### Bug Fixes
+
+* **web:** the privacy page says what stays on the phone, and the docs cover 0.11–0.12 ([#164](https://github.com/FB-UNIV/trip-challenges/issues/164)) ([af9d4cf](https://github.com/FB-UNIV/trip-challenges/commit/af9d4cfa1272285dfc967ff7c011f26ee830e0a1))
+
 ## [0.12.0](https://github.com/FB-UNIV/trip-challenges/compare/v0.11.0...v0.12.0) (2026-10-12)
 
 
