@@ -3,7 +3,7 @@
 Merci de votre aide ! Cette application traite **des données de mineurs soumises à un
 effacement strict** : certaines règles sont donc plus exigeantes que d'habitude. Les
 problèmes de sécurité passent par [`SECURITY.md`](./SECURITY.md), jamais par un ticket
-public.
+public. En participant, vous acceptez le [code de conduite](./CODE_OF_CONDUCT.md).
 
 Le projet est en français (interface, e-mails, documentation). Le code, les identifiants,
 les codes d'erreur et les journaux restent en anglais ; les tickets et PR peuvent être
