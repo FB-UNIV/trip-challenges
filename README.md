@@ -10,6 +10,9 @@ les données des élèves sont effacées de façon vérifiable** à la fin de la
 (effacement cryptographique : on détruit la clé de la sortie, et toute copie, sauvegardes
 comprises, devient illisible).
 
+📖 **Documentation en ligne : https://fb-univ.github.io/trip-challenges/** — guides par rôle (enseignant,
+élève et familles, chef d'établissement, DPO, administrateur) et modèle de menaces.
+
 - Glossaire du domaine → [`CONTEXT.md`](./CONTEXT.md)
 - Décisions d'architecture → [`docs/adr/`](./docs/adr)
 - Schéma de la base → [`docs/data-model.md`](./docs/data-model.md)

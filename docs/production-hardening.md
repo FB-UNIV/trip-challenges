@@ -225,7 +225,7 @@ l'API.
 Les codes d'erreur (`error`) restent stables et en anglais ; seul le `message`, affiché
 tel quel par l'application, est en français.
 
-**Retrouver un signalement :** l'application affiche « Référence : <id> ». Cherchez
+**Retrouver un signalement :** l'application affiche « Référence : `<id>` ». Cherchez
 `"reqId":"<id>"` dans les journaux de l'API. La ligne 5xx contient `route` (le motif, par
 ex. `/api/trips/:id/erase`, jamais l'URL), `status`, `dependency` et `errorCode`.
 

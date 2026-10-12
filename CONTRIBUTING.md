@@ -23,7 +23,12 @@ rédigés en français ou en anglais.
 ```bash
 npm install
 npm run typecheck && npm test && npm run build   # ce que lance la CI
+npm run docs:dev                                 # le site de documentation (docs/, VitePress)
 ```
+
+La documentation vit dans `docs/` et est publiée sur https://fb-univ.github.io/trip-challenges/.
+Un changement de comportement met à jour la page de rôle concernée (et le
+[modèle de menaces](./docs/securite/menaces.md) s'il touche à la sécurité).
 
 ## Pull requests
 

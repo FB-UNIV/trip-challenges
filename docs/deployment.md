@@ -6,7 +6,7 @@ tourner » ; une fois que c'est le cas, suivez
 vrais mineurs : il couvre Vault, les sauvegardes et la garantie d'effacement.
 
 - **Architecture** → [ADR-0003](./adr/0003-self-hosted-docker-compose-over-managed-ha.md)
-- **Référence des variables** → [`.env.example`](../.env.example) (chaque variable, commentée)
+- **Référence des variables** → [`.env.example`](https://github.com/FB-UNIV/trip-challenges/blob/main/.env.example) (chaque variable, commentée)
 - **Environnement de dev** → [`development.md`](./development.md)
 
 ---
@@ -71,7 +71,7 @@ Modifiez `.env` — les variables les plus importantes :
 
 | Variable | Valeur |
 |---|---|
-| `NODE_ENV` | `production` (active les cookies `Secure` ; **désactive** la porte dérobée de connexion de dev) |
+| `NODE_ENV` | imposé à `production` pour l'api par `docker-compose.yml`, quelle que soit la valeur de `.env` (cookies `Secure`, porte dérobée de connexion de dev **désactivée**) |
 | `APP_HOST` | le nom d'hôte public ; les règles Traefik de `docker-compose.yml` routent dessus |
 | `PUBLIC_BASE_URL` | l'URL publique utilisée, par ex. `https://defis.mon-college.fr` ou `https://203.0.113.10` — les QR codes l'intègrent |
 | `APP_BIND_ADDR` | adresse à laquelle `web`/`api` se lient. Avec frontal : l'IP WireGuard de ce serveur. Machine unique : `127.0.0.1` (le proxy les joint localement) |
@@ -107,7 +107,7 @@ l'attend.
 ### 3A. Modèle avec frontal (VPS Traefik séparé)
 
 Mettez dans `APP_BIND_ADDR` l'IP WireGuard de ce serveur. Copiez
-[`traefik/dynamic.yml`](../traefik/dynamic.yml) sur votre VPS Traefik (fournisseur
+[`traefik/dynamic.yml`](https://github.com/FB-UNIV/trip-challenges/blob/main/traefik/dynamic.yml) sur votre VPS Traefik (fournisseur
 « file ») en remplaçant `APP_BACKEND_HOST` par cette IP. Traefik termine le TLS et ajoute
 les en-têtes HSTS/CSP/sécurité. Pour la haute disponibilité, faites tourner un second
 serveur applicatif et déclarez les deux backends : Traefik répartit la charge et vérifie
@@ -123,6 +123,16 @@ Caddy est le plus simple et fournit le HTTPS sur une IP grâce à son AC interne
 # Caddyfile — remplacez 203.0.113.10 par l'IP de votre serveur (ou un nom d'hôte)
 https://203.0.113.10 {
     tls internal                      # auto-signé ; ou un vrai certificat / votre domaine
+    # Les mêmes en-têtes de sécurité que traefik/dynamic.yml — indispensables (CSP, HSTS…).
+    header {
+        Strict-Transport-Security "max-age=63072000; includeSubDomains"
+        X-Content-Type-Options "nosniff"
+        X-Frame-Options "DENY"
+        Referrer-Policy "no-referrer"
+        Permissions-Policy "camera=(self), geolocation=()"
+        Content-Security-Policy "default-src 'self'; img-src 'self' blob: data:; script-src 'self'; style-src 'self' 'unsafe-inline'; connect-src 'self'; frame-ancestors 'none'; base-uri 'none'"
+        -Server
+    }
     handle /api/* {
         reverse_proxy 127.0.0.1:3000
     }
@@ -377,7 +387,7 @@ Mesuré sur un portable 12 cœurs, avec le même scénario pour chaque version :
 
 ## 7. CI/CD (GitHub Actions)
 
-Workflows dans [`.github/workflows/`](../.github/workflows) : `ci.yml` lance typecheck →
+Workflows dans [`.github/workflows/`](https://github.com/FB-UNIV/trip-challenges/tree/main/.github/workflows) : `ci.yml` lance typecheck →
 tests → build (et une construction Docker) sur chaque PR et chaque push ; `release.yml`
 utilise release-please pour publier des versions semver et pousse les images `trip-api` +
 `trip-web` sur GHCR. Mettez ensuite les tags publiés dans `IMAGE_API`/`IMAGE_WEB` de
