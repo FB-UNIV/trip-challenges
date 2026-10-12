@@ -1,3 +1,4 @@
+import { useEffect } from "react";
 import { render } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { MemoryRouter, useLocation, useRoutes } from "react-router";
@@ -9,7 +10,9 @@ import { routes } from "../src/routes.js";
 // data router builds Requests with jsdom's AbortSignal, which Node's fetch rejects.
 function AppRoutes({ onLocation }: { onLocation: (path: string) => void }) {
   const loc = useLocation();
-  onLocation(loc.pathname + loc.search);
+  // After commit, not during render: navigations run in a transition, so a render can be
+  // seen before (or without) its DOM — `location()` must only report what's on screen.
+  useEffect(() => onLocation(loc.pathname + loc.search));
   return useRoutes(routes);
 }
 
