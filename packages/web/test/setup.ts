@@ -75,6 +75,12 @@ const bridgeXhr = (Inner: typeof XMLHttpRequest) => function BridgedXhr() {
   });
 } as unknown as typeof XMLHttpRequest;
 
+// Node 25 ships its own localStorage global, unusable without --localstorage-file, and it
+// shadows jsdom's: put the page's (jsdom's) storage back, as a browser would have it.
+Object.defineProperty(globalThis, "localStorage", {
+  value: (globalThis as unknown as { jsdom: { window: Window } }).jsdom.window.localStorage, configurable: true,
+});
+
 // jsdom has no object URLs (photo previews): hand out unique ones, as a browser would.
 let objectUrls = 0;
 URL.createObjectURL ??= () => `blob:${location.origin}/${++objectUrls}`;
@@ -105,6 +111,7 @@ beforeEach(() => {
 });
 afterEach(() => {
   cleanup();
+  localStorage.clear(); // what a student has already been told (entry notifications) is per test
   server.resetHandlers();
   vi.restoreAllMocks();
 });
