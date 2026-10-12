@@ -23,6 +23,11 @@ export async function tripRoutes(app: FastifyInstance) {
       return reply.code(400).send({ error: "bad_request", message: invalidFields(parsed.error) });
     }
     const cfg = parsed.data;
+    // A past end date puts hard_erase_at in the past too: the next sweep would erase the new
+    // trip at once. A day of slack for a teacher ahead of UTC picking "today" late at night.
+    if (cfg.tripEndDate < startOfYesterdayUtc()) {
+      return reply.code(400).send({ error: "end_date_past", message: "La date de fin de la sortie ne peut pas être passée." });
+    }
 
     const id = randomUUID();
     const hardEraseAt = new Date(cfg.tripEndDate);
@@ -264,8 +269,8 @@ export async function tripRoutes(app: FastifyInstance) {
     const patch = parsed.data;
 
     const { phase } = tripOf(req);
-    const { rows: cur } = await pool.query<{ trip_end_date: string; max_retention_days: number }>(
-      `SELECT trip_end_date, max_retention_days FROM trip WHERE id = $1`,
+    const { rows: cur } = await pool.query<{ trip_end_date: string; max_retention_days: number; hard_erase_at: Date }>(
+      `SELECT trip_end_date, max_retention_days, hard_erase_at FROM trip WHERE id = $1`,
       [id],
     );
     const trip = cur[0]!;
@@ -303,6 +308,16 @@ export async function tripRoutes(app: FastifyInstance) {
       const retention = patch.maxRetentionDays ?? trip.max_retention_days;
       const hardErase = new Date(endDate);
       hardErase.setDate(hardErase.getDate() + retention);
+      // Never a backdoor to an immediate erasure: an edit may bring the deadline earlier only to
+      // more than a day from now, so the 1-day and 1-hour warnings still go out. Erasing sooner
+      // is "Effacer maintenant" (typed confirmation). Putting it further off is always fine.
+      if (hardErase.getTime() < Date.now() + DAY_MS && hardErase < new Date(trip.hard_erase_at)) {
+        return reply.code(400).send({
+          error: "erasure_too_soon",
+          message: "Avec ces dates, les données de la sortie seraient effacées dans moins de 24 h. "
+            + "Pour les effacer maintenant, utilise « Effacer maintenant ».",
+        });
+      }
       sets.push(`hard_erase_at = $${vals.length + 1}`); vals.push(hardErase);
     }
 
@@ -321,3 +336,13 @@ export async function tripRoutes(app: FastifyInstance) {
 const PHASES: Phase[] = ["draft", "challenge", "voting", "reveal", "grace", "erased"];
 const LIVE = PHASES.filter((p) => p !== "erased");
 const rank = (p: string) => PHASES.indexOf(p as Phase);
+
+const DAY_MS = 24 * 3600_000;
+
+/** 00:00 UTC yesterday: the earliest end date a new trip may have. */
+function startOfYesterdayUtc(): Date {
+  const d = new Date();
+  d.setUTCHours(0, 0, 0, 0);
+  d.setUTCDate(d.getUTCDate() - 1);
+  return d;
+}

@@ -339,6 +339,10 @@ limites sont des verrous de sécurité (🔒), pas de confort — voir la colonn
 | **suppression de défi** 🔒 | **`draft` uniquement** | le QR est imprimé/distribué dès que le défi existe — le supprimer laisserait un QR mort dans la nature |
 
 Une modification hors de la phase autorisée renvoie `409`. `hard_erase_at` est toujours
-recalculé à partir de `trip_end_date + max_retention_days` à l'écriture. Toutes les
+recalculé à partir de `trip_end_date + max_retention_days` à l'écriture. Une modification ne
+peut pas avancer `hard_erase_at` à moins de 24 h (`400 erasure_too_soon`) : les alertes J-1 et
+H-1 doivent pouvoir partir, et effacer plus tôt passe par « Effacer maintenant ». Reculer
+l'échéance est toujours permis. À la création, `trip_end_date` ne peut pas être passée
+(`400 end_date_past`, un jour de tolérance pour les fuseaux horaires). Toutes les
 modifications de configuration sont réservées au responsable et aux co-enseignants, et
 journalisées dans l'audit.

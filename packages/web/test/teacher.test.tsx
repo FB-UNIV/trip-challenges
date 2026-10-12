@@ -106,6 +106,14 @@ describe("teacher home", () => {
     expect(screen.queryByRole("button", { name: "Annuler" })).not.toBeInTheDocument();
   });
 
+  it("doesn't offer an end date in the past", async () => {
+    home([]);
+    renderAt("/teacher");
+    const d = new Date();
+    const today = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+    expect(await screen.findByLabelText("Date de fin de la sortie")).toHaveAttribute("min", today);
+  });
+
   it("tells the teacher when a trip can't be created", async () => {
     home([]);
     server.use(
