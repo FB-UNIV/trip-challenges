@@ -113,9 +113,9 @@ describe("team names in the kept results (#92)", () => {
     await result(trip, "Grand Champion", 0, "Zed", null, false, true);
 
     await eraseTrip(trip);
-    expect(await kept(trip)).toEqual(["Team 2", "Team 1", "Team 2"]);
+    expect(await kept(trip)).toEqual(["Équipe 2", "Équipe 1", "Équipe 2"]);
     await eraseTrip(trip); // a rerun (#24) converges on the same labels
-    expect(await kept(trip)).toEqual(["Team 2", "Team 1", "Team 2"]);
+    expect(await kept(trip)).toEqual(["Équipe 2", "Équipe 1", "Équipe 2"]);
   });
 });
 

@@ -20,7 +20,7 @@ export async function eraseTrip(tripId: string): Promise<void> {
       `UPDATE result r
           SET team_name_vetted = COALESCE(r.team_label, x.fallback),
               team_label = COALESCE(r.team_label, x.fallback)
-         FROM (SELECT id, 'Team ' || dense_rank() OVER (ORDER BY team_name_vetted) AS fallback
+         FROM (SELECT id, 'Équipe ' || dense_rank() OVER (ORDER BY team_name_vetted) AS fallback
                  FROM result WHERE trip_id = $1 AND NOT team_name_reviewed) x
         WHERE r.id = x.id`,
       [tripId],
