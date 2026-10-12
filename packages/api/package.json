@@ -24,7 +24,7 @@
     "@trip/shared": "*",
     "argon2": "^0.45.1",
     "fastify": "^5.12.5",
-    "nodemailer": "^6.9.14",
+    "nodemailer": "^10.1.0",
     "openid-client": "^5.6.5",
     "pg": "^8.23.1",
     "qrcode": "^1.5.4",
@@ -34,7 +34,6 @@
   "devDependencies": {
     "@electric-sql/pglite": "^0.5.8",
     "@types/node": "^20.14.15",
-    "@types/nodemailer": "^6.4.15",
     "@types/pg": "^8.23.1",
     "@types/qrcode": "^1.5.5",
     "@vitest/coverage-v8": "^2.1.9",
