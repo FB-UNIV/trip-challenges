@@ -99,14 +99,14 @@ export const api = {
   leaveTeam: () => req<{ ok: true }>("/api/teams/leave", { method: "POST", body: "{}" }),
   /** XMLHttpRequest, not fetch: only it reports upload progress (`onProgress`, 0 → 1). */
   uploadSubmission: (challengeId: string, file: File, onProgress?: (sent: number) => void) =>
-    new Promise<void>((resolve, reject) => {
+    new Promise<{ id: string }>((resolve, reject) => {
       const fd = new FormData();
       fd.append("file", file);
       const xhr = new XMLHttpRequest();
       xhr.open("POST", `/api/submissions?challengeId=${challengeId}`);
       xhr.withCredentials = true;
       xhr.upload.onprogress = (e) => { if (e.lengthComputable) onProgress?.(e.loaded / e.total); };
-      xhr.onload = () => (xhr.status < 300 ? resolve()
+      xhr.onload = () => (xhr.status < 300 ? resolve(JSON.parse(xhr.responseText) as { id: string })
         : reject(new HttpError(xhr.status, xhr.responseText, xhr.getResponseHeader("x-request-id"))));
       xhr.onerror = () => reject(new HttpError(0, ""));
       xhr.send(fd);

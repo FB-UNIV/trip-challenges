@@ -65,10 +65,13 @@ export class ChallengePage {
     return this.page.locator(".photo-cell");
   }
 
+  /** Take a photo, send it from the review screen, and dismiss the "sent" screen without nominating. */
   async upload(file: { name: string; mimeType: string; buffer: Buffer }) {
     const before = await this.photos().count();
-    await this.page.locator('input[type="file"]').setInputFiles(file);
-    await this.page.getByRole("button", { name: "Envoyer" }).click();
+    await this.page.getByLabel(/Prendre une photo/).setInputFiles(file);
+    await this.page.getByRole("dialog", { name: "Ta photo" }).getByRole("button", { name: "Envoyer" }).click();
+    await this.page.getByRole("dialog", { name: "Photo envoyée" }).getByRole("button", { name: /^(Plus tard|Continuer)$/ }).click();
+    await expect(this.page.locator(".photo-sending")).toHaveCount(0);
     await expect(this.photos()).toHaveCount(before + 1);
   }
 
