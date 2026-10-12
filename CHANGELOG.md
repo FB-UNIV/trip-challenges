@@ -1,5 +1,18 @@
 # Changelog
 
+## [0.12.0](https://github.com/FB-UNIV/trip-challenges/compare/v0.11.0...v0.12.0) (2026-10-12)
+
+
+### Features
+
+* **web:** notify students when a teacher validates or refuses their entry ([#161](https://github.com/FB-UNIV/trip-challenges/issues/161)) ([b8fd960](https://github.com/FB-UNIV/trip-challenges/commit/b8fd960a5ce26cf24391750f4c96df546e2f7152))
+* **web:** students can enlarge their team's photos ([#159](https://github.com/FB-UNIV/trip-challenges/issues/159)) ([3e14d99](https://github.com/FB-UNIV/trip-challenges/commit/3e14d99fcc08cb9ee6eb1fe773661f31ad4bf08c))
+
+
+### Bug Fixes
+
+* **api:** a trip's end date can no longer trigger an immediate erasure ([#160](https://github.com/FB-UNIV/trip-challenges/issues/160)) ([113ba24](https://github.com/FB-UNIV/trip-challenges/commit/113ba248189a66966569bf46f846c491394e54ee))
+
 ## [0.11.0](https://github.com/FB-UNIV/trip-challenges/compare/v0.10.0...v0.11.0) (2026-10-12)
 
 
