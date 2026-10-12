@@ -20,24 +20,79 @@ const bytesOf = (file: File) => new Promise<ArrayBuffer>((resolve, reject) => {
   reader.onerror = () => reject(reader.error);
   reader.readAsArrayBuffer(file);
 });
-const bridge = (inner: typeof fetch): typeof fetch => async (input, init) => {
-  if (init?.body instanceof FormData) {
-    const body = new NodeFormData();
-    for (const [key, value] of init.body) {
-      body.append(key, typeof value === "string" ? value
-        : (new NodeFile([new Uint8Array(await bytesOf(value))], value.name, { type: value.type }) as unknown as Blob));
-    }
-    init = { ...init, body };
+async function toNodeFormData(form: FormData): Promise<FormData> {
+  const body = new NodeFormData();
+  for (const [key, value] of form) {
+    body.append(key, typeof value === "string" ? value
+      : (new NodeFile([new Uint8Array(await bytesOf(value))], value.name, { type: value.type }) as unknown as Blob));
   }
+  return body;
+}
+const bridge = (inner: typeof fetch): typeof fetch => async (input, init) => {
+  if (init?.body instanceof FormData) init = { ...init, body: await toNodeFormData(init.body) };
   return inner(typeof input === "string" ? new URL(input, location.origin) : input, init);
 };
 
-// After listen(): MSW swaps in its own fetch, and the bridge must sit in front of it.
+// Encoded by hand: Node's encoder doesn't recognize jsdom's File (no name, no bytes).
+async function multipartOf(form: FormData): Promise<{ type: string; bytes: Uint8Array }> {
+  const boundary = "----trip-test-boundary";
+  const parts: Uint8Array[] = [];
+  const text = (t: string) => parts.push(new TextEncoder().encode(t));
+  for (const [key, value] of form) {
+    if (typeof value === "string") {
+      text(`--${boundary}\r\nContent-Disposition: form-data; name="${key}"\r\n\r\n${value}\r\n`);
+    } else {
+      text(`--${boundary}\r\nContent-Disposition: form-data; name="${key}"; filename="${value.name}"\r\nContent-Type: ${value.type}\r\n\r\n`);
+      parts.push(new Uint8Array(await bytesOf(value)));
+      text("\r\n");
+    }
+  }
+  text(`--${boundary}--\r\n`);
+  const bytes = new Uint8Array(parts.reduce((n, p) => n + p.length, 0));
+  parts.reduce((at, p) => { bytes.set(p, at); return at + p.length; }, 0);
+  return { type: `multipart/form-data; boundary=${boundary}`, bytes };
+}
+
+// The same for XMLHttpRequest (photo uploads use it for their progress): MSW would read a
+// jsdom FormData as "[object FormData]", so send the multipart bytes a browser would.
+const bridgeXhr = (Inner: typeof XMLHttpRequest) => function BridgedXhr() {
+  const xhr = new Inner();
+  const send = (body?: Document | XMLHttpRequestBodyInit | null) => {
+    if (!(body instanceof FormData)) return xhr.send(body);
+    void multipartOf(body).then(({ type, bytes }) => {
+      xhr.setRequestHeader("content-type", type);
+      xhr.send(bytes);
+    });
+  };
+  // A proxy: MSW's own XMLHttpRequest proxy ignores assignments to `send`.
+  return new Proxy(xhr, {
+    get: (target, key) => {
+      if (key === "send") return send;
+      const value = Reflect.get(target, key);
+      return typeof value === "function" ? value.bind(target) : value;
+    },
+    set: (target, key, value) => Reflect.set(target, key, value),
+  });
+} as unknown as typeof XMLHttpRequest;
+
+// jsdom has no object URLs (photo previews): hand out unique ones, as a browser would.
+let objectUrls = 0;
+URL.createObjectURL ??= () => `blob:${location.origin}/${++objectUrls}`;
+URL.revokeObjectURL ??= () => {};
+
+// MSW defines its XMLHttpRequest read-only (but configurable).
+const setXhr = (value: typeof XMLHttpRequest) =>
+  Object.defineProperty(globalThis, "XMLHttpRequest", { value, configurable: true, writable: false });
+
+// After listen(): MSW swaps in its own fetch and XMLHttpRequest, and the bridges must sit in front.
 let mswFetch: typeof fetch;
+let mswXhr: typeof XMLHttpRequest;
 beforeAll(() => {
   server.listen({ onUnhandledRequest: "error" });
   mswFetch = globalThis.fetch;
   globalThis.fetch = bridge(mswFetch);
+  mswXhr = globalThis.XMLHttpRequest;
+  setXhr(bridgeXhr(mswXhr));
 });
 // App shell: on student pages the tab bar asks who's signed in and for their challenge
 // progress. Default to "signed out" so screens that don't care needn't declare it; a test's
@@ -55,5 +110,6 @@ afterEach(() => {
 });
 afterAll(() => {
   globalThis.fetch = mswFetch;
+  setXhr(mswXhr);
   server.close();
 });

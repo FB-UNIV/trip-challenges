@@ -1,5 +1,5 @@
-// Scanning a challenge QR (/c/:slug): sign-in gate, phase/team gates, upload, nominate.
-import { describe, it, expect } from "vitest";
+// Scanning a challenge QR (/c/:slug): sign-in gate, phase/team gates, sending photos, nominating.
+import { describe, it, expect, vi } from "vitest";
 import { screen, waitFor } from "@testing-library/react";
 import { delay, http, HttpResponse } from "msw";
 import { server } from "./server.js";
@@ -65,7 +65,7 @@ describe("challenge page", () => {
     await user.clear(screen.getByLabelText("Code d'accès"));
     await user.type(screen.getByLabelText("Code d'accès"), "GOOD");
     await user.click(screen.getByRole("button", { name: "Continuer" }));
-    expect(await screen.findByRole("button", { name: "Envoyer" })).toBeInTheDocument();
+    expect(await screen.findByLabelText(/Prendre une photo/)).toBeInTheDocument();
   });
 
   it("closes uploads outside the challenge period", async () => {
@@ -91,54 +91,7 @@ describe("challenge page", () => {
     const { user } = renderAt("/c/abc");
     await user.type(await screen.findByLabelText("Ton nom de joueur"), "Lone wolf");
     await user.click(screen.getByRole("button", { name: "Jouer en solo" }));
-    expect(await screen.findByRole("button", { name: "Envoyer" })).toBeInTheDocument();
-  });
-
-  it("uploads the chosen photo to this challenge and lists it", async () => {
-    const subs: { id: string; created_at: string; nominated: boolean }[] = [];
-    let uploaded: { challengeId: string | null; body: string } | undefined;
-    server.use(
-      challenge(), me(ME),
-      http.get("/api/submissions", () => HttpResponse.json({ submissions: subs })),
-      http.post("/api/submissions", async ({ request }) => {
-        // Raw multipart: undici's formData() parser rejects jsdom's global File in this env.
-        uploaded = { challengeId: new URL(request.url).searchParams.get("challengeId"), body: await request.text() };
-        expect(request.headers.get("content-type")).toMatch(/^multipart\/form-data; boundary=/);
-        subs.push({ id: "sub1", created_at: "2030-01-01", nominated: false });
-        return HttpResponse.json({ id: "sub1" }, { status: 201 });
-      }),
-    );
-    const { user, container } = renderAt("/c/abc");
-    expect(await screen.findByText("Pas encore de photo.")).toBeInTheDocument();
-
-    const input = container.querySelector<HTMLInputElement>('input[type="file"]')!;
-    await user.upload(input, new File(["jpeg"], "gelato.jpg", { type: "image/jpeg" }));
-    await user.click(screen.getByRole("button", { name: "Envoyer" }));
-
-    expect(await screen.findByRole("button", { name: "Sélectionner" })).toBeInTheDocument();
-    expect(uploaded?.challengeId).toBe("ch1");
-    expect(uploaded?.body).toMatch(/name="file"; filename="gelato.jpg"\r\nContent-Type: image\/jpeg\r\n\r\njpeg\r\n/);
-    expect(input.value).toBe("");
-  });
-
-  it("does nothing when Upload is pressed without a photo", async () => {
-    server.use(challenge(), me(ME), http.get("/api/submissions", () => HttpResponse.json({ submissions: [] })));
-    const { user } = renderAt("/c/abc");
-    await user.click(await screen.findByRole("button", { name: "Envoyer" }));
-    expect(screen.queryByText(/Échec/i)).not.toBeInTheDocument(); // and no POST (unhandled requests fail the test)
-  });
-
-  it("shows the server's reason when an upload is refused", async () => {
-    server.use(
-      challenge(), me(ME),
-      http.get("/api/submissions", () => HttpResponse.json({ submissions: [] })),
-      http.post("/api/submissions", () => HttpResponse.json({ error: "infected", message: "file failed the virus scan" }, { status: 422 })),
-    );
-    const { user, container } = renderAt("/c/abc");
-    await screen.findByText("Pas encore de photo.");
-    await user.upload(container.querySelector<HTMLInputElement>('input[type="file"]')!, new File(["x"], "x.jpg", { type: "image/jpeg" }));
-    await user.click(screen.getByRole("button", { name: "Envoyer" }));
-    expect(await screen.findByText(/file failed the virus scan/)).toBeInTheDocument();
+    expect(await screen.findByLabelText(/Prendre une photo/)).toBeInTheDocument();
   });
 
   it("nominates a photo for the team", async () => {
@@ -224,5 +177,143 @@ describe("challenge page", () => {
     const { user } = renderAt("/c/abc");
     await user.click(await screen.findByRole("button", { name: "Sélectionner" }));
     await waitFor(() => expect(screen.getByText(/nominations are closed/)).toBeInTheDocument());
+  });
+});
+
+describe("sending photos", () => {
+  type Sub = { id: string; created_at: string; nominated: boolean };
+  const photo = (name = "gelato.jpg") => new File(["jpeg"], name, { type: "image/jpeg" });
+  const filename = (body: string) => /filename="([^"]+)"/.exec(body)?.[1];
+  const listed = (subs: Sub[]) => http.get("/api/submissions", () => HttpResponse.json({ submissions: subs }));
+  const added = (subs: Sub[]) => subs.push({ id: `sub${subs.length + 1}`, created_at: "2030-01-01", nominated: false });
+
+  it("opens the camera, or the gallery to pick several photos at once", async () => {
+    server.use(challenge(), me(ME), listed([]));
+    renderAt("/c/abc");
+    const camera = await screen.findByLabelText(/Prendre une photo/);
+    expect(camera).toHaveAttribute("capture", "environment");
+    expect(camera).not.toHaveAttribute("multiple");
+    const gallery = screen.getByLabelText(/Galerie/);
+    expect(gallery).not.toHaveAttribute("capture");
+    expect(gallery).toHaveAttribute("multiple");
+    expect(gallery).toHaveAttribute("accept", "image/*");
+  });
+
+  it("sends a photo as soon as it's taken, shows it with its progress meanwhile, then lists it", async () => {
+    const subs: Sub[] = [];
+    let release!: () => void;
+    const held = new Promise<void>((r) => { release = r; });
+    let uploaded: { challengeId: string | null; type: string | null; body: string } | undefined;
+    server.use(
+      challenge(), me(ME), listed(subs),
+      http.post("/api/submissions", async ({ request }) => {
+        uploaded = {
+          challengeId: new URL(request.url).searchParams.get("challengeId"),
+          type: request.headers.get("content-type"),
+          body: await request.text(),
+        };
+        await held;
+        added(subs);
+        return HttpResponse.json({ id: "sub1" }, { status: 201 });
+      }),
+    );
+    const revoke = vi.spyOn(URL, "revokeObjectURL");
+    const { user } = renderAt("/c/abc");
+    await screen.findByText("Pas encore de photo.");
+    const camera = screen.getByLabelText<HTMLInputElement>(/Prendre une photo/);
+    await user.upload(camera, photo());
+
+    expect(await screen.findByRole("progressbar", { name: "Envoi de la photo" })).toBeInTheDocument();
+    const preview = screen.getByRole("img", { name: "Photo en cours d'envoi" });
+    expect(preview.getAttribute("src")).toMatch(/^blob:/);
+    expect(screen.queryByText("Pas encore de photo.")).not.toBeInTheDocument();
+
+    release();
+    expect(await screen.findByRole("button", { name: "Sélectionner" })).toBeInTheDocument();
+    expect(screen.queryByRole("progressbar", { name: "Envoi de la photo" })).not.toBeInTheDocument();
+    expect(revoke).toHaveBeenCalledWith(preview.getAttribute("src"));
+    expect(uploaded?.challengeId).toBe("ch1");
+    expect(uploaded?.type).toMatch(/^multipart\/form-data; boundary=/);
+    expect(uploaded?.body).toMatch(/name="file"; filename="gelato.jpg"\r\nContent-Type: image\/jpeg\r\n\r\njpeg\r\n/);
+    expect(camera.value).toBe("");
+  });
+
+  it("sends several gallery photos one after another", async () => {
+    const subs: Sub[] = [];
+    const order: (string | undefined)[] = [];
+    let inFlight = 0;
+    let most = 0;
+    server.use(
+      challenge(), me(ME), listed(subs),
+      http.post("/api/submissions", async ({ request }) => {
+        most = Math.max(most, ++inFlight);
+        order.push(filename(await request.text()));
+        await delay(20);
+        inFlight--;
+        added(subs);
+        return HttpResponse.json({ id: "x" }, { status: 201 });
+      }),
+    );
+    const { user } = renderAt("/c/abc");
+    await screen.findByText("Pas encore de photo.");
+    await user.upload(screen.getByLabelText(/Galerie/), [photo("a.jpg"), photo("b.jpg"), photo("c.jpg")]);
+    expect(screen.getAllByRole("img", { name: "Photo en cours d'envoi" })).toHaveLength(3);
+    await waitFor(() => expect(screen.getAllByRole("button", { name: "Sélectionner" })).toHaveLength(3));
+    expect(order).toEqual(["a.jpg", "b.jpg", "c.jpg"]);
+    expect(most).toBe(1);
+  });
+
+  it("keeps a refused photo on screen with the reason, and sends it again on retry", async () => {
+    const subs: Sub[] = [];
+    let refuse = true;
+    server.use(
+      challenge(), me(ME), listed(subs),
+      http.post("/api/submissions", () => {
+        if (refuse) return HttpResponse.json({ error: "infected", message: "file failed the virus scan" }, { status: 422 });
+        added(subs);
+        return HttpResponse.json({ id: "sub1" }, { status: 201 });
+      }),
+    );
+    const { user } = renderAt("/c/abc");
+    await screen.findByText("Pas encore de photo.");
+    await user.upload(screen.getByLabelText(/Prendre une photo/), photo());
+    expect(await screen.findByText(/file failed the virus scan/)).toBeInTheDocument();
+    expect(screen.queryByRole("progressbar", { name: "Envoi de la photo" })).not.toBeInTheDocument();
+
+    refuse = false;
+    await user.click(screen.getByRole("button", { name: "Réessayer" }));
+    expect(await screen.findByRole("button", { name: "Sélectionner" })).toBeInTheDocument();
+    expect(screen.queryByText(/file failed the virus scan/)).not.toBeInTheDocument();
+    expect(screen.queryByRole("img", { name: "Photo en cours d'envoi" })).not.toBeInTheDocument();
+  });
+
+  it("says when the server can't be reached, and lets the student drop the photo", async () => {
+    server.use(challenge(), me(ME), listed([]), http.post("/api/submissions", () => HttpResponse.error()));
+    const { user } = renderAt("/c/abc");
+    await screen.findByText("Pas encore de photo.");
+    await user.upload(screen.getByLabelText(/Prendre une photo/), photo());
+    expect(await screen.findByText(/Impossible de joindre le serveur/)).toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "Retirer" }));
+    expect(screen.queryByRole("img", { name: "Photo en cours d'envoi" })).not.toBeInTheDocument();
+    expect(screen.getByText("Pas encore de photo.")).toBeInTheDocument();
+  });
+
+  it("gives a reference to quote when the server breaks", async () => {
+    server.use(
+      challenge(), me(ME), listed([]),
+      http.post("/api/submissions", () => HttpResponse.json({ error: "internal", message: "Erreur interne.", requestId: "req-42" }, { status: 500 })),
+    );
+    const { user } = renderAt("/c/abc");
+    await screen.findByText("Pas encore de photo.");
+    await user.upload(screen.getByLabelText(/Prendre une photo/), photo());
+    expect(await screen.findByText(/Erreur interne\. Référence : req-42/)).toBeInTheDocument();
+  });
+
+  it("sends nothing when the picker is closed without a photo", async () => {
+    server.use(challenge(), me(ME), listed([]));
+    const { user } = renderAt("/c/abc");
+    await screen.findByText("Pas encore de photo.");
+    await user.upload(screen.getByLabelText(/Galerie/), []);
+    expect(screen.queryByRole("img", { name: "Photo en cours d'envoi" })).not.toBeInTheDocument(); // and no POST
   });
 });
