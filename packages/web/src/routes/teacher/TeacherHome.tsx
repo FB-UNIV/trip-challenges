@@ -86,7 +86,7 @@ function NewTrip({ onCreated, onCancel }: { onCreated: () => void; onCancel?: ()
       <h3>Nouvelle sortie</h3>
       <Field label="Nom" value={name} onChange={(e) => setName(e.target.value)} />
       <div className="grid2">
-        <Field label="Date de fin de la sortie" type="date" value={endDate} onChange={(e) => setEndDate(e.target.value)} />
+        <Field label="Date de fin de la sortie" type="date" min={today()} value={endDate} onChange={(e) => setEndDate(e.target.value)} />
         <Field label="Taille max. d'une équipe" type="number" min={1} value={maxTeamSize} onChange={(e) => setMaxTeamSize(e.target.value)} />
       </div>
       <div className="row">
@@ -96,4 +96,10 @@ function NewTrip({ onCreated, onCancel }: { onCreated: () => void; onCancel?: ()
       <Notice tone="err">{create.error}</Notice>
     </Card>
   );
+}
+
+/** Today as the date picker writes it (local time): a trip can't end in the past (the API refuses it too). */
+function today(): string {
+  const d = new Date();
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
 }
