@@ -1,5 +1,5 @@
 // Results: Grand Champion tie-break and the ceremony launcher (reveal onwards).
-import { Navigate } from "react-router-dom";
+import { Navigate } from "react-router";
 import { api, type ResultRow } from "../../api.js";
 import { qk, useLoad, useTripRefresh } from "../../query.js";
 import { Button, Card, EmptyState, ErrorCard, Notice, useAction } from "../../ui.js";

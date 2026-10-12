@@ -1,6 +1,6 @@
 // Printable QR sheet: one cut-out card per challenge (title, instructions, QR). Opened in its
 // own tab outside the app chrome, so only the cards reach the printer.
-import { useParams } from "react-router-dom";
+import { useParams } from "react-router";
 import { api } from "../../api.js";
 import { Button, Skeleton, useAsync } from "../../ui.js";
 

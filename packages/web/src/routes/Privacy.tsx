@@ -1,6 +1,6 @@
 // What the app keeps about a student, who sees it, and when it is erased — for students and
 // their families. The school is the data controller (ADR 0004): rights go through it.
-import { Link } from "react-router-dom";
+import { Link } from "react-router";
 import { Card } from "../ui.js";
 
 export function Privacy() {

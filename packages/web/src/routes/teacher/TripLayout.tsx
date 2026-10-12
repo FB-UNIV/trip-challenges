@@ -1,5 +1,5 @@
 // The trip desk: header, phase trail and section nav around the current section (an Outlet).
-import { Navigate, Outlet, useOutletContext, useParams } from "react-router-dom";
+import { Navigate, Outlet, useOutletContext, useParams } from "react-router";
 import { api, type NominationRow } from "../../api.js";
 import { qk, useLoad, useTripRefresh } from "../../query.js";
 import { PhasePill, PhaseTrail, Pill, SectionNav, Skeleton, type Section } from "../../ui.js";

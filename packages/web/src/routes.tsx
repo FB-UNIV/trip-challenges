@@ -1,5 +1,5 @@
 // The route table, shared by main.tsx (browser router) and the tests (memory router).
-import type { RouteObject } from "react-router-dom";
+import type { RouteObject } from "react-router";
 import { App } from "./App.js";
 import { StudentHome } from "./routes/StudentHome.js";
 import { JoinPage } from "./routes/JoinPage.js";

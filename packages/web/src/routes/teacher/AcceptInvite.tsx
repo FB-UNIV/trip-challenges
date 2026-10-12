@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { useNavigate, useSearchParams } from "react-router-dom";
+import { useNavigate, useSearchParams } from "react-router";
 import { api, HttpError } from "../../api.js";
 import { Button, Card, Skeleton, useAsync } from "../../ui.js";
 

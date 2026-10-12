@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Link } from "react-router-dom";
+import { Link } from "react-router";
 import { api, HttpError, type TeamView } from "../api.js";
 import { qk, useMe, useMyChallenges, useRefresh, useTeams } from "../query.js";
 import { PlaySolo } from "./PlaySolo.js";

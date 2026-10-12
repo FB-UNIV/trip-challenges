@@ -3,7 +3,7 @@
 // Advance with click / Space / →, go back with ←. Reads the non-PII results that
 // survive Erasure, so it keeps working as a keepsake afterwards.
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { useParams } from "react-router-dom";
+import { useParams } from "react-router";
 import { api, type ResultRow } from "../api.js";
 import { Skeleton, useAsync } from "../ui.js";
 
