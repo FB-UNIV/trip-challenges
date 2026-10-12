@@ -113,7 +113,9 @@ export async function tripRoutes(app: FastifyInstance) {
       students: number; teams: number; without_team: number; teams_unreviewed: number; voters: number;
     }>(
       `SELECT phase, hard_erase_at,
-              voting_closes_at + (grace_days || ' days')::interval AS grace_ends_at,
+              -- In grace: when it ends. During the ceremony: when it would end if published now.
+              CASE WHEN phase = 'grace' THEN grace_started_at
+                   WHEN phase = 'reveal' THEN now() END + (grace_days || ' days')::interval AS grace_ends_at,
               (SELECT count(*)::int FROM student s WHERE s.trip_id = t.id) AS students,
               (SELECT count(DISTINCT m.team_id)::int FROM team_member m WHERE m.trip_id = t.id) AS teams,
               (SELECT count(*)::int FROM student s WHERE s.trip_id = t.id

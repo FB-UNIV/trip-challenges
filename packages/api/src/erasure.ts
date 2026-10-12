@@ -1,5 +1,5 @@
 // Erasure: irreversible destruction of a Trip's student data (ADR-0001, data-model.md).
-// Triggered by: grace window after voting, teacher early-fire, or hard_erase_at (any phase).
+// Triggered by: grace window after the results are published, teacher early-fire, or hard_erase_at (any phase).
 import { pool, tx } from "./db.js";
 import { deleteTripBlobs } from "./storage/s3.js";
 import { destroyTripKey } from "./crypto/vault.js";
@@ -75,8 +75,7 @@ export async function findTripsDueForErasure(now = new Date()): Promise<string[]
         AND (
           hard_erase_at <= $1
           OR (phase = 'grace'
-              AND voting_closes_at IS NOT NULL
-              AND voting_closes_at + (grace_days || ' days')::interval <= $1)
+              AND grace_started_at + (grace_days || ' days')::interval <= $1)
         )`,
     [now],
   );
@@ -94,8 +93,8 @@ export async function warnUpcomingErasures(now = new Date()): Promise<void> {
   const { rows } = await pool.query<{ id: string; name: string; erase_at: Date }>(
     `SELECT id, name,
             LEAST(hard_erase_at,
-                  CASE WHEN phase = 'grace' AND voting_closes_at IS NOT NULL
-                       THEN voting_closes_at + (grace_days || ' days')::interval END) AS erase_at
+                  CASE WHEN phase = 'grace'
+                       THEN grace_started_at + (grace_days || ' days')::interval END) AS erase_at
        FROM trip
       WHERE phase NOT IN ('draft','erased')`,
   );

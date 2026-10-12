@@ -36,6 +36,13 @@ describe("advanceTrip", () => {
     await expect(advanceTrip(trip, "erased")).rejects.toMatchObject({ illegal: true });
   });
 
+  it("starts the grace period when the results are published, not at the planned vote close", async () => {
+    const trip = await makeTrip(owner, { phase: "reveal", votingClosesAt: new Date("2020-01-01T00:00:00Z") });
+    await advanceTrip(trip, "grace");
+    const { rows: [t] } = await pool.query<{ started: Date }>(`SELECT grace_started_at AS started FROM trip WHERE id = $1`, [trip]);
+    expect(Math.abs(t!.started.getTime() - Date.now())).toBeLessThan(60_000);
+  });
+
   // #81 (owner decision): a teacher's reject sticks; opening voting doesn't bring the team back.
   it("doesn't auto-nominate for a team whose entry was rejected", async () => {
     const trip = await makeTrip(owner, { phase: "challenge" });
