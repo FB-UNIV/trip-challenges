@@ -7,6 +7,7 @@ import multipart from "@fastify/multipart";
 import argon2 from "argon2";
 import { randomBytes } from "node:crypto";
 import { hashSessionToken } from "../../src/auth/session-token.js";
+import { teacherSessionValue } from "../../src/auth/teacher.js";
 import { installErrorHandling, requestIdOptions } from "../../src/lib/errors.js";
 import { config } from "./config.js";
 import { pool } from "../../src/db.js";
@@ -44,7 +45,7 @@ export async function buildApp(
 }
 
 export const teacherCookie = (app: FastifyInstance, teacherId: string) =>
-  `teacher_session=${app.signCookie(teacherId)}`;
+  `teacher_session=${app.signCookie(teacherSessionValue(teacherId))}`;
 
 let seq = 0;
 const uniq = () => `${Date.now().toString(36)}${++seq}`;

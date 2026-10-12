@@ -5,6 +5,7 @@ import { getOidcClient, oidcGenerators } from "../auth/oidc.js";
 import { config } from "../config.js";
 import { pool } from "../db.js";
 import { guard } from "../auth/guard.js";
+import { readTeacher, teacherSessionValue, TEACHER_SESSION_TTL_MS } from "../auth/teacher.js";
 
 const TEN_MIN = 600;
 
@@ -18,13 +19,13 @@ function isSafeReturnTo(v: unknown): v is string {
 const secureCookies = config.NODE_ENV === "production";
 
 function setTeacherSession(reply: import("fastify").FastifyReply, teacherId: string) {
-  reply.setCookie("teacher_session", teacherId, {
+  reply.setCookie("teacher_session", teacherSessionValue(teacherId), {
     httpOnly: true,
     secure: secureCookies,
     sameSite: "strict",
     path: "/",
     signed: true,
-    maxAge: 8 * 60 * 60, // 8h
+    maxAge: TEACHER_SESSION_TTL_MS / 1000, // 8 h, also enforced server-side (readTeacher)
   });
 }
 
@@ -120,12 +121,11 @@ export async function teacherAuthRoutes(app: FastifyInstance) {
 
   // Who am I? (UI bootstrap) Reads the session itself: a stale cookie for a deleted teacher is a 401 too.
   app.get("/me", open, async (req, reply) => {
-    const raw = req.cookies["teacher_session"];
-    const un = raw ? reply.unsignCookie(raw) : { valid: false, value: null };
-    if (!un.valid || !un.value) return reply.code(401).send({ error: "unauthorized", message: "Tu n'es pas connecté." });
+    const teacher = readTeacher(req, reply);
+    if (!teacher) return reply.code(401).send({ error: "unauthorized", message: "Tu n'es pas connecté." });
     const { rows } = await pool.query(
       `SELECT id, email, display_name FROM teacher WHERE id = $1`,
-      [un.value],
+      [teacher.teacherId],
     );
     if (!rows[0]) return reply.code(401).send({ error: "unauthorized", message: "Tu n'es pas connecté." });
     return rows[0];

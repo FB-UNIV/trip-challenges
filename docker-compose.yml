@@ -32,6 +32,10 @@ services:
       dockerfile: packages/api/Dockerfile
     restart: unless-stopped
     env_file: .env
+    # Always production here, whatever .env says: NODE_ENV=development (the .env.example
+    # value, for local dev) enables /dev-login, a passwordless teacher backdoor.
+    environment:
+      NODE_ENV: production
     networks: [internal]
     ports:
       - "${APP_BIND_ADDR:-127.0.0.1}:3000:3000"
