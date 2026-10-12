@@ -263,6 +263,8 @@ draft -> challenge -> voting -> reveal -> grace -> erased
 - n'importe laquelle→erased : forcé à hard_erase_at, avec des alertes progressives
   (7 j / 1 j / 1 h, par e-mail et bandeau).
 
+<a id="editability-config-edits-via-patch"></a>
+
 ## Modifiabilité (modifications de configuration via `PATCH`)
 
 Les champs sont modifiables *jusqu'à la phase où leur valeur devient définitive*. Deux
