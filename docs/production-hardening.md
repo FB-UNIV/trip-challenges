@@ -1,31 +1,34 @@
-# Production hardening runbook
+# Guide de durcissement pour la production
 
-The bundled `docker-compose.yml` boots for **evaluation**. Before it holds real minors'
-data, work through this checklist. The load-bearing part is **Vault** — the crypto-erasure
-guarantee (ADR-0001) is only as real as Vault's production configuration. Everything else
-here is standard hygiene.
+Le `docker-compose.yml` fourni démarre pour **évaluer**. Avant qu'il n'accueille les
+données de vrais mineurs, suivez cette liste. La pièce maîtresse est **Vault** : la
+garantie d'effacement cryptographique (ADR-0001) ne vaut que ce que vaut la configuration
+de production de Vault. Le reste relève de l'hygiène habituelle.
 
-> The one rule that makes erasure real: **Vault's storage must never be in the same backup
-> set as Postgres/MinIO.** If a photo ciphertext and the key that unwraps it are restorable
-> from the same backup, destroying the live key erases nothing. Keep them on separate media
-> with separate retention. See [§2](#2-backups-and-the-erasure-guarantee).
+> La règle qui rend l'effacement réel : **le stockage de Vault ne doit jamais faire partie
+> des mêmes sauvegardes que Postgres/MinIO.** Si le chiffré d'une photo et la clé qui le
+> déchiffre peuvent être restaurés depuis la même sauvegarde, détruire la clé en
+> production n'efface rien. Gardez-les sur des supports distincts, avec des durées de
+> conservation distinctes. Voir le [§ 2](#2-sauvegardes-et-garantie-deffacement).
 
 ---
 
-## 1. Vault out of dev mode
+## 1. Vault hors du mode dev
 
-The dev container runs `vault server -dev`: in-memory storage, auto-unsealed, a fixed root
-token. Losing the container loses every key (all trips instantly "erased"); the root token
-in `.env` can do anything. Replace all three properties.
+Le conteneur de dev lance `vault server -dev` : stockage en mémoire, descellement
+automatique, jeton root fixe. Perdre le conteneur, c'est perdre toutes les clés (toutes
+les sorties instantanément « effacées ») ; le jeton root de `.env` peut tout faire.
+Remplacez ces trois propriétés.
 
-The API only needs `VAULT_ADDR`, `VAULT_TOKEN`, and `VAULT_TRANSIT_MOUNT` (default
-`transit`). It performs transit `encrypt`/`decrypt`/`hmac`/`datakey`, creates a key per
-trip, and — for erasure — sets `deletion_allowed` then `DELETE`s the key. The policy below
-grants exactly that and nothing else.
+L'API n'a besoin que de `VAULT_ADDR`, `VAULT_TOKEN` et `VAULT_TRANSIT_MOUNT` (par défaut
+`transit`). Elle effectue les opérations transit `encrypt`/`decrypt`/`hmac`/`datakey`,
+crée une clé par sortie et, pour l'effacement, positionne `deletion_allowed` puis
+supprime la clé (`DELETE`). La politique ci-dessous accorde exactement cela, et rien
+d'autre.
 
-### 1a. Persistent storage + real seal
+### 1a. Stockage persistant et vrai scellement
 
-Replace the dev container with a configured server. Minimal `vault.hcl`:
+Remplacez le conteneur de dev par un serveur configuré. `vault.hcl` minimal :
 
 ```hcl
 storage "raft" {
@@ -39,49 +42,49 @@ listener "tcp" {
   tls_key_file  = "/vault/tls/key.pem"
 }
 
-# Auto-unseal so a restart doesn't need a human. Pick ONE backend your org already runs
-# (cloud KMS, HSM, or Transit from a *separate* Vault). Without it, every restart blocks
-# on `vault operator unseal`.
+# Descellement automatique pour qu'un redémarrage ne demande pas d'humain. Choisissez UN
+# mécanisme que votre organisation exploite déjà (KMS cloud, HSM, ou Transit d'un Vault
+# *séparé*). Sans lui, chaque redémarrage bloque sur `vault operator unseal`.
 seal "awskms" {
   region     = "eu-west-1"
   kms_key_id = "..."
 }
 ```
 
-Mount `/vault/data` and `/vault/tls` as real volumes. TLS is mandatory — the API sends the
-token and plaintext DEKs over this socket.
+Montez `/vault/data` et `/vault/tls` sur de vrais volumes. Le TLS est obligatoire :
+l'API envoie le jeton et des clés de données (DEK) en clair sur ce socket.
 
-Initialize **once**:
+Initialisez **une seule fois** :
 
 ```bash
 vault operator init -key-shares=5 -key-threshold=3
 ```
 
-Store the unseal/recovery keys and the initial root token **offline, split across people**.
-You will not use the root token for day-to-day operation — it exists to bootstrap and to
-break glass.
+Conservez les clés de descellement/récupération et le jeton root initial **hors ligne,
+répartis entre plusieurs personnes**. Le jeton root ne sert pas au quotidien : il existe
+pour l'amorçage et les situations d'urgence.
 
-### 1b. A scoped token for the API (not root)
+### 1b. Un jeton restreint pour l'API (pas root)
 
-Write the policy the API actually needs:
+Écrivez la politique dont l'API a réellement besoin :
 
 ```hcl
-# transit-app.hcl  — mount path is VAULT_TRANSIT_MOUNT (default "transit")
+# transit-app.hcl  — le point de montage est VAULT_TRANSIT_MOUNT (par défaut "transit")
 path "transit/keys/trip-*"          { capabilities = ["create", "read", "update"] }
 path "transit/keys/trip-*/config"   { capabilities = ["update"] }              # deletion_allowed
-path "transit/keys/trip-*"          { capabilities = ["delete"] }              # THE erasure delete
+path "transit/keys/trip-*"          { capabilities = ["delete"] }              # LA suppression d'effacement
 path "transit/encrypt/trip-*"       { capabilities = ["update"] }
 path "transit/decrypt/trip-*"       { capabilities = ["update"] }
 path "transit/hmac/trip-*"          { capabilities = ["update"] }
 path "transit/datakey/plaintext/trip-*" { capabilities = ["update"] }
-path "sys/mounts/transit"           { capabilities = ["create", "read", "update"] } # boot-time ensureTransitEngine
+path "sys/mounts/transit"           { capabilities = ["create", "read", "update"] } # ensureTransitEngine au démarrage
 ```
 
 ```bash
 vault policy write transit-app transit-app.hcl
 ```
 
-Prefer **AppRole** over a hand-minted token so the credential is rotatable:
+Préférez **AppRole** à un jeton créé à la main, pour pouvoir renouveler l'identifiant :
 
 ```bash
 vault auth enable approle
@@ -91,161 +94,190 @@ vault read  auth/approle/role/trip-api/role-id           # -> VAULT_ROLE_ID
 vault write -f auth/approle/role/trip-api/secret-id       # -> VAULT_SECRET_ID
 ```
 
-The API today reads a static `VAULT_TOKEN`. Two supported patterns:
+Aujourd'hui, l'API lit un `VAULT_TOKEN` statique. Deux façons de faire :
 
-- **Simple:** create a periodic token against the policy and put it in `VAULT_TOKEN`; renew
-  it on a schedule (`vault token renew`) or rotate the `.env` value.
+- **Simple :** créez un jeton périodique rattaché à la politique et mettez-le dans
+  `VAULT_TOKEN` ; renouvelez-le régulièrement (`vault token renew`) ou remplacez la valeur
+  de `.env`.
   ```bash
-  vault token create -policy=transit-app -period=24h -orphan   # copy .auth.client_token
+  vault token create -policy=transit-app -period=24h -orphan   # copier .auth.client_token
   ```
-- **Recommended:** run [Vault Agent](https://developer.hashicorp.com/vault/docs/agent-and-proxy/agent)
-  as a sidecar doing AppRole login + auto-renew, writing the token to a shared tmpfs the API
-  reads as `VAULT_TOKEN`. This keeps the long-lived secret (role-id/secret-id) out of the app
-  and gives you short-lived tokens.
+- **Recommandé :** lancez [Vault Agent](https://developer.hashicorp.com/vault/docs/agent-and-proxy/agent)
+  à côté de l'API pour la connexion AppRole et le renouvellement automatique, en écrivant
+  le jeton dans un tmpfs partagé que l'API lit comme `VAULT_TOKEN`. Le secret durable
+  (role-id/secret-id) reste hors de l'application et les jetons sont de courte durée.
 
-Either way: **revoke the root token** once bootstrap is done
-(`vault token revoke <root>`); regenerate via unseal keys only to break glass.
+Dans les deux cas : **révoquez le jeton root** une fois l'amorçage terminé
+(`vault token revoke <root>`) ; ne le régénérez avec les clés de descellement qu'en cas
+d'urgence.
 
-### 1c. Audit device
+### 1c. Journal d'audit
 
-Turn on an audit log so key creation and — critically — key destruction are attributable:
+Activez un journal d'audit pour que la création et surtout la destruction des clés soient
+attribuables :
 
 ```bash
 vault audit enable file file_path=/vault/logs/audit.log
 ```
 
-Transit ciphertext is not logged, but the HMAC of request bodies is. Ship these logs to your
-existing aggregator; **do not** co-locate them with the Vault storage backup.
+Le chiffré transit n'est pas journalisé, mais le HMAC des corps de requête l'est.
+Envoyez ces journaux vers votre agrégateur existant ; **ne les stockez pas** avec la
+sauvegarde du stockage de Vault.
 
 ---
 
-## 2. Backups and the erasure guarantee
+## 2. Sauvegardes et garantie d'effacement
 
-| Store | Contains | Back up? | Restore erases-safety |
+| Stockage | Contient | Sauvegarder ? | Sûreté d'une restauration après effacement |
 |---|---|---|---|
-| **Postgres** | ciphertext PII, `email_lookup` HMACs, non-PII results | Yes | Safe — unreadable without the trip key |
-| **MinIO** | envelope-encrypted photo blobs + wrapped DEKs | Yes | Safe — DEKs are wrapped by the trip key |
-| **Vault storage** | the trip keys themselves | **Separately, tightly controlled** | **This is the erasure boundary** |
+| **Postgres** | données personnelles chiffrées, HMAC `email_lookup`, résultats sans données personnelles | Oui | Sûre — illisible sans la clé de la sortie |
+| **MinIO** | photos chiffrées par enveloppe + DEK enveloppées | Oui | Sûre — les DEK sont enveloppées par la clé de la sortie |
+| **Stockage Vault** | les clés des sorties elles-mêmes | **À part, sous contrôle strict** | **C'est la frontière de l'effacement** |
 
-Rules:
+Règles :
 
-1. Postgres and MinIO backups may share a pipeline. They contain **only ciphertext** — a
-   stolen or stale backup is inert once the key is destroyed.
-2. **Vault storage backups live elsewhere**, with their own short retention and access list.
-   A Postgres backup from last week + a Vault backup from last week = full recovery of a trip
-   you "erased." That is the failure mode this whole design exists to prevent.
-3. After an erasure, a restored Postgres/MinIO backup that predates it will still hold the
-   ciphertext rows — but they are **undecryptable**, because the key is gone from live Vault
-   and (per rule 2) from any Vault backup you'd actually restore. That is the guarantee.
+1. Les sauvegardes Postgres et MinIO peuvent partager une même chaîne. Elles ne
+   contiennent **que du chiffré** : une sauvegarde volée ou ancienne est inerte une fois la
+   clé détruite.
+2. **Les sauvegardes du stockage Vault sont ailleurs**, avec leur propre durée de
+   conservation, courte, et leur propre liste d'accès. Une sauvegarde Postgres de la
+   semaine dernière + une sauvegarde Vault de la semaine dernière = la récupération
+   complète d'une sortie que vous croyiez « effacée ». C'est exactement l'échec que toute
+   cette conception veut empêcher.
+3. Après un effacement, une sauvegarde Postgres/MinIO antérieure contiendra toujours les
+   lignes chiffrées, mais elles sont **indéchiffrables** : la clé a disparu du Vault en
+   production et (selon la règle 2) de toute sauvegarde Vault que vous restaureriez
+   réellement. C'est cela, la garantie.
 
-**Prove it in staging** before trusting it: create a trip, upload a photo, run erasure, then
-restore yesterday's Postgres+MinIO backup and confirm the photo will not decrypt (the trip
-key is absent). Document the result.
-
----
-
-## 3. Secrets and network
-
-- `SESSION_SECRET` — 64 random bytes, unique per deployment. Rotating it invalidates all
-  teacher sessions (acceptable; they re-login via OIDC). Students keep device-bound sessions.
-- `APP_BIND_ADDR` — bind the app to the **WireGuard/VPN IP**, never `0.0.0.0`. Postgres,
-  MinIO, and Vault stay on the internal compose network with **no published ports** in
-  production (the `docker-compose.dev.yml` port publishing is dev-only).
-- TLS + security headers (HSTS, CSP) terminate at **Traefik** (`traefik/dynamic.yml`).
-  Cookies are `Secure` only when `NODE_ENV=production` — so production **must** set it.
-- `/api/auth/teacher/dev-login` is compiled to refuse unless `NODE_ENV !== "production"`.
-  Confirm it 404/403s in prod (`curl` it as part of your smoke test).
+**Prouvez-le en préproduction** avant de vous y fier : créez une sortie, envoyez une
+photo, lancez l'effacement, puis restaurez la sauvegarde Postgres+MinIO de la veille et
+vérifiez que la photo ne se déchiffre pas (la clé de la sortie est absente).
+Documentez le résultat.
 
 ---
 
-## 4. Antivirus on uploads
+## 3. Secrets et réseau
 
-Set `AV_SCAN_ENABLED=true` and run the bundled `clamav` service. Uploads are **fail-closed**:
-if clamd is unreachable the API returns `503 scan_unavailable` rather than storing an unscanned
-file. Two consequences:
-
-- clamd must be healthy before the API accepts uploads. `depends_on: service_healthy` handles
-  boot; monitor it thereafter — a dead clamd means no uploads.
-- Signatures must stay fresh. The `clamav/clamav` image runs `freshclam`; ensure the
-  `clamav_data` volume persists and the container has outbound access to the CVD mirrors (or
-  a private mirror) so definitions update.
-
-Verify end to end with the EICAR test string — a file containing
-`X5O!P%@AP[4\PZX54(P^)7CC)7}$EICAR-STANDARD-ANTIVIRUS-TEST-FILE!$H+H*` must be rejected `422`.
+- `SESSION_SECRET` — 64 octets aléatoires, propres à chaque déploiement. Le changer
+  invalide toutes les sessions enseignants (acceptable : ils se reconnectent via OIDC).
+  Les élèves gardent leurs sessions liées à l'appareil.
+- `APP_BIND_ADDR` — liez l'application à l'**IP WireGuard/VPN**, jamais à `0.0.0.0`.
+  Postgres, MinIO et Vault restent sur le réseau interne de compose, **sans aucun port
+  publié** en production (la publication de ports de `docker-compose.dev.yml` est réservée
+  au dev).
+- Le TLS et les en-têtes de sécurité (HSTS, CSP) sont terminés par **Traefik**
+  (`traefik/dynamic.yml`). Les cookies ne sont `Secure` qu'avec `NODE_ENV=production` :
+  la production **doit** donc le définir.
+- `/api/auth/teacher/dev-login` refuse de fonctionner si `NODE_ENV` vaut `production`.
+  Vérifiez qu'il répond 404/403 en production (avec `curl`, dans votre test de fumée).
 
 ---
 
-## 5. Log hygiene (recurring audit)
+## 4. Antivirus sur les envois
 
-No student PII may reach logs. The code holds this line — the roster worker stores only an
-error **code/name** on failure, never the address; audit rows reference IDs, not emails. When
-you add code or change log statements, re-check: **no email, name, or access code in any log
-or error string.** A leak here defeats erasure (logs outlive the key).
+Définissez `AV_SCAN_ENABLED=true` et faites tourner le service `clamav` fourni. Les envois
+sont **refusés en cas de panne** : si clamd est injoignable, l'API répond
+`503 scan_unavailable` plutôt que de stocker un fichier non analysé. Deux conséquences :
 
-Enforced in code and tests (`packages/api/src/lib/logging.ts`, `test/logging.test.ts`):
+- clamd doit être opérationnel avant que l'API accepte des envois.
+  `depends_on: service_healthy` s'en charge au démarrage ; surveillez-le ensuite — clamd
+  arrêté, plus d'envois.
+- Les signatures doivent rester à jour. L'image `clamav/clamav` lance `freshclam` ;
+  assurez-vous que le volume `clamav_data` persiste et que le conteneur peut joindre les
+  miroirs CVD (ou un miroir privé) pour mettre à jour les définitions.
 
-- request URLs are logged **without their query string** (invite tokens, ids);
-- `email` / `code` keys are redacted at any depth, plus cookies and `Authorization`;
-- a failed access-code mail logs only the SMTP error **code**: SMTP errors echo the recipient;
-- with `NODE_ENV=production` and no `SMTP_HOST`, the mailer **refuses** to send instead of
-  falling back to printing the mail (which would log access codes).
+Vérifiez de bout en bout avec la chaîne de test EICAR : un fichier contenant
+`X5O!P%@AP[4\PZX54(P^)7CC)7}$EICAR-STANDARD-ANTIVIRUS-TEST-FILE!$H+H*` doit être refusé
+avec un `422`.
 
-### Errors and request ids (#69)
+---
 
-(Boot self-checks and `/api/readyz` are described in `docs/deployment.md` §4–5. A sealed
-Vault shows as `"keystore":"sealed"` there.)
+## 5. Hygiène des journaux (audit régulier)
 
-Every API error answers `{ error, message, requestId }`; the same id is in the `X-Request-Id`
-response header and on every log line as `reqId`. The API reuses the edge's `X-Request-Id`
-when it is short and plain (`[A-Za-z0-9._:-]`, at most 64 characters), otherwise it generates
-a UUID. To enable it in Traefik, add the request-id plugin or a header middleware; without
-one, ids start at the API.
+Aucune donnée personnelle d'élève ne doit atteindre les journaux. Le code tient cette
+ligne : en cas d'échec, l'envoi des codes ne stocke qu'un **code/nom** d'erreur, jamais
+l'adresse ; les lignes d'audit référencent des identifiants, pas des e-mails. Quand vous
+ajoutez du code ou modifiez des journaux, revérifiez : **aucun e-mail, nom ou code
+d'accès dans un journal ou un message d'erreur.** Une fuite ici met l'effacement en échec
+(les journaux survivent à la clé).
 
-**Tracing a user report:** the app shows "Reference: <id>". Search the API logs for
-`"reqId":"<id>"`. The 5xx line has `route` (the pattern, e.g. `/api/trips/:id/erase`, never
-the URL), `status`, `dependency` and `errorCode`.
+Appliqué dans le code et les tests (`packages/api/src/lib/logging.ts`, `test/logging.test.ts`) :
 
-| Response | Meaning | Look at |
+- les URL de requête sont journalisées **sans leur query string** (jetons d'invitation, identifiants) ;
+- les clés `email` / `code` sont masquées à toute profondeur, ainsi que les cookies et `Authorization` ;
+- un e-mail de code d'accès en échec ne journalise que le **code** d'erreur SMTP (les
+  erreurs SMTP répètent le destinataire) ;
+- avec `NODE_ENV=production` et sans `SMTP_HOST`, le mailer **refuse** d'envoyer au lieu
+  d'afficher le message (ce qui journaliserait des codes d'accès).
+
+### Erreurs et identifiants de requête (#69)
+
+(Les auto-vérifications au démarrage et `/api/readyz` sont décrits dans
+`docs/deployment.md` § 4–5. Un Vault scellé y apparaît comme `"keystore":"sealed"`.)
+
+Chaque erreur de l'API répond `{ error, message, requestId }` ; le même identifiant est
+dans l'en-tête de réponse `X-Request-Id` et sur chaque ligne de journal sous `reqId`.
+L'API reprend le `X-Request-Id` du frontal s'il est court et simple (`[A-Za-z0-9._:-]`,
+64 caractères au plus), sinon elle génère un UUID. Pour l'activer dans Traefik, ajoutez le
+plugin request-id ou un middleware d'en-tête ; sans cela, les identifiants naissent dans
+l'API.
+
+Les codes d'erreur (`error`) restent stables et en anglais ; seul le `message`, affiché
+tel quel par l'application, est en français.
+
+**Retrouver un signalement :** l'application affiche « Référence : <id> ». Cherchez
+`"reqId":"<id>"` dans les journaux de l'API. La ligne 5xx contient `route` (le motif, par
+ex. `/api/trips/:id/erase`, jamais l'URL), `status`, `dependency` et `errorCode`.
+
+| Réponse | Signification | Où regarder |
 |---|---|---|
-| 503 `storage_unavailable` | S3/MinIO failed (network, `AccessDenied`, `NoSuchBucket`…) | `errorCode`, bucket policy, MinIO health |
-| 503 `keystore_unavailable` | Vault unreachable, sealed, or refused the token (403) | `vault status`, token TTL/policy (§1) |
-| 503 `database_unavailable` | Postgres refused or dropped the connection | Postgres health, connection limit |
-| 500 `internal_error` | A bug: the client sees no detail | the log line's `err.stack` |
+| 503 `storage_unavailable` | S3/MinIO en échec (réseau, `AccessDenied`, `NoSuchBucket`…) | `errorCode`, politique du bucket, état de MinIO |
+| 503 `keystore_unavailable` | Vault injoignable, scellé, ou jeton refusé (403) | `vault status`, TTL/politique du jeton (§ 1) |
+| 503 `database_unavailable` | Postgres a refusé ou coupé la connexion | état de Postgres, limite de connexions |
+| 500 `internal_error` | Un bug : le client ne voit aucun détail | le `err.stack` de la ligne de journal |
 
-5xx are logged at `error`. 403 and 429 are logged at `warn` (probing, or a class hammering
-the API). Other client errors are only in the normal request log. Error logs carry the error's
-name, message, code and stack, but **not** the driver's raw error object: Postgres puts row
-values in `detail`.
+Les 5xx sont journalisées en `error`. Les 403 et 429 en `warn` (sondage, ou une classe qui
+sollicite fortement l'API). Les autres erreurs client n'apparaissent que dans le journal
+des requêtes. Les journaux d'erreur contiennent le nom, le message, le code et la pile de
+l'erreur, mais **pas** l'objet d'erreur brut du pilote : Postgres met des valeurs de
+lignes dans `detail`.
 
-Because the app never logs PII, erasure has no log-scrubbing step: there is nothing app-side
-to scrub. The one residual that erasure *cannot* reach is your
-**external SMTP relay's delivery logs**: relays typically record recipient addresses, and the
-app has no API into them. This is an **operator responsibility**:
+Comme l'application ne journalise jamais de données personnelles, l'effacement n'a pas
+d'étape de nettoyage des journaux : côté application, il n'y a rien à nettoyer. Le seul
+résidu que l'effacement *ne peut pas* atteindre, ce sont les **journaux de distribution
+de votre relais SMTP externe** : les relais enregistrent généralement les adresses des
+destinataires, et l'application n'y a aucun accès. C'est une **responsabilité de
+l'exploitant** :
 
-- Configure the relay to **not** retain message/recipient logs beyond what you need, and rotate
-  them on a schedule shorter than a trip's lifetime. A student address sitting in relay logs
-  after that trip's key is destroyed is a residual-PII leak that defeats crypto-erasure.
-- Prefer a relay you control (or one contractually bound as a sub-processor) over a third-party
-  API whose retention you can't set.
+- Configurez le relais pour **ne pas** conserver les journaux de messages/destinataires
+  au-delà du nécessaire, et faites-les tourner sur une période plus courte que la durée de
+  vie d'une sortie. Une adresse d'élève restée dans les journaux du relais après la
+  destruction de la clé de sa sortie est une fuite résiduelle qui met l'effacement
+  cryptographique en échec.
+- Préférez un relais que vous maîtrisez (ou un sous-traitant lié par contrat) à une API
+  tierce dont vous ne pouvez pas régler la durée de conservation.
 
 ---
 
-## 6. Break-glass: erase on demand
+## 6. Effacement d'urgence à la demande
 
-Erasure normally fires automatically after the grace window (or a trip's hard deadline). To
-force it immediately (incident, consent withdrawal, wrong upload):
+L'effacement se déclenche normalement tout seul après le délai de grâce (ou la date
+butoir de la sortie). Pour le forcer immédiatement (incident, retrait du consentement,
+envoi erroné) :
 
-- **Per trip, in-app:** teacher → trip admin → **Erase now** (double-confirmed). This runs the
-  same `destroyTripKey` path.
-- **Per trip, by hand** (app down): destroy the key directly — this is irreversible and
-  immediately renders that trip's every ciphertext, everywhere, unreadable:
+- **Par sortie, dans l'application :** enseignant → sortie → Paramètres → **Effacer
+  maintenant** (double confirmation). Cela passe par le même chemin `destroyTripKey`.
+- **Par sortie, à la main** (application arrêtée) : détruisez directement la clé — c'est
+  irréversible et rend immédiatement illisible tout le chiffré de cette sortie, où qu'il
+  se trouve :
   ```bash
   vault write transit/keys/trip-<TRIP_ID>/config deletion_allowed=true
   vault delete transit/keys/trip-<TRIP_ID>
   ```
-  Then drop the trip's rows (they are now inert ciphertext) at your convenience.
-- **Whole-deployment break-glass:** destroying Vault's storage backend (and its offsite
-  backup) erases **every** trip at once. Reserve for a compromise scenario.
+  Supprimez ensuite les lignes de la sortie (désormais du chiffré inerte) quand cela vous
+  convient.
+- **Urgence sur tout le déploiement :** détruire le stockage de Vault (et sa sauvegarde
+  hors site) efface **toutes** les sorties d'un coup. À réserver à une compromission.
 
-After any erasure, confirm the key is gone (`vault read transit/keys/trip-<ID>` → 404) and
-that the corresponding photos no longer decrypt.
+Après tout effacement, vérifiez que la clé a disparu (`vault read transit/keys/trip-<ID>`
+→ 404) et que les photos correspondantes ne se déchiffrent plus.

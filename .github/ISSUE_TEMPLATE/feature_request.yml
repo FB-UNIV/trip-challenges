@@ -1,20 +1,20 @@
-name: Feature request
-description: Suggest an improvement
+name: Proposer une amélioration
+description: Suggérer une évolution
 labels: [enhancement]
 body:
   - type: textarea
     id: problem
     attributes:
-      label: What problem does this solve?
-      description: Who hits it (teacher, student, operator) and when.
+      label: Quel problème cela résout-il ?
+      description: Qui le rencontre (enseignant, élève, exploitant) et à quel moment.
     validations:
       required: true
   - type: textarea
     id: idea
     attributes:
-      label: What would you like to happen?
+      label: Que souhaiteriez-vous ?
   - type: textarea
     id: data
     attributes:
-      label: Does it touch student data?
-      description: New data collected or kept, and how it is erased at trip end.
+      label: Cela touche-t-il aux données des élèves ?
+      description: Nouvelles données collectées ou conservées, et comment elles sont effacées à la fin de la sortie.

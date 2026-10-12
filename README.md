@@ -1,137 +1,152 @@
 # Trip Challenges
 
-A PWA for photo-challenge school trips. Students complete a teacher's Challenges by
-uploading photos (via QR), nominate their best, then vote **Tinder-style** to elect
-winners. Because participants are minors, **all student data is provably erased** at
-trip end (crypto-erasure — destroy the per-trip key and every copy, including backups,
-becomes unreadable).
+> *A French-language PWA for photo-challenge school trips, with provable erasure of
+> minors' data. Self-hosted, AGPL-3.0. Documentation is in French.*
 
-- Domain glossary → [`CONTEXT.md`](./CONTEXT.md)
-- Architecture decisions → [`docs/adr/`](./docs/adr)
-- Database schema → [`docs/data-model.md`](./docs/data-model.md)
-- **Deploy to production** → [`docs/deployment.md`](./docs/deployment.md) · then [`docs/production-hardening.md`](./docs/production-hardening.md)
-- **Set up a dev environment** → [`docs/development.md`](./docs/development.md)
+Une PWA pour les sorties scolaires en mode défis photo. Les élèves relèvent les défis de
+leur enseignant en envoyant des photos (via QR code), sélectionnent leur meilleure, puis
+votent **façon Tinder** pour élire les gagnants. Les participants étant mineurs, **toutes
+les données des élèves sont effacées de façon vérifiable** à la fin de la sortie
+(effacement cryptographique : on détruit la clé de la sortie, et toute copie, sauvegardes
+comprises, devient illisible).
 
-## How it works
+- Glossaire du domaine → [`CONTEXT.md`](./CONTEXT.md)
+- Décisions d'architecture → [`docs/adr/`](./docs/adr)
+- Schéma de la base → [`docs/data-model.md`](./docs/data-model.md)
+- **Déployer en production** → [`docs/deployment.md`](./docs/deployment.md) · puis [`docs/production-hardening.md`](./docs/production-hardening.md)
+- **Monter un environnement de développement** → [`docs/development.md`](./docs/development.md)
+
+## Fonctionnement
 
 ```
-draft ──▶ challenge ──▶ voting ──▶ reveal ──▶ grace ──▶ erased
- teams     upload +      pairwise    ceremony   keepsake   crypto-erase
- form      nominate      duels       reveal     results    (key destroyed)
+brouillon ──▶ défis ──▶ vote ──▶ révélation ──▶ délai de grâce ──▶ effacée
+ équipes      envoi +     duels     cérémonie     résultats          effacement
+ formées      sélection   par paire               souvenir           crypto (clé détruite)
 ```
 
-Teacher signs in (OIDC), creates a Trip, imports a roster (students get emailed access
-codes), and adds Challenges (each prints a QR). Students form teams, upload/nominate,
-then vote. The teacher moderates, advances phases, and reveals results. Erasure fires
-automatically after a grace window (or a hard deadline), or on demand.
+L'enseignant se connecte (OIDC), crée une sortie, importe la liste des élèves (qui
+reçoivent leur code d'accès par e-mail) et ajoute des défis (chacun avec son QR code à
+imprimer). Les élèves forment des équipes, envoient et sélectionnent des photos, puis
+votent. L'enseignant modère, fait avancer les phases et dévoile les résultats.
+L'effacement se déclenche automatiquement après un délai de grâce (ou à une date butoir),
+ou à la demande.
 
-## Components
+## Composants
 
-| Component | Role | Notes |
+| Composant | Rôle | Remarques |
 |---|---|---|
-| **PWA** (React + Vite) | student + teacher UI | installable, camera/QR |
-| **API** (Fastify + TS) | all business logic | port 3000 |
-| **Postgres** | relational data, tenant-scoped by `trip_id` | |
-| **Object store** | encrypted photo blobs (S3 API) | MinIO bundled; or AWS S3 / R2 / B2 |
-| **Vault** | per-Trip encryption keys (transit) | the erasure mechanism |
-| **ClamAV** | scans every upload (fail-closed) | bundled; `AV_SCAN_ENABLED` |
-| **PocketID** | teacher auth (OIDC) | *you provide* |
-| **SMTP relay** | emails access codes + warnings | *you provide* |
-| **Traefik** | TLS edge + security headers | *you provide (existing)* |
+| **PWA** (React + Vite) | interface élève + enseignant | installable, appareil photo/QR |
+| **API** (Fastify + TS) | toute la logique métier | port 3000 |
+| **Postgres** | données relationnelles, cloisonnées par `trip_id` | |
+| **Stockage objet** | photos chiffrées (API S3) | MinIO fourni ; ou AWS S3 / R2 / B2 |
+| **Vault** | clés de chiffrement par sortie (transit) | le mécanisme d'effacement |
+| **ClamAV** | analyse chaque envoi (refus en cas de panne) | fourni ; `AV_SCAN_ENABLED` |
+| **PocketID** | authentification des enseignants (OIDC) | *à fournir* |
+| **Relais SMTP** | envoi des codes d'accès et des alertes | *à fournir* |
+| **Traefik** | terminaison TLS + en-têtes de sécurité | *à fournir (existant)* |
 
 ---
 
-## Install — for operators (self-hosted deployment)
+## Installation — pour les exploitants (hébergement autonome)
 
-> 📘 This is the quickstart. The **full guide** — external S3, single-box IP deploy, TLS,
-> upgrades, verification — is [`docs/deployment.md`](./docs/deployment.md).
+> 📘 Ceci est le démarrage rapide. Le **guide complet** — S3 externe, déploiement sur une
+> seule machine par IP, TLS, mises à jour, vérifications — est dans
+> [`docs/deployment.md`](./docs/deployment.md).
 
-### Required components
+### Prérequis
 
-Before you start, have these ready:
+Avant de commencer, il vous faut :
 
-1. **A Linux host** with **Docker** (Engine 24+) and **Docker Compose v2**.
-2. **A public hostname** (e.g. `challenges.yourschool.org`) with a DNS record pointing
-   at your **Traefik** edge.
-3. **Traefik** running on your edge VPS (file provider — see step 5).
-4. A **private link** (WireGuard/VPN) between the Traefik edge and this app host.
-5. A **PocketID** (or any OIDC) instance for teacher login.
-6. An **SMTP** server/relay to send emails.
+1. **Un serveur Linux** avec **Docker** (Engine 24+) et **Docker Compose v2**.
+2. **Un nom d'hôte public** (par ex. `defis.mon-college.fr`) dont l'enregistrement DNS
+   pointe vers votre **Traefik**.
+3. **Traefik** sur votre VPS frontal (fournisseur « file » — voir l'étape 4).
+4. Un **lien privé** (WireGuard/VPN) entre le Traefik frontal et ce serveur applicatif.
+5. Une instance **PocketID** (ou tout fournisseur OIDC) pour la connexion des enseignants.
+6. Un serveur ou relais **SMTP** pour envoyer les e-mails.
 
-### Steps
+### Étapes
 
 ```bash
-git clone <your-repo> trip-challenges && cd trip-challenges
+git clone https://github.com/FB-UNIV/trip-challenges.git && cd trip-challenges
 cp .env.example .env
 ```
 
-**1. Fill in `.env`** — in particular:
+**1. Remplissez `.env`**, en particulier :
 
-- `APP_HOST` — your public hostname · `PUBLIC_BASE_URL=https://<APP_HOST>`
-- `APP_BIND_ADDR` — this host's **WireGuard/VPN IP** (never `0.0.0.0`)
-- `POSTGRES_PASSWORD`, `S3_*` (storage creds/bucket), `SESSION_SECRET` (64 random bytes)
-- `VAULT_*` — for production, do **not** use dev mode (see security note)
-- `OIDC_*` — from your PocketID client (redirect `https://<APP_HOST>/api/auth/teacher/callback`)
-- `SMTP_*` — your mail relay
+- `APP_HOST` — votre nom d'hôte public · `PUBLIC_BASE_URL=https://<APP_HOST>`
+- `APP_BIND_ADDR` — l'**IP WireGuard/VPN** de ce serveur (jamais `0.0.0.0`)
+- `POSTGRES_PASSWORD`, `S3_*` (identifiants/bucket du stockage), `SESSION_SECRET` (64 octets aléatoires)
+- `VAULT_*` — en production, **pas** de mode dev (voir l'avertissement ci-dessous)
+- `OIDC_*` — depuis votre client PocketID (redirection `https://<APP_HOST>/api/auth/teacher/callback`)
+- `SMTP_*` — votre relais de messagerie
 
-**2. Register the OIDC client** in PocketID with the redirect URI above.
+**2. Déclarez le client OIDC** dans PocketID avec l'URI de redirection ci-dessus.
 
-**3. Build and start the app host:**
+**3. Démarrez le serveur applicatif**, avec les images publiées (signées — voir
+[§ 7 du guide](./docs/deployment.md#7-cicd-github-actions)) ou en les construisant :
 
 ```bash
+# images publiées : IMAGE_API=ghcr.io/fb-univ/trip-api:<version> et IMAGE_WEB=… dans .env
+docker compose pull
+# ou construction locale
 docker compose build
+
 docker compose up -d
 ```
 
-This runs `web` + `api` (bound to `APP_BIND_ADDR`) and `postgres` + `minio` + `vault`
-on a private network. The DB schema loads automatically on first boot.
+Cela lance `web` + `api` (liés à `APP_BIND_ADDR`) ainsi que `postgres` + `minio` +
+`vault` sur un réseau privé. Le schéma de la base est appliqué automatiquement au
+premier démarrage.
 
-**4. Configure the Traefik edge.** Copy [`traefik/dynamic.yml`](./traefik/dynamic.yml)
-to your Traefik VPS (file provider), replacing `APP_BACKEND_HOST` with this host's VPN
-IP. Traefik terminates TLS and adds HSTS/CSP/security headers.
+**4. Configurez le Traefik frontal.** Copiez [`traefik/dynamic.yml`](./traefik/dynamic.yml)
+sur votre VPS Traefik (fournisseur « file ») en remplaçant `APP_BACKEND_HOST` par l'IP VPN
+de ce serveur. Traefik termine le TLS et ajoute les en-têtes HSTS/CSP/sécurité.
 
-**5. Verify:**
+**5. Vérifiez :**
 
 ```bash
 curl -s https://<APP_HOST>/api/healthz     # {"status":"ok"}
 ```
 
-Open `https://<APP_HOST>/teacher` and sign in with PocketID.
+Ouvrez `https://<APP_HOST>/teacher` et connectez-vous avec PocketID.
 
-> ⚠️ **Before real data, harden the deployment** →
-> [`docs/production-hardening.md`](./docs/production-hardening.md). The bundled Vault runs in
-> **dev mode** (in-memory, auto-unsealed, root token) — fine for evaluation, **not** for real
-> minors' data. The runbook walks through persistent storage + real seal, a scoped API token
-> (not root), and the backup rule that makes crypto-erasure real: keep Vault's storage **out
-> of the database backup set** (see
+> ⚠️ **Avant toute donnée réelle, durcissez le déploiement** →
+> [`docs/production-hardening.md`](./docs/production-hardening.md). Le Vault fourni tourne
+> en **mode dev** (en mémoire, descellé automatiquement, jeton root) : bien pour évaluer,
+> **pas** pour les données de vrais mineurs. Le guide couvre le stockage persistant et un
+> vrai scellement, un jeton d'API restreint (pas root), et la règle de sauvegarde qui rend
+> l'effacement cryptographique réel : le stockage de Vault doit rester **hors des
+> sauvegardes de la base** (voir
 > [ADR-0001](./docs/adr/0001-crypto-erasure-with-vault-per-trip-keys.md)).
 
 ---
 
-## Install — for developers (local environment)
+## Installation — pour les développeurs (environnement local)
 
-> 📘 This is the quickstart. The **full guide** — phone/QR testing, dev teacher login,
-> exercising the student flow, troubleshooting — is [`docs/development.md`](./docs/development.md).
+> 📘 Ceci est le démarrage rapide. Le **guide complet** — tests sur téléphone/QR,
+> connexion enseignant en dev, parcours élève, dépannage — est dans
+> [`docs/development.md`](./docs/development.md).
 
-### Required environment
+### Prérequis
 
-- **Node.js ≥ 20** and **npm ≥ 10**
-- **Docker + Compose v2** (for the data services only)
+- **Node.js ≥ 20** et **npm ≥ 10**
+- **Docker + Compose v2** (uniquement pour les services de données)
 
-### Steps
+### Étapes
 
 ```bash
-git clone <your-repo> trip-challenges && cd trip-challenges
+git clone https://github.com/FB-UNIV/trip-challenges.git && cd trip-challenges
 npm install
 ```
 
-**1. Start the data services** (Postgres, MinIO, Vault — published to `localhost`):
+**1. Démarrez les services de données** (Postgres, MinIO, Vault — exposés sur `localhost`) :
 
 ```bash
 docker compose -f docker-compose.dev.yml up -d
 ```
 
-**2. Create `.env`** for local dev — copy `.env.example` and point hosts at localhost:
+**2. Créez `.env`** pour le dev — copiez `.env.example` et pointez les hôtes vers localhost :
 
 ```
 POSTGRES_HOST=localhost
@@ -139,140 +154,138 @@ S3_ENDPOINT=http://localhost:9000
 VAULT_ADDR=http://localhost:8200
 PUBLIC_BASE_URL=http://localhost:5173
 SESSION_SECRET=dev-secret-please-change-32chars-min
-# OIDC_* — only needed to test teacher login (point at a dev PocketID)
+# OIDC_* — seulement pour tester la connexion enseignant (vers un PocketID de dev)
 ```
 
-**3. Run the API and the PWA** (two terminals):
+**3. Lancez l'API et la PWA** (deux terminaux) :
 
 ```bash
-npm run dev:api      # Fastify on :3000
-npm run dev:web      # Vite on :5173 (proxies /api → :3000)
+npm run dev:api      # Fastify sur :3000
+npm run dev:web      # Vite sur :5173 (proxy /api → :3000)
 ```
 
-Open http://localhost:5173. The **student flow works without OIDC**; **teacher login**
-needs a reachable PocketID (`OIDC_*`). To exercise the student flow, import a roster as a
-teacher (or seed the DB) to generate access codes — in dev, emails are printed to the API
-console instead of sent.
+Ouvrez http://localhost:5173. Le **parcours élève fonctionne sans OIDC** ; la
+**connexion enseignant** nécessite un PocketID joignable (`OIDC_*`). Pour tester le
+parcours élève, importez une liste d'élèves en tant qu'enseignant (ou alimentez la base)
+pour générer des codes d'accès — en dev, les e-mails sont affichés dans la console de
+l'API au lieu d'être envoyés.
 
-### Checks
+### Vérifications
 
 ```bash
-npm test           # unit tests (Vitest) — no infra needed
-npm run typecheck  # tsc across all workspaces
-npm run build      # api → dist, web → static bundle + service worker
+npm test           # tests unitaires (Vitest) — aucune infrastructure requise
+npm run typecheck  # tsc sur tous les workspaces
+npm run build      # api → dist, web → bundle statique + service worker
 ```
 
-### Layout
+### Organisation
 
 ```
 packages/
-  shared/   zod schemas + types (single source of truth for api + web)
-  api/      Fastify service · db/migrations · Vault/S3 clients · erasure · test/
-  web/      React PWA (student + teacher)
-docs/       adr/ · data-model.md
-traefik/    dynamic.yml (edge file-provider config)
+  shared/   schémas zod + types (source unique pour api et web)
+  api/      service Fastify · db/migrations · clients Vault/S3 · effacement · test/
+  web/      PWA React (élève + enseignant)
+e2e/        tests Playwright sur la pile complète
+docs/       adr/ · data-model.md · guides
+traefik/    dynamic.yml (configuration du fournisseur « file » du frontal)
 ```
 
 ---
 
-## Testing
+## Tests
 
-`npm test` runs the Vitest suite with no infrastructure required. The API suite enforces
-coverage thresholds (`packages/api/vitest.config.ts`; ~99% of statements today).
+`npm test` lance la suite Vitest sans aucune infrastructure. Les suites API et web
+imposent des seuils de couverture (`packages/{api,web}/vitest.config.ts`).
 
-- **shared** — schema defaults/validation (`TripConfig`, `ChallengeInput`, …)
-- **api routes + domain** — every route plugin, the lifecycle/results computation, erasure,
-  the scheduler and the roster worker, run against the real `db/migrations` in
-  [PGlite](https://pglite.dev) (in-process Postgres) with in-memory Vault, S3 and SMTP fakes
-  (`packages/api/test/support/`). The fake Vault refuses to decrypt once a trip's key is
-  destroyed, so erasure tests check crypto-erasure, not just row deletion.
-- **api I/O wrappers** — Vault transit (stubbed `fetch`), S3 (mocked SDK), SMTP (mocked
-  nodemailer), OIDC discovery, image normalisation (real sharp), clamd over a local socket.
-- **api pure helpers** — Wilson ranking, duel pair tokens, envelope AES-GCM framing, env
-  parsing, erasure-warning brackets, clamd INSTREAM framing.
+- **shared** — valeurs par défaut et validation des schémas (`TripConfig`, `ChallengeInput`…)
+- **routes et domaine de l'API** — chaque plugin de route, le cycle de vie et le calcul
+  des résultats, l'effacement, le planificateur et l'envoi des codes, exécutés sur les
+  vraies `db/migrations` dans [PGlite](https://pglite.dev) (Postgres dans le processus)
+  avec des doublures en mémoire pour Vault, S3 et SMTP (`packages/api/test/support/`). La
+  doublure de Vault refuse de déchiffrer dès que la clé d'une sortie est détruite : les
+  tests d'effacement vérifient donc l'effacement cryptographique, pas seulement la
+  suppression des lignes.
+- **enveloppes d'E/S de l'API** — Vault transit (`fetch` simulé), S3 (SDK simulé), SMTP
+  (nodemailer simulé), découverte OIDC, normalisation d'image (vrai sharp), clamd sur un
+  socket local.
+- **fonctions pures de l'API** — classement de Wilson, jetons de duel, format AES-GCM de
+  l'enveloppe, lecture de l'environnement, paliers d'alerte avant effacement, protocole
+  INSTREAM de clamd.
+- **web** — chaque écran monté sur ses vraies routes, avec l'API simulée par MSW.
 
-Known bugs are pinned as `it.fails(...)` tests with a `// BUG:` comment; they flip to
-"unexpectedly passed" once fixed.
+Les bugs connus sont épinglés par des tests `it.fails(...)` avec un commentaire
+`// BUG:` ; ils signalent « unexpectedly passed » une fois corrigés.
 
-### End-to-end (full stack)
+### Bout en bout (pile complète)
 
-[`scripts/e2e.mjs`](./scripts/e2e.mjs) drives real HTTP flows against a running stack and
-asserts behaviour (40 checks) — with emphasis on reveal gating, access-code re-issue, tie
-handling, config editing, and duel pair-exclusion. It recovers student access codes by
-scraping the dev mailer output, so it needs `NODE_ENV=development`.
+Les tests Playwright de [`e2e/`](./e2e) tournent en CI contre la pile complète (Postgres,
+MinIO, Vault, Mailpit) ; en local : `npm run e2e:services` puis `npm run test:e2e`.
 
-```bash
-docker compose -f docker-compose.dev.yml up -d          # Postgres + MinIO + Vault
-npx tsx --env-file=.env packages/api/src/server.ts > /tmp/api.log 2>&1 &   # API (dev)
-E2E_BASE=http://localhost:3100 E2E_LOG=/tmp/api.log node scripts/e2e.mjs
-```
-
-Point `E2E_BASE`/`E2E_LOG` at wherever your dev API listens and logs. Exits non-zero on the
-first failed assertion.
+[`scripts/e2e.mjs`](./scripts/e2e.mjs) est un test de fumée HTTP contre une pile en
+cours d'exécution ; il récupère les codes d'accès dans la sortie du mailer de dev, donc
+il nécessite `NODE_ENV=development` (voir son en-tête).
 
 ## CI/CD (GitHub Actions)
 
-Every change lands on `main` through a PR, squash-merged with the PR title as the commit
-message (a team convention — branch protection isn't available on this private repo's plan). PR titles must be [Conventional Commits](https://www.conventionalcommits.org)
-(`feat:`, `fix:`, `docs:`, …) — they drive the version.
+Toute modification arrive sur `main` par une PR, fusionnée en squash avec le titre de la
+PR comme message de commit. Les titres de PR doivent être des
+[Conventional Commits](https://www.conventionalcommits.org) (`feat:`, `fix:`, `docs:`…) :
+ce sont eux qui déterminent la version.
 
-Workflows live in [`.github/workflows/`](./.github/workflows):
+Les workflows sont dans [`.github/workflows/`](./.github/workflows) :
 
-- **`ci.yml`** — every PR and push to `main`: `npm ci` → typecheck → test → build, plus a
-  Docker build (no push) of both images.
-- **`pr-title.yml`** — rejects PR titles that aren't Conventional Commits.
-- **`release.yml`** — [release-please](https://github.com/googleapis/release-please) keeps a
-  release PR open with the next [semver](https://semver.org) version and `CHANGELOG.md`.
-  Merging it tags `vX.Y.Z`, creates the GitHub release, and pushes
-  public `ghcr.io/fb-univ/trip-api` and `trip-web` images as `:X.Y.Z`, `:X.Y` and `:latest`,
-  signed with cosign and shipped with an SBOM + provenance ([verify](./docs/deployment.md#7-cicd-github-actions)).
+- **`ci.yml`** — chaque PR et chaque push sur `main` : `npm ci` → typecheck → tests →
+  build, plus une construction Docker (sans publication) des deux images.
+- **`e2e.yml`** — les tests Playwright sur la pile complète.
+- **`pr-title.yml`** — refuse les titres de PR qui ne sont pas des Conventional Commits.
+- **`release.yml`** — [release-please](https://github.com/googleapis/release-please)
+  maintient une PR de release avec la prochaine version [semver](https://semver.org) et
+  le `CHANGELOG.md`. La fusionner crée le tag `vX.Y.Z` et la release GitHub, et publie
+  les images publiques `ghcr.io/fb-univ/trip-api` et `trip-web` en `:X.Y.Z`, `:X.Y` et
+  `:latest`, signées avec cosign et accompagnées d'un SBOM et d'une provenance
+  ([vérifier](./docs/deployment.md#7-cicd-github-actions)).
 
-Version bumps: `fix:` → patch, `feat:` → minor, `feat!:` / `BREAKING CHANGE:` → major
-(minor while < 1.0). Other types don't release.
+Montées de version : `fix:` → patch, `feat:` → mineure, `feat!:` / `BREAKING CHANGE:` →
+majeure (mineure tant que < 1.0). Les autres types ne publient pas de release.
 
-Optional secret `RELEASE_PLEASE_TOKEN` (fine-grained PAT, contents + pull-requests write):
-without it, release PRs don't trigger CI and can't satisfy the required checks.
+Secret facultatif `RELEASE_PLEASE_TOKEN` (PAT à portée fine, écriture contents +
+pull-requests) : sans lui, les PR de release ne déclenchent pas la CI et ne peuvent pas
+satisfaire les vérifications requises.
 
-Deploy a release by setting `IMAGE_API` / `IMAGE_WEB` in `.env` to the pushed tags and
-running `docker compose pull && docker compose up -d`.
+## Effacement
 
-## Erasure
-
-Fires automatically after voting + a grace window, on a hard deadline
-(`tripEnd + retention`), or on demand by a teacher. It deletes photos, PII rows and logs,
-then **destroys the Trip's Vault key** so any residual backup copy is permanently
-unreadable. Non-PII results and a PII-free audit log survive. See
-[`packages/api/src/erasure.ts`](./packages/api/src/erasure.ts) and
+Il se déclenche automatiquement après le vote et un délai de grâce, à une date butoir
+(`fin de sortie + durée de conservation`), ou à la demande d'un enseignant. Il supprime
+les photos, les lignes contenant des données personnelles et les journaux, puis
+**détruit la clé Vault de la sortie** pour que toute copie résiduelle en sauvegarde
+devienne définitivement illisible. Seuls subsistent les résultats et un journal d'audit,
+tous deux sans données personnelles. Voir
+[`packages/api/src/erasure.ts`](./packages/api/src/erasure.ts) et
 [ADR-0001](./docs/adr/0001-crypto-erasure-with-vault-per-trip-keys.md).
 
-## Status
+## État du projet
 
-Core flow is implemented end to end: teacher OIDC login, trip creation with per-trip
-Vault key, background roster import + emailed access codes, device-bound student
-sessions, teams, QR upload with fail-closed AV scan + EXIF strip + envelope encryption,
-nomination + teacher moderation, pairwise duels with Wilson ranking, results computation,
-projector reveal ceremony, co-teacher invite/accept, automatic + on-demand erasure with
-crypto-erasure and escalating pre-erasure warning emails.
+Le parcours complet est en place : connexion enseignant OIDC, création de sortie avec sa
+clé Vault, import de la liste d'élèves en arrière-plan avec envoi des codes d'accès,
+sessions élèves liées à l'appareil et nouveau code en cas de perte, équipes (et jeu en
+solo), envoi par QR avec analyse antivirus bloquante, suppression des EXIF et chiffrement
+par enveloppe, sélection et modération par l'enseignant, duels par paire avec classement
+de Wilson (paires déjà votées exclues), calcul des résultats avec gestion des égalités et
+départage du grand champion, cérémonie de révélation sur vidéoprojecteur (résultats
+invisibles pour les élèves avant publication), modification de la configuration selon la
+phase, invitation de co-enseignants, vérification des noms d'équipe, effacement
+automatique et à la demande avec effacement cryptographique et alertes e-mail
+progressives avant l'effacement.
 
-**Remaining work** (decisions recorded in `CONTEXT.md` / `docs/data-model.md`):
+Reste à la charge de l'exploitant : le durcissement de Vault en production
+([guide](./docs/production-hardening.md)) et la durée de conservation des journaux du
+relais SMTP.
 
-| # | Item | Status |
-|---|---|---|
-| 1 | **Reveal gating** — public `GET /:id/results` is ungated during `reveal`, so phones can read the leaderboard before the ceremony reaches it. Gate by phase (`grace`+); ceremony reads via a teacher-authed path. | to build |
-| 2 | **Lost-device access-code re-issue** — `POST /reissue`: trip-scoped email request, fresh code, old session revoked on redeem of the new code. | to build |
-| 3 | **Tie handling** — per-challenge ties share placement + points; a Grand Champion tie gets an explicit teacher override. | to build |
-| 4 | **Config editing** — `PATCH` trip/challenge + challenge add/delete, phase-gated (see the [editability matrix](./docs/data-model.md#editability-config-edits-via-patch)). | to build |
-| 5 | **Duel pair exclusion** — `/next` should skip pairs the voter already cast (today the cast-time unique constraint catches them as a `409`). | to build |
-| 6 | **E2E tests** · **production Vault hardening** ([runbook](./docs/production-hardening.md)) · **SMTP relay log retention** (operator task) | ongoing / ops |
+## Contribuer et licence
 
-Backend logic, crypto and erasure are solid; the remaining items are edges — recovery,
-reveal enforcement, tie-breaks, and post-creation editing. See git history / the ADRs for
-decisions.
+Les contributions sont les bienvenues — voir [`CONTRIBUTING.md`](./CONTRIBUTING.md).
+Signalez les problèmes de sécurité en privé selon [`SECURITY.md`](./SECURITY.md).
 
-## Contributing & license
-
-Contributions are welcome — see [`CONTRIBUTING.md`](./CONTRIBUTING.md). Report security
-issues privately per [`SECURITY.md`](./SECURITY.md).
-
-Licensed under the [GNU Affero General Public License v3.0](./LICENSE) or later. If you
-run a modified version as a network service, you must offer its source to its users.
+Sous licence [GNU Affero General Public License v3.0](./LICENSE) ou ultérieure. Si vous
+proposez une version modifiée comme service en réseau, vous devez en offrir le code
+source à ses utilisateurs.

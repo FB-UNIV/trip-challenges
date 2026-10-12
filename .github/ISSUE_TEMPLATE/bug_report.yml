@@ -1,33 +1,33 @@
-name: Bug report
-description: Something doesn't work as documented
+name: Signaler un bug
+description: Quelque chose ne fonctionne pas comme prévu
 labels: [bug]
 body:
   - type: markdown
     attributes:
       value: |
-        **Never paste real student names, emails, photos or access codes.** Security issues → SECURITY.md.
+        **Ne collez jamais de vrais noms, e-mails, photos ou codes d'accès d'élèves.** Problème de sécurité → SECURITY.md.
   - type: textarea
     id: what
     attributes:
-      label: What happened, and what did you expect?
+      label: Que s'est-il passé, et qu'attendiez-vous ?
     validations:
       required: true
   - type: textarea
     id: repro
     attributes:
-      label: Steps to reproduce
-      description: Role (teacher / student), Trip phase (draft, challenge, voting, reveal, grace), and what you did.
+      label: Étapes pour reproduire
+      description: Rôle (enseignant / élève), phase de la sortie (brouillon, défis, vote, révélation, délai de grâce) et ce que vous avez fait.
     validations:
       required: true
   - type: input
     id: version
     attributes:
       label: Version
-      description: Release tag or commit
+      description: Tag de release ou commit
     validations:
       required: true
   - type: textarea
     id: env
     attributes:
-      label: Environment
-      description: Browser / device, self-hosted setup (object store, OIDC provider), relevant API logs.
+      label: Environnement
+      description: Navigateur / appareil, installation (stockage objet, fournisseur OIDC), journaux de l'API utiles.

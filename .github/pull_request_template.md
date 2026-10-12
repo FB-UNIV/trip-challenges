@@ -1,11 +1,11 @@
-<!-- PR title = squash commit = changelog entry. Use a Conventional Commit:
-     feat: … (minor) · fix: … (patch) · feat!: … / BREAKING CHANGE: (breaking) · ci/docs/chore/refactor/test: … (no release) -->
+<!-- Titre de PR = commit squash = entrée du changelog. Utilisez un Conventional Commit :
+     feat: … (mineure) · fix: … (patch) · feat!: … / BREAKING CHANGE: (rupture) · ci/docs/chore/refactor/test: … (pas de release) -->
 
-## What
+## Quoi
 
-## Why
+## Pourquoi
 
-## Testing
+## Tests
 
-- [ ] `npm run typecheck && npm test && npm run build` pass locally
-- [ ] Touches student PII, storage, crypto or erasure? → checked against `CONTEXT.md` / `docs/adr/`
+- [ ] `npm run typecheck && npm test && npm run build` passent en local
+- [ ] Touche aux données personnelles des élèves, au stockage, à la cryptographie ou à l'effacement ? → vérifié au regard de `CONTEXT.md` / `docs/adr/`
