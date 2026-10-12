@@ -22,7 +22,7 @@ rédigés en français ou en anglais.
 
 ```bash
 npm install
-npm run typecheck && npm test && npm run build   # ce que lance la CI
+npm run typecheck && npm test && npm run build   # ce que lance la CI (plus zizmor, ci-dessous)
 npm run docs:dev                                 # le site de documentation (docs/, VitePress)
 ```
 
@@ -39,6 +39,12 @@ Un changement de comportement met à jour la page de rôle concernée (et le
   `test:` / `refactor:` (pas de release). La CI le vérifie.
 - Ne modifiez pas `CHANGELOG.md` ni `.release-please-manifest.json` : release-please s'en
   charge.
+- Une PR ne peut être fusionnée que si `check`, `docker (api)`, `docker (web)`, `pr-title` et
+  `e2e` réussissent et qu'elle n'ajoute aucune alerte CodeQL élevée — sans exception, y
+  compris pour les administrateurs.
+- Si vous touchez à `.github/workflows/`, le job `check` analyse les workflows avec
+  [zizmor](https://docs.zizmor.sh) (`zizmor --offline .github/workflows`) : toute alerte le
+  fait échouer. Épinglez chaque action par SHA.
 
 ## Règles de code
 
@@ -60,6 +66,9 @@ Un changement de comportement met à jour la page de rôle concernée (et le
   l'API copient le bloc `vi.mock(...)` d'un test existant et utilisent les fixtures de
   `packages/api/test/support/harness.ts`. Les tests web montent les vraies routes contre
   MSW — déclarez chaque point d'accès appelé par un écran.
+- Les tests Playwright de `e2e/` pilotent l'interface à travers `e2e/pages/` : un
+  changement d'écran (libellé, bouton, étape) met aussi à jour ces pages, sinon `e2e` échoue
+  en CI.
 - Un bug connu non corrigé est consigné par un `it.fails(...)` avec un commentaire
   `// BUG:` ; quand vous le corrigez, passez-le en `it(...)`.
 - Les seuils de couverture (`packages/{api,web}/vitest.config.ts`) peuvent monter, jamais

@@ -15,6 +15,14 @@ describe("privacy page", () => {
     expect(screen.getByRole("link", { name: "cnil.fr" })).toHaveAttribute("href", "https://www.cnil.fr");
   });
 
+  it("says what stays on the phone: the session cookie and the decisions already announced", async () => {
+    renderAt("/confidentialite");
+    expect(screen.getByText(/Sur ton téléphone/)).toHaveTextContent(
+      "Sur ton téléphone, l'application retient seulement les décisions de tes enseignants qu'elle t'a déjà annoncées",
+    );
+    expect(screen.getByText(/position GPS/)).toHaveTextContent("retirées sur ton téléphone avant l'envoi");
+  });
+
   it("is linked from the app shell, even before signing in", async () => {
     server.use(
       http.get("/api/student/me", () => HttpResponse.json({}, { status: 401 })),

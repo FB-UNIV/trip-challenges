@@ -25,7 +25,7 @@ le navigateur en partant.
 
 - **Nom** — visible des élèves (par ex. « Rome 2030 »).
 - **Date de fin de la sortie** — elle fixe la **date butoir d'effacement** : fin de sortie +
-  30 jours par défaut, quoi qu'il arrive.
+  30 jours par défaut, quoi qu'il arrive. Elle ne peut pas être passée.
 - **Taille max. d'une équipe** — 4 par défaut ; modifiable seulement tant que la sortie est
   en brouillon.
 
@@ -103,7 +103,10 @@ avancez avec la carte **Maintenant**. La cérémonie, elle, démarre toujours pa
 
 Les **Paramètres** contiennent aussi le **barème des points** (par défaut 5, 3 et 1 point
 pour les trois premières places de chaque défi), le **délai de grâce** (7 jours) et la
-**conservation max.** (30 jours après la fin de la sortie).
+**conservation max.** (30 jours après la fin de la sortie). Modifier la date de fin ou la
+conservation ne peut pas avancer l'effacement à moins de 24 heures : pour effacer plus tôt,
+utilisez **Effacer toutes les données des élèves…**. Repousser l'effacement est toujours
+possible.
 
 ## Pendant les défis
 
@@ -121,6 +124,9 @@ Chaque photo sélectionnée arrive dans **Modération** :
   ouverts ;
 - **Retirer la photo…** — à tout moment, pour **n'importe quelle** photo de la sortie (même
   jamais sélectionnée) : plus personne ne la verra. À utiliser pour tout contenu inapproprié.
+
+Quand vous validez ou refusez, les élèves de l'équipe reçoivent une notification dans
+l'application.
 
 Seules les photos **validées** sont montrées aux autres élèves pendant le vote.
 
