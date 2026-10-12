@@ -34,7 +34,7 @@ const bridge = (inner: typeof fetch): typeof fetch => async (input, init) => {
 };
 
 // Encoded by hand: Node's encoder doesn't recognize jsdom's File (no name, no bytes).
-async function multipartOf(form: FormData): Promise<{ type: string; bytes: Uint8Array }> {
+async function multipartOf(form: FormData): Promise<{ type: string; bytes: Uint8Array<ArrayBuffer> }> {
   const boundary = "----trip-test-boundary";
   const parts: Uint8Array[] = [];
   const text = (t: string) => parts.push(new TextEncoder().encode(t));

@@ -232,7 +232,12 @@ input[type="date"]::-webkit-date-and-time-value, input[type="datetime-local"]::-
 /* ---------- upload dropzone ---------- */
 .upload { border: 2px dashed var(--accent-line); border-radius: 14px; padding: 18px; text-align: center; background: var(--surface-2); display: flex; flex-direction: column; align-items: center; gap: 8px; }
 .upload .cam { width: 52px; height: 52px; border-radius: 16px; background: var(--accent-wash); color: var(--accent-ink); display: grid; place-items: center; font-size: 24px; }
-.file-input { font-size: 13px; color: var(--muted); }
+.upload-acts { display: flex; flex-wrap: wrap; gap: 8px; width: 100%; margin-top: 4px; }
+.upload-acts .btn { position: relative; flex: 1 1 140px; min-height: 48px; cursor: pointer; }
+.upload-acts .btn:focus-within { outline: 2px solid var(--accent); outline-offset: 2px; }
+.photo-sending .photo { opacity: .55; }
+/* Hidden but still reachable (the file inputs: their label is the visible button). */
+.sr-only { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; border: 0; }
 
 /* ---------- duel ---------- */
 .duel-head { text-align: center; margin: 6px 0 14px; }
