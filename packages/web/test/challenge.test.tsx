@@ -5,6 +5,8 @@ import { delay, http, HttpResponse } from "msw";
 import { server } from "./server.js";
 import { renderAt } from "./render.js";
 
+type User = ReturnType<typeof renderAt>["user"];
+
 const CH = { id: "ch1", title: "Gelato selfie", instructions: "With a gelato.\nAll of you." };
 const ME = { studentId: "s1", tripId: "t1", tripName: "Rome 2030", phase: "challenge", teamId: "team1" };
 
@@ -186,6 +188,11 @@ describe("sending photos", () => {
   const filename = (body: string) => /filename="([^"]+)"/.exec(body)?.[1];
   const listed = (subs: Sub[]) => http.get("/api/submissions", () => HttpResponse.json({ submissions: subs }));
   const added = (subs: Sub[]) => subs.push({ id: `sub${subs.length + 1}`, created_at: "2030-01-01", nominated: false });
+  /** Take a photo with the camera and send it from the review screen. */
+  const takePhoto = async (user: User, file: File) => {
+    await user.upload(screen.getByLabelText(/Prendre une photo/), file);
+    await user.click(screen.getByRole("button", { name: "Envoyer" }));
+  };
 
   it("opens the camera, or the gallery to pick several photos at once", async () => {
     server.use(challenge(), me(ME), listed([]));
@@ -222,6 +229,7 @@ describe("sending photos", () => {
     await screen.findByText("Pas encore de photo.");
     const camera = screen.getByLabelText<HTMLInputElement>(/Prendre une photo/);
     await user.upload(camera, photo());
+    await user.click(screen.getByRole("button", { name: "Envoyer" }));
 
     expect(await screen.findByRole("progressbar", { name: "Envoi de la photo" })).toBeInTheDocument();
     const preview = screen.getByRole("img", { name: "Photo en cours d'envoi" });
@@ -276,7 +284,7 @@ describe("sending photos", () => {
     );
     const { user } = renderAt("/c/abc");
     await screen.findByText("Pas encore de photo.");
-    await user.upload(screen.getByLabelText(/Prendre une photo/), photo());
+    await takePhoto(user, photo());
     expect(await screen.findByText(/file failed the virus scan/)).toBeInTheDocument();
     expect(screen.queryByRole("progressbar", { name: "Envoi de la photo" })).not.toBeInTheDocument();
 
@@ -291,7 +299,7 @@ describe("sending photos", () => {
     server.use(challenge(), me(ME), listed([]), http.post("/api/submissions", () => HttpResponse.error()));
     const { user } = renderAt("/c/abc");
     await screen.findByText("Pas encore de photo.");
-    await user.upload(screen.getByLabelText(/Prendre une photo/), photo());
+    await takePhoto(user, photo());
     expect(await screen.findByText(/Impossible de joindre le serveur/)).toBeInTheDocument();
     await user.click(screen.getByRole("button", { name: "Retirer" }));
     expect(screen.queryByRole("img", { name: "Photo en cours d'envoi" })).not.toBeInTheDocument();
@@ -305,7 +313,7 @@ describe("sending photos", () => {
     );
     const { user } = renderAt("/c/abc");
     await screen.findByText("Pas encore de photo.");
-    await user.upload(screen.getByLabelText(/Prendre une photo/), photo());
+    await takePhoto(user, photo());
     expect(await screen.findByText(/Erreur interne\. Référence : req-42/)).toBeInTheDocument();
   });
 
@@ -315,5 +323,138 @@ describe("sending photos", () => {
     await screen.findByText("Pas encore de photo.");
     await user.upload(screen.getByLabelText(/Galerie/), []);
     expect(screen.queryByRole("img", { name: "Photo en cours d'envoi" })).not.toBeInTheDocument(); // and no POST
+  });
+});
+
+describe("reviewing a photo before it's sent", () => {
+  type Sub = { id: string; created_at: string; nominated: boolean };
+  const photo = (name = "gelato.jpg") => new File(["jpeg"], name, { type: "image/jpeg" });
+  const review = () => screen.queryByRole("dialog", { name: "Ta photo" });
+  const sent = () => screen.queryByRole("dialog", { name: "Photo envoyée" });
+  /** The team's photos, and an upload endpoint that lists what it receives as `sub1`, `sub2`… */
+  const team = (subs: Sub[]) => {
+    const posts: string[] = [];
+    server.use(
+      challenge(), me(ME),
+      http.get("/api/submissions", () => HttpResponse.json({ submissions: subs })),
+      http.post("/api/submissions", async ({ request }) => {
+        posts.push(await request.text());
+        const id = `sub${subs.length + 1}`;
+        subs.push({ id, created_at: "2030-01-01", nominated: false });
+        return HttpResponse.json({ id }, { status: 201 });
+      }),
+    );
+    return posts;
+  };
+
+  it("shows a taken photo full screen, and sends it only on Envoyer", async () => {
+    const posts = team([]);
+    const { user } = renderAt("/c/abc");
+    await user.upload(await screen.findByLabelText(/Prendre une photo/), photo());
+    expect(review()).toBeInTheDocument();
+    expect(screen.getByRole("img", { name: "Ta photo" }).getAttribute("src")).toMatch(/^blob:/);
+    expect(posts).toHaveLength(0);
+
+    await user.click(screen.getByRole("button", { name: "Envoyer" }));
+    expect(review()).not.toBeInTheDocument();
+    expect(await screen.findByRole("dialog", { name: "Photo envoyée" })).toBeInTheDocument();
+    expect(posts).toHaveLength(1);
+  });
+
+  it("Reprendre drops the photo and opens the camera again", async () => {
+    const posts = team([]);
+    const revoke = vi.spyOn(URL, "revokeObjectURL");
+    const { user } = renderAt("/c/abc");
+    const camera = await screen.findByLabelText<HTMLInputElement>(/Prendre une photo/);
+    await user.upload(camera, photo());
+    const shown = screen.getByRole("img", { name: "Ta photo" }).getAttribute("src");
+    const reopened = vi.fn();
+    camera.addEventListener("click", reopened);
+
+    await user.click(screen.getByRole("button", { name: "Reprendre" }));
+    expect(review()).not.toBeInTheDocument();
+    expect(reopened).toHaveBeenCalledTimes(1);
+    expect(revoke).toHaveBeenCalledWith(shown);
+    expect(posts).toHaveLength(0);
+  });
+
+  it("Annuler closes it without sending", async () => {
+    const posts = team([]);
+    const { user } = renderAt("/c/abc");
+    await user.upload(await screen.findByLabelText(/Prendre une photo/), photo());
+    await user.click(screen.getByRole("button", { name: "Annuler" }));
+    expect(review()).not.toBeInTheDocument();
+    expect(screen.getByText("Pas encore de photo.")).toBeInTheDocument();
+    expect(posts).toHaveLength(0);
+  });
+
+  it("reviews a single photo from the gallery too", async () => {
+    team([]);
+    const { user } = renderAt("/c/abc");
+    await user.upload(await screen.findByLabelText(/Galerie/), photo());
+    expect(review()).toBeInTheDocument();
+  });
+
+  it("once sent, offers to make it the team's entry when there is none yet", async () => {
+    const subs: Sub[] = [];
+    team(subs);
+    let nominated: unknown;
+    server.use(http.post("/api/nominations", async ({ request }) => {
+      nominated = await request.json();
+      subs[0]!.nominated = true;
+      return HttpResponse.json({ ok: true }, { status: 201 });
+    }));
+    const { user } = renderAt("/c/abc");
+    await user.upload(await screen.findByLabelText(/Prendre une photo/), photo());
+    await user.click(screen.getByRole("button", { name: "Envoyer" }));
+    await screen.findByRole("dialog", { name: "Photo envoyée" });
+    expect(screen.getByText(/C'est votre photo pour le vote/)).toBeInTheDocument();
+
+    await user.click(screen.getByRole("button", { name: "On la met en lice" }));
+    expect(sent()).not.toBeInTheDocument();
+    expect(await screen.findByRole("button", { name: "Sélectionnée ✓" })).toBeInTheDocument();
+    expect(nominated).toEqual({ challengeId: "ch1", submissionId: "sub1" });
+  });
+
+  it("Plus tard leaves the entry to choose later", async () => {
+    team([]); // and no POST /api/nominations
+    const { user } = renderAt("/c/abc");
+    await user.upload(await screen.findByLabelText(/Prendre une photo/), photo());
+    await user.click(screen.getByRole("button", { name: "Envoyer" }));
+    await screen.findByRole("dialog", { name: "Photo envoyée" });
+    await user.click(screen.getByRole("button", { name: "Plus tard" }));
+    expect(sent()).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Sélectionner" })).toBeInTheDocument();
+  });
+
+  it("only celebrates when the team already has an entry", async () => {
+    team([{ id: "sub1", created_at: "2030-01-01", nominated: true }]);
+    const { user } = renderAt("/c/abc");
+    await user.upload(await screen.findByLabelText(/Prendre une photo/), photo());
+    await user.click(screen.getByRole("button", { name: "Envoyer" }));
+    await screen.findByRole("dialog", { name: "Photo envoyée" });
+    expect(screen.queryByRole("button", { name: "On la met en lice" })).not.toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "Continuer" }));
+    expect(sent()).not.toBeInTheDocument();
+  });
+
+  it("doesn't interrupt a batch from the gallery", async () => {
+    team([]);
+    const { user } = renderAt("/c/abc");
+    await user.upload(await screen.findByLabelText(/Galerie/), [photo("a.jpg"), photo("b.jpg")]);
+    expect(review()).not.toBeInTheDocument();
+    await waitFor(() => expect(screen.getAllByRole("button", { name: "Sélectionner" })).toHaveLength(2));
+    expect(sent()).not.toBeInTheDocument();
+  });
+
+  it("says when the entry couldn't be set", async () => {
+    team([]);
+    server.use(http.post("/api/nominations", () => HttpResponse.json({ error: "closed", message: "nominations are closed" }, { status: 409 })));
+    const { user } = renderAt("/c/abc");
+    await user.upload(await screen.findByLabelText(/Prendre une photo/), photo());
+    await user.click(screen.getByRole("button", { name: "Envoyer" }));
+    await screen.findByRole("dialog", { name: "Photo envoyée" });
+    await user.click(screen.getByRole("button", { name: "On la met en lice" }));
+    expect(await screen.findByText(/nominations are closed/)).toBeInTheDocument();
   });
 });
