@@ -1,5 +1,5 @@
 import { useRef, useState } from "react";
-import { useParams } from "react-router-dom";
+import { useParams } from "react-router";
 import type { EntryState } from "@trip/shared";
 import { api, errorText, HttpError, isBadCode } from "../api.js";
 import { qk, useLoad, useMe, useOptimistic, useRefresh } from "../query.js";

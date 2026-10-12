@@ -2,7 +2,7 @@
 // checklists, steppers, tab bar, celebration, skeleton and empty states).
 import { describe, it, expect } from "vitest";
 import { render, screen, within } from "@testing-library/react";
-import { MemoryRouter } from "react-router-dom";
+import { MemoryRouter } from "react-router";
 import type { ReactNode } from "react";
 import userEvent from "@testing-library/user-event";
 import {

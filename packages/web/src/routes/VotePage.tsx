@@ -1,6 +1,6 @@
 // Pairwise duel screen (ADR-0002): two photos, pick the better, repeat.
 import { useCallback, useEffect, useState } from "react";
-import { Link, useParams } from "react-router-dom";
+import { Link, useParams } from "react-router";
 import type { DuelPair } from "@trip/shared";
 import { api, errorText, HttpError } from "../api.js";
 import { qk, useMyChallenges, useRefresh } from "../query.js";

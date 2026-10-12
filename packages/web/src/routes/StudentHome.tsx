@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Link } from "react-router-dom";
+import { Link } from "react-router";
 import { api, errorText, HttpError, isBadCode } from "../api.js";
 import { qk, useMe, useRefresh, useTeams } from "../query.js";
 import { Button, Card, ErrorCard, Field, PhasePill, PhaseTrail, Skeleton } from "../ui.js";

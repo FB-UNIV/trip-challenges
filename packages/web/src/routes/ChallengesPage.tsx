@@ -1,6 +1,6 @@
 // My challenge checklist: what's left to snap, what's entered. Each row opens the same
 // page as the challenge's printed QR code.
-import { Link } from "react-router-dom";
+import { Link } from "react-router";
 import type { StudentChallenge } from "@trip/shared";
 import { useMe, useMyChallenges } from "../query.js";
 import { PlaySolo } from "./PlaySolo.js";

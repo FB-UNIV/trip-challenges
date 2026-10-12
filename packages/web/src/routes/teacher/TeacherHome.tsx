@@ -1,6 +1,6 @@
 // Teacher home: sign-in gate, the teacher's trips as cards (past ones apart), new trip on demand.
 import { useState } from "react";
-import { Link } from "react-router-dom";
+import { Link } from "react-router";
 import { api, HttpError, type TripSummary } from "../../api.js";
 import { qk, useLoad } from "../../query.js";
 import { Button, Card, EmptyState, ErrorCard, Field, Notice, PhasePill, Skeleton, useAction } from "../../ui.js";

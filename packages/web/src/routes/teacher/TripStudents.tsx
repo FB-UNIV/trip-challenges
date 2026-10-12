@@ -1,7 +1,7 @@
 // Students: who has joined, whose code never arrived, who is in which team (#95, ADR 0006),
 // then the teams with their names to check (ADR 0007), then roster import + recovery link.
 import { useEffect, useRef, useState } from "react";
-import { useSearchParams } from "react-router-dom";
+import { useSearchParams } from "react-router";
 import type { RosterEntry, TripTeam } from "@trip/shared";
 import { api } from "../../api.js";
 import {

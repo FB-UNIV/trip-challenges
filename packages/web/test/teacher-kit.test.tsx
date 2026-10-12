@@ -3,7 +3,7 @@
 import { describe, it, expect, vi } from "vitest";
 import { render, screen, within, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { MemoryRouter } from "react-router-dom";
+import { MemoryRouter } from "react-router";
 import type { ReactNode } from "react";
 import { HttpError } from "../src/api.js";
 import {

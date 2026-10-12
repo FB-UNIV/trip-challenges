@@ -1,6 +1,6 @@
 // Challenges: list with QR codes, add, edit and (in draft) delete; print the QR sheet.
 import { useState } from "react";
-import { Link } from "react-router-dom";
+import { Link } from "react-router";
 import { api, type ChallengeSummary } from "../../api.js";
 import { qk, useLoad } from "../../query.js";
 import { Button, Card, EmptyState, Field, Notice, Pill, Skeleton, useAction, useConfirm } from "../../ui.js";

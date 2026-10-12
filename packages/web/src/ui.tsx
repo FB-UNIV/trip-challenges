@@ -10,7 +10,7 @@ import {
   type ReactNode,
 } from "react";
 
-import { Link, NavLink, useLocation } from "react-router-dom";
+import { Link, NavLink, useLocation } from "react-router";
 import { HttpError, errorText } from "./api.js";
 
 const cx = (...parts: (string | false | undefined)[]) => parts.filter(Boolean).join(" ");

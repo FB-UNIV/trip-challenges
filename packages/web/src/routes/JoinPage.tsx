@@ -3,7 +3,7 @@
 //  - /join?trip=<tripId>            — the recovery link: request a fresh code by email
 //    (lost/changed device). Anti-enumeration: the confirmation is shown unconditionally.
 import { useEffect, useState } from "react";
-import { useNavigate, useSearchParams } from "react-router-dom";
+import { useNavigate, useSearchParams } from "react-router";
 import { api, errorText, HttpError, isBadCode } from "../api.js";
 import { Button, Card, Field, Notice } from "../ui.js";
 

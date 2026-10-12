@@ -1,4 +1,4 @@
-import { Outlet, Link, useLocation } from "react-router-dom";
+import { Outlet, Link, useLocation } from "react-router";
 import type { StudentChallenge } from "@trip/shared";
 import type { Me } from "./api.js";
 import { useMe, useMyChallenges } from "./query.js";
