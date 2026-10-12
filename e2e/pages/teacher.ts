@@ -36,6 +36,16 @@ export class TeacherHomePage {
 }
 
 /** The Now card's action that moves a trip into each phase. */
+// The phase pill's label (packages/web/src/ui.tsx PHASE_META).
+const PHASE_LABEL = {
+  draft: "Brouillon",
+  challenge: "Défis",
+  voting: "Vote",
+  reveal: "Révélation",
+  grace: "Délai de grâce",
+  erased: "Effacée",
+} as const;
+
 const ADVANCE = {
   challenge: "Lancer les défis",
   voting: "Ouvrir le vote",
@@ -72,8 +82,8 @@ export class TripAdminPage {
     return this.page.locator(".tile").filter({ has: this.page.locator(".k", { hasText: label }) }).locator(".v");
   }
 
-  async expectPhase(phase: string) {
-    await expect(this.page.locator(".trip-head .pill")).toHaveText(new RegExp(`^${phase}$`, "i"));
+  async expectPhase(phase: keyof typeof PHASE_LABEL) {
+    await expect(this.page.locator(".trip-head .pill")).toHaveText(PHASE_LABEL[phase]);
   }
 
   /** The overview's Now card moves the trip on, after confirming what that does. */

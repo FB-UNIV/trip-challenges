@@ -15,7 +15,7 @@ test("the owner invites a co-teacher by email; only the invited account can acce
   const teachers = admin.card("Enseignants");
   await teachers.getByLabel("Inviter un co-enseignant par e-mail").fill(coEmail);
   await teachers.getByRole("button", { name: "Envoyer l'invitation" }).click();
-  await expect(teachers.getByText(`Invite emailed to ${coEmail}.`)).toBeVisible();
+  await expect(teachers.getByText(`Invitation envoyée à ${coEmail}.`)).toBeVisible();
 
   const mail = await waitForMail(coEmail, { subject: /^You've been invited to co-manage / });
   const acceptPath = relative(linkIn(mail, "/teacher/accept?token="));
