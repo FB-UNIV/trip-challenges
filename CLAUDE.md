@@ -15,7 +15,7 @@ npm run dev:web             # builds @trip/shared, then Vite on :5173 (proxies /
 docker compose -f docker-compose.dev.yml up -d   # Postgres, MinIO, Vault for local dev
 ```
 
-CI (`.github/workflows/ci.yml`) runs typecheck → test → build + Docker builds. There is no
+CI (`.github/workflows/ci.yml`) runs a workflow lint (zizmor) → typecheck → test → build + Docker builds. There is no
 linter configured. `scripts/e2e.mjs` is a live-stack smoke test — see its header for usage.
 
 ## Git workflow
