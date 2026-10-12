@@ -36,17 +36,17 @@ export function TripLayout() {
   // mounted, or its confirmation ("Saved.") vanishes before anyone sees it (#30).
   if (trip.loading && !trip.data) return <Skeleton />;
   const t = trip.data;
-  if (!t) return <p className="err">Not found.</p>;
+  if (!t) return <p className="err">Sortie introuvable.</p>;
 
   const base = `/teacher/trips/${id}`;
   const pending = noms.data?.nominations ?? [];
   const sections: Section[] = [
-    { to: `${base}/overview`, label: "Overview" },
-    { to: `${base}/challenges`, label: "Challenges" },
-    { to: `${base}/students`, label: "Students" },
-    { to: `${base}/review`, label: "Review", badge: pending.length },
-    ...(hasResults(t.phase) ? [{ to: `${base}/results`, label: "Results" }] : []),
-    { to: `${base}/settings`, label: "Settings" },
+    { to: `${base}/overview`, label: "Vue d'ensemble" },
+    { to: `${base}/challenges`, label: "Défis" },
+    { to: `${base}/students`, label: "Élèves" },
+    { to: `${base}/review`, label: "Modération", badge: pending.length },
+    ...(hasResults(t.phase) ? [{ to: `${base}/results`, label: "Résultats" }] : []),
+    { to: `${base}/settings`, label: "Paramètres" },
   ];
   // Due but not erased yet: an "Erase now" or scheduled run failed and is being retried (#68).
   const erasurePending = t.phase !== "erased" && !!t.hard_erase_at && new Date(t.hard_erase_at) <= new Date();
@@ -58,11 +58,11 @@ export function TripLayout() {
       <header className="trip-head">
         <div className="row">
           <h2 className="grow">{t.name}</h2>
-          {erasurePending && <Pill tone="warn">Erasure pending</Pill>}
+          {erasurePending && <Pill tone="warn">Effacement en attente</Pill>}
           <PhasePill phase={t.phase} dot />
         </div>
         <PhaseTrail phase={t.phase} variant="teacher" />
-        <SectionNav label="Trip sections" items={sections} />
+        <SectionNav label="Sections de la sortie" items={sections} />
       </header>
       {/* Remount on a phase change so phase-dependent lists refetch. */}
       <div key={t.phase} className="stack">

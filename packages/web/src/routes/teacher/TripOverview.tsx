@@ -14,10 +14,10 @@ export function TripOverview() {
   return (
     <>
       <Stats items={[
-        { label: "Students", value: p?.students ?? "—" },
-        { label: "Teams", value: p?.teams ?? "—" },
-        { label: "Challenges", value: p?.challenges.length ?? "—" },
-        { label: "To review", value: pending.length, flag: pending.length > 0, to: `/teacher/trips/${tripId}/review` },
+        { label: "Élèves", value: p?.students ?? "—" },
+        { label: "Équipes", value: p?.teams ?? "—" },
+        { label: "Défis", value: p?.challenges.length ?? "—" },
+        { label: "À modérer", value: pending.length, flag: pending.length > 0, to: `/teacher/trips/${tripId}/review` },
       ]} />
       {progress.error ? <ErrorCard error={progress.error} onRetry={progress.reload} />
         : roster.error && !roster.data ? <ErrorCard error={roster.error} onRetry={roster.reload} />
@@ -39,7 +39,7 @@ function NowCard({ tripId, plan, onMoved }: { tripId: string; plan: Plan; onMove
   const confirm = useConfirm();
   const advance = useAction(async () => {
     const a = plan.action!;
-    if (!(await confirm({ title: `${a.label}?`, body: a.confirm, confirmLabel: a.label }))) return;
+    if (!(await confirm({ title: `${a.label} ?`, body: a.confirm, confirmLabel: a.label }))) return;
     try {
       await api.advance(tripId, a.to);
     } catch (e) {
@@ -47,7 +47,7 @@ function NowCard({ tripId, plan, onMoved }: { tripId: string; plan: Plan; onMove
       if (!(e instanceof HttpError && e.status === 409)) throw e;
     }
     onMoved();
-  }, "Could not move the trip on.");
+  }, "Impossible de faire avancer la sortie.");
 
   return (
     <Card hero>

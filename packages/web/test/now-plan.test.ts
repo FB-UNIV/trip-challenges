@@ -21,11 +21,11 @@ const check = (plan: ReturnType<typeof nowPlan>, title: RegExp) => plan.checks.f
 
 describe("relTime", () => {
   it.each([
-    [30 * 60_000, "in 30 minutes"],
-    [5 * 3_600_000, "in 5 hours"],
-    [86_400_000 * 1.2, "tomorrow"],
-    [86_400_000 * 3, "in 3 days"],
-    [-86_400_000 * 2, "2 days ago"],
+    [30 * 60_000, "dans 30 minutes"],
+    [5 * 3_600_000, "dans 5 heures"],
+    [86_400_000 * 1.2, "demain"],
+    [86_400_000 * 3, "dans 3 jours"],
+    [-86_400_000 * 3, "il y a 3 jours"],
   ])("%d ms → %s", (ms, text) => {
     expect(relTime(new Date(NOW.getTime() + ms).toISOString(), NOW)).toBe(text);
   });
@@ -34,15 +34,15 @@ describe("relTime", () => {
 describe("draft", () => {
   it("starts with everything to do", () => {
     const plan = nowPlan(input());
-    expect(plan.title).toBe("Getting ready");
+    expect(plan.title).toBe("Préparation");
     expect(plan.checks.map((c) => [c.title, c.state])).toEqual([
-      ["Add challenges", "todo"],
-      ["Import the roster", "todo"],
-      ["Students form teams", "todo"],
-      ["Plan the dates", "todo"],
+      ["Ajouter des défis", "todo"],
+      ["Importer la liste d'élèves", "todo"],
+      ["Les élèves forment les équipes", "todo"],
+      ["Planifier les dates", "todo"],
     ]);
-    expect(check(plan, /challenges/).to).toBe("challenges");
-    expect(check(plan, /roster/).to).toBe("students");
+    expect(check(plan, /défis/).to).toBe("challenges");
+    expect(check(plan, /liste d'élèves/).to).toBe("students");
     expect(check(plan, /dates/).to).toBe("settings");
   });
 
@@ -51,11 +51,11 @@ describe("draft", () => {
       roster: { pending: 2, done: 3, failed: 0, students: 5 },
       progress: progress({ students: 5, teams: 1, studentsWithoutTeam: 3 }),
     }));
-    expect(check(plan, /roster/)).toMatchObject({ state: "doing", meta: "3 of 5 codes emailed" });
-    expect(check(plan, /teams/)).toMatchObject({ state: "doing", meta: "3 without a team" });
+    expect(check(plan, /liste d'élèves/)).toMatchObject({ state: "doing", meta: "3 codes envoyés sur 5" });
+    expect(check(plan, /équipes/)).toMatchObject({ state: "doing", meta: "3 sans équipe" });
 
     plan = nowPlan(input({ roster: { pending: 0, done: 4, failed: 1, students: 5 } }));
-    expect(check(plan, /roster/)).toMatchObject({ state: "doing", meta: "1 email failed — check the address" });
+    expect(check(plan, /liste d'élèves/)).toMatchObject({ state: "doing", meta: "1 e-mail en échec — vérifie l'adresse" });
 
     plan = nowPlan(input({
       roster: { pending: 0, done: 5, failed: 0, students: 5 },
@@ -63,18 +63,18 @@ describe("draft", () => {
       trip: { challenge_opens_at: inDays(3), voting_opens_at: null, voting_closes_at: null },
     }));
     expect(plan.checks.every((c) => c.state === "done")).toBe(true);
-    expect(check(plan, /challenges/).meta).toBe("2 challenges");
-    expect(check(plan, /roster/).meta).toBe("5 codes emailed");
-    expect(check(plan, /teams/).meta).toBe("5 students in 2 teams");
-    expect(check(plan, /dates/).meta).toBe("Challenge opens in 3 days");
+    expect(check(plan, /défis/).meta).toBe("2 défis");
+    expect(check(plan, /liste d'élèves/).meta).toBe("5 codes envoyés");
+    expect(check(plan, /équipes/).meta).toBe("5 élèves dans 2 équipes");
+    expect(check(plan, /dates/).meta).toBe("Les défis commencent dans 3 jours");
   });
 
   it("starts the challenge, warning about students still without a team", () => {
     const plan = nowPlan(input({ progress: progress({ students: 5, studentsWithoutTeam: 2 }) }));
-    expect(plan.action).toMatchObject({ label: "Start the challenge", to: "challenge" });
-    expect(plan.action!.confirm).toMatch(/Teams lock/);
-    expect(plan.action!.confirm).toMatch(/2 students have no team yet/);
-    expect(nowPlan(input()).action!.confirm).not.toMatch(/no team yet/);
+    expect(plan.action).toMatchObject({ label: "Lancer les défis", to: "challenge" });
+    expect(plan.action!.confirm).toMatch(/équipes sont verrouillées/);
+    expect(plan.action!.confirm).toMatch(/2 élèves n'ont pas encore d'équipe/);
+    expect(nowPlan(input()).action!.confirm).not.toMatch(/pas encore d'équipe/);
   });
 });
 
@@ -86,23 +86,23 @@ describe("challenge", () => {
       pending: 2,
       trip: { challenge_opens_at: null, voting_opens_at: inDays(2), voting_closes_at: null },
     }));
-    expect(plan.title).toBe("Challenge under way");
+    expect(plan.title).toBe("Défis en cours");
     expect(plan.checks.map((c) => [c.title, c.state, c.meta])).toEqual([
-      ["Gelato", "done", "4 of 4 teams entered"],
-      ["Tower", "doing", "1 of 4 teams entered"],
-      ["Bridge", "todo", "0 of 4 teams entered"],
-      ["Review nominations", "doing", "2 waiting"],
-      ["Check team names", "done", "All checked"],
+      ["Gelato", "done", "4 équipes sur 4 ont participé"],
+      ["Tower", "doing", "1 équipe sur 4 a participé"],
+      ["Bridge", "todo", "0 équipe sur 4 a participé"],
+      ["Modérer les photos en lice", "doing", "2 en attente"],
+      ["Vérifier les noms d'équipe", "done", "Tous vérifiés"],
     ]);
-    expect(check(plan, /Review/).to).toBe("review");
-    expect(plan.when).toBe("Voting opens in 2 days");
-    expect(plan.action).toMatchObject({ label: "Open voting", to: "voting" });
-    expect(plan.action!.confirm).toMatch(/Uploads close/);
+    expect(check(plan, /Modérer/).to).toBe("review");
+    expect(plan.when).toBe("Le vote ouvre après-demain");
+    expect(plan.action).toMatchObject({ label: "Ouvrir le vote", to: "voting" });
+    expect(plan.action!.confirm).toMatch(/L'envoi de photos se ferme/);
   });
 
   it("drops the review line when nothing waits", () => {
     const plan = nowPlan(input({ phase: "challenge", progress: progress({ teams: 1, challenges: [ch()] }) }));
-    expect(plan.checks.find((c) => /Review/.test(c.title))).toBeUndefined();
+    expect(plan.checks.find((c) => /Modérer/.test(c.title))).toBeUndefined();
     expect(plan.when).toBeUndefined();
   });
 });
@@ -115,20 +115,20 @@ describe("voting", () => {
       pending: 1,
       trip: { challenge_opens_at: null, voting_opens_at: null, voting_closes_at: inDays(-1) },
     }));
-    expect(plan.title).toBe("Voting");
+    expect(plan.title).toBe("Vote");
     expect(plan.checks.map((c) => [c.title, c.state, c.meta])).toEqual([
-      ["Gelato", "done", "3 approved — votable"],
-      ["Tower", "todo", "2 approved — needs 3 to be votable"],
-      ["Review nominations", "doing", "1 waiting"],
+      ["Gelato", "done", "3 validées — ouvert au vote"],
+      ["Tower", "todo", "2 validées — il en faut 3 pour voter"],
+      ["Modérer les photos en lice", "doing", "1 en attente"],
     ]);
-    expect(plan.when).toBe("Voting closed yesterday");
-    expect(plan.action).toMatchObject({ label: "Close voting & compute results", to: "reveal" });
-    expect(plan.action!.confirm).toMatch(/only after the ceremony/);
+    expect(plan.when).toBe("Le vote s'est fermé hier");
+    expect(plan.action).toMatchObject({ label: "Fermer le vote et calculer les résultats", to: "reveal" });
+    expect(plan.action!.confirm).toMatch(/qu'après la cérémonie/);
   });
 
   it("says when voting closes", () => {
     const plan = nowPlan(input({ phase: "voting", trip: { challenge_opens_at: null, voting_opens_at: null, voting_closes_at: inDays(1.2) } }));
-    expect(plan.when).toBe("Voting closes tomorrow");
+    expect(plan.when).toBe("Le vote se ferme demain");
   });
 });
 
@@ -136,22 +136,22 @@ describe("team names and voting participation (#96)", () => {
   it("asks to check team names from the challenge until the reveal, linking to the teams", () => {
     for (const phase of ["challenge", "voting"]) {
       const plan = nowPlan(input({ phase, progress: progress({ teams: 3, teamsUnreviewed: 2 }) }));
-      expect(check(plan, /team names/)).toEqual({ title: "Check team names", state: "doing", meta: "2 not checked", to: "students" });
+      expect(check(plan, /noms d'équipe/)).toEqual({ title: "Vérifier les noms d'équipe", state: "doing", meta: "2 non vérifiés", to: "students" });
     }
     const allGood = nowPlan(input({ phase: "challenge", progress: progress({ teams: 3, teamsUnreviewed: 0 }) }));
-    expect(check(allGood, /team names/)).toMatchObject({ state: "done", meta: "All checked" });
-    expect(nowPlan(input({ phase: "challenge" })).checks.find((c) => /team names/.test(c.title))).toBeUndefined(); // no teams
+    expect(check(allGood, /noms d'équipe/)).toMatchObject({ state: "done", meta: "Tous vérifiés" });
+    expect(nowPlan(input({ phase: "challenge" })).checks.find((c) => /noms d'équipe/.test(c.title))).toBeUndefined(); // no teams
   });
 
   it("warns, without blocking, that unchecked names show at the ceremony then become labels", () => {
     const plan = nowPlan(input({ phase: "voting", progress: progress({ teams: 3, teamsUnreviewed: 2 }) }));
-    expect(plan.action!.confirm).toMatch(/2 team names aren't checked: they'll show at the ceremony, then become “Team N” after erasure/);
-    expect(nowPlan(input({ phase: "voting", progress: progress({ teams: 3 }) })).action!.confirm).not.toMatch(/aren't checked/);
+    expect(plan.action!.confirm).toMatch(/2 noms d'équipe ne sont pas vérifiés : ils s'afficheront à la cérémonie, puis deviendront « Équipe N » après l'effacement/);
+    expect(nowPlan(input({ phase: "voting", progress: progress({ teams: 3 }) })).action!.confirm).not.toMatch(/ne sont pas vérifiés/);
   });
 
   it("shows how many students have voted — never who", () => {
-    const row = (voters: number) => check(nowPlan(input({ phase: "voting", progress: progress({ students: 22, voters }) })), /voted/);
-    expect(row(14)).toEqual({ title: "Students who voted", state: "doing", meta: "14 of 22" });
+    const row = (voters: number) => check(nowPlan(input({ phase: "voting", progress: progress({ students: 22, voters }) })), /ayant voté/);
+    expect(row(14)).toEqual({ title: "Élèves ayant voté", state: "doing", meta: "14 sur 22" });
     expect(row(0).state).toBe("todo");
     expect(row(22).state).toBe("done");
   });
@@ -161,38 +161,38 @@ describe("team names and voting participation (#96)", () => {
       roster: { pending: 0, done: 4, failed: 1, students: 5 },
       progress: progress({ students: 5, teams: 1, studentsWithoutTeam: 2 }),
     }));
-    expect(check(plan, /roster/).to).toBe("students?filter=undelivered");
-    expect(check(plan, /teams/).to).toBe("students?filter=no-team");
+    expect(check(plan, /liste d'élèves/).to).toBe("students?filter=undelivered");
+    expect(check(plan, /équipes/).to).toBe("students?filter=no-team");
   });
 });
 
 describe("reveal, grace, erased", () => {
   it("reveal: run the ceremony, then publish", () => {
     const plan = nowPlan(input({ phase: "reveal", progress: progress({ graceEndsAt: inDays(7) }) }));
-    expect(plan.title).toBe("Ceremony time");
-    expect(plan.checks).toEqual([{ title: "Run the ceremony", state: "todo", to: "results", meta: "Project it from Results" }]);
-    expect(plan.action).toMatchObject({ label: "Publish results", to: "grace" });
-    expect(plan.action!.confirm).toMatch(/visible to students/);
-    expect(plan.action!.confirm).toMatch(/erased in 7 days/);
+    expect(plan.title).toBe("C'est l'heure de la cérémonie");
+    expect(plan.checks).toEqual([{ title: "Animer la cérémonie", state: "todo", to: "results", meta: "Projette-la depuis Résultats" }]);
+    expect(plan.action).toMatchObject({ label: "Publier les résultats", to: "grace" });
+    expect(plan.action!.confirm).toMatch(/visibles pour les élèves/);
+    expect(plan.action!.confirm).toMatch(/effacées dans 7 jours/);
   });
 
   it("grace: results are out; erasure is the next thing", () => {
     const plan = nowPlan(input({ phase: "grace", progress: progress({ eraseAt: inDays(4) }) }));
-    expect(plan.title).toBe("Results published");
+    expect(plan.title).toBe("Résultats publiés");
     expect(plan.action).toBeUndefined();
-    expect(plan.when).toBe("Student data is erased in 4 days");
+    expect(plan.when).toBe("Les données des élèves seront effacées dans 4 jours");
   });
 
   it("erased: nothing left to do", () => {
     const plan = nowPlan(input({ phase: "erased" }));
-    expect(plan).toEqual({ title: "Trip erased", checks: [] });
+    expect(plan).toEqual({ title: "Sortie effacée", checks: [] });
   });
 });
 
 describe("erasure warning", () => {
   it("warns within 7 days of erasure, whatever the phase", () => {
     expect(nowPlan(input({ progress: progress({ eraseAt: inDays(3) }) })).eraseWarning)
-      .toBe("Student data will be erased in 3 days.");
+      .toBe("Les données des élèves seront effacées dans 3 jours.");
     expect(nowPlan(input({ progress: progress({ eraseAt: inDays(8) }) })).eraseWarning).toBeUndefined();
     expect(nowPlan(input({ phase: "erased", progress: progress({ eraseAt: inDays(1) }) })).eraseWarning).toBeUndefined();
   });

@@ -23,16 +23,16 @@ describe("challenge page", () => {
       http.get("/api/submissions", async () => { await delay("infinite"); return HttpResponse.json({ submissions: [] }); }),
     );
     renderAt("/c/abc");
-    expect(screen.getByRole("status", { name: "Loading" })).toBeInTheDocument();
+    expect(screen.getByRole("status", { name: "Chargement" })).toBeInTheDocument();
     release();
-    expect(await screen.findByRole("status", { name: "Loading photos" })).toBeInTheDocument();
+    expect(await screen.findByRole("status", { name: "Chargement des photos" })).toBeInTheDocument();
     expect(screen.queryByText("Loading…")).not.toBeInTheDocument();
   });
 
   it("says so for an unknown QR", async () => {
     server.use(http.get("/api/challenges/by-slug/abc", () => HttpResponse.json({}, { status: 404 })), me(ME));
     renderAt("/c/abc");
-    expect(await screen.findByText("Challenge not found.")).toBeInTheDocument();
+    expect(await screen.findByText("Défi introuvable.")).toBeInTheDocument();
   });
 
   it("shows the challenge to anyone, and asks for an access code before uploading", async () => {
@@ -52,26 +52,26 @@ describe("challenge page", () => {
     );
     const { user } = renderAt("/c/abc");
     expect(await screen.findByRole("heading", { name: "Gelato selfie" })).toBeInTheDocument();
-    await user.type(screen.getByLabelText("Access code"), "BAD");
-    await user.click(screen.getByRole("button", { name: "Continue" }));
-    expect(await screen.findByText("Invalid code.")).toBeInTheDocument();
+    await user.type(screen.getByLabelText("Code d'accès"), "BAD");
+    await user.click(screen.getByRole("button", { name: "Continuer" }));
+    expect(await screen.findByText("Code non valide.")).toBeInTheDocument();
 
     // #69: an outage is not an invalid code.
     offline = true;
-    await user.click(screen.getByRole("button", { name: "Continue" }));
-    expect(await screen.findByText(/Can't reach the server/)).toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "Continuer" }));
+    expect(await screen.findByText(/Impossible de joindre le serveur/)).toBeInTheDocument();
     offline = false;
 
-    await user.clear(screen.getByLabelText("Access code"));
-    await user.type(screen.getByLabelText("Access code"), "GOOD");
-    await user.click(screen.getByRole("button", { name: "Continue" }));
-    expect(await screen.findByRole("button", { name: "Upload" })).toBeInTheDocument();
+    await user.clear(screen.getByLabelText("Code d'accès"));
+    await user.type(screen.getByLabelText("Code d'accès"), "GOOD");
+    await user.click(screen.getByRole("button", { name: "Continuer" }));
+    expect(await screen.findByRole("button", { name: "Envoyer" })).toBeInTheDocument();
   });
 
   it("closes uploads outside the challenge period", async () => {
     server.use(challenge(), me({ ...ME, phase: "voting" }));
     renderAt("/c/abc");
-    expect(await screen.findByText("Uploads are closed (phase: voting).")).toBeInTheDocument();
+    expect(await screen.findByText("L'envoi de photos est fermé (phase : Vote).")).toBeInTheDocument();
   });
 
   it("lets a student without a team play solo, then upload (#79)", async () => {
@@ -89,9 +89,9 @@ describe("challenge page", () => {
       http.get("/api/challenges/for-student", () => HttpResponse.json({ challenges: [] })),
     );
     const { user } = renderAt("/c/abc");
-    await user.type(await screen.findByLabelText("Your player name"), "Lone wolf");
-    await user.click(screen.getByRole("button", { name: "Play solo" }));
-    expect(await screen.findByRole("button", { name: "Upload" })).toBeInTheDocument();
+    await user.type(await screen.findByLabelText("Ton nom de joueur"), "Lone wolf");
+    await user.click(screen.getByRole("button", { name: "Jouer en solo" }));
+    expect(await screen.findByRole("button", { name: "Envoyer" })).toBeInTheDocument();
   });
 
   it("uploads the chosen photo to this challenge and lists it", async () => {
@@ -109,13 +109,13 @@ describe("challenge page", () => {
       }),
     );
     const { user, container } = renderAt("/c/abc");
-    expect(await screen.findByText("No photos yet.")).toBeInTheDocument();
+    expect(await screen.findByText("Pas encore de photo.")).toBeInTheDocument();
 
     const input = container.querySelector<HTMLInputElement>('input[type="file"]')!;
     await user.upload(input, new File(["jpeg"], "gelato.jpg", { type: "image/jpeg" }));
-    await user.click(screen.getByRole("button", { name: "Upload" }));
+    await user.click(screen.getByRole("button", { name: "Envoyer" }));
 
-    expect(await screen.findByRole("button", { name: "Nominate" })).toBeInTheDocument();
+    expect(await screen.findByRole("button", { name: "Sélectionner" })).toBeInTheDocument();
     expect(uploaded?.challengeId).toBe("ch1");
     expect(uploaded?.body).toMatch(/name="file"; filename="gelato.jpg"\r\nContent-Type: image\/jpeg\r\n\r\njpeg\r\n/);
     expect(input.value).toBe("");
@@ -124,8 +124,8 @@ describe("challenge page", () => {
   it("does nothing when Upload is pressed without a photo", async () => {
     server.use(challenge(), me(ME), http.get("/api/submissions", () => HttpResponse.json({ submissions: [] })));
     const { user } = renderAt("/c/abc");
-    await user.click(await screen.findByRole("button", { name: "Upload" }));
-    expect(screen.queryByText(/failed/i)).not.toBeInTheDocument(); // and no POST (unhandled requests fail the test)
+    await user.click(await screen.findByRole("button", { name: "Envoyer" }));
+    expect(screen.queryByText(/Échec/i)).not.toBeInTheDocument(); // and no POST (unhandled requests fail the test)
   });
 
   it("shows the server's reason when an upload is refused", async () => {
@@ -135,9 +135,9 @@ describe("challenge page", () => {
       http.post("/api/submissions", () => HttpResponse.json({ error: "infected", message: "file failed the virus scan" }, { status: 422 })),
     );
     const { user, container } = renderAt("/c/abc");
-    await screen.findByText("No photos yet.");
+    await screen.findByText("Pas encore de photo.");
     await user.upload(container.querySelector<HTMLInputElement>('input[type="file"]')!, new File(["x"], "x.jpg", { type: "image/jpeg" }));
-    await user.click(screen.getByRole("button", { name: "Upload" }));
+    await user.click(screen.getByRole("button", { name: "Envoyer" }));
     expect(await screen.findByText(/file failed the virus scan/)).toBeInTheDocument();
   });
 
@@ -154,8 +154,8 @@ describe("challenge page", () => {
       }),
     );
     const { user } = renderAt("/c/abc");
-    await user.click(await screen.findByRole("button", { name: "Nominate" }));
-    expect(await screen.findByRole("button", { name: "Nominated ✓" })).toBeInTheDocument();
+    await user.click(await screen.findByRole("button", { name: "Sélectionner" }));
+    expect(await screen.findByRole("button", { name: "Sélectionnée ✓" })).toBeInTheDocument();
     expect(nominated).toEqual({ challengeId: "ch1", submissionId: "sub1" });
   });
 
@@ -174,9 +174,9 @@ describe("challenge page", () => {
       }),
     );
     const { user } = renderAt("/c/abc");
-    await user.click(await screen.findByRole("button", { name: "Nominate" }));
-    expect(screen.getByRole("button", { name: "Nominated ✓" })).toBeInTheDocument();
-    expect(screen.getAllByRole("button", { name: /Nominat/ }).map((b) => b.textContent)).toEqual(["Nominate", "Nominated ✓"]);
+    await user.click(await screen.findByRole("button", { name: "Sélectionner" }));
+    expect(screen.getByRole("button", { name: "Sélectionnée ✓" })).toBeInTheDocument();
+    expect(screen.getAllByRole("button", { name: /Sélectionn/ }).map((b) => b.textContent)).toEqual(["Sélectionner", "Sélectionnée ✓"]);
   });
 
   // #81
@@ -189,18 +189,18 @@ describe("challenge page", () => {
       ] })),
     );
     renderAt("/c/abc");
-    expect(await screen.findByText(/Your teacher didn't accept your entry/)).toBeInTheDocument();
-    expect(screen.getByText("❌ Not accepted")).toBeInTheDocument();
+    expect(await screen.findByText(/Ton enseignant a refusé ta photo/)).toBeInTheDocument();
+    expect(screen.getByText("❌ Refusée")).toBeInTheDocument();
   });
 
-  it.each([["pending", "⏳ Waiting for your teacher"], ["approved", "✅ Approved"]])("shows a %s entry", async (entry, text) => {
+  it.each([["pending", "⏳ En attente de ton enseignant"], ["approved", "✅ Validée"]])("shows a %s entry", async (entry, text) => {
     server.use(
       challenge(), me(ME),
       http.get("/api/submissions", () => HttpResponse.json({ submissions: [{ id: "s1", created_at: "x", nominated: true, entry }] })),
     );
     renderAt("/c/abc");
     expect(await screen.findByText(text)).toBeInTheDocument();
-    expect(screen.queryByText(/didn't accept/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/a refusé/)).not.toBeInTheDocument();
   });
 
   it("puts the mark back when a nomination is refused", async () => {
@@ -210,9 +210,9 @@ describe("challenge page", () => {
       http.post("/api/nominations", () => HttpResponse.json({ error: "closed", message: "nominations are closed" }, { status: 409 })),
     );
     const { user } = renderAt("/c/abc");
-    await user.click(await screen.findByRole("button", { name: "Nominate" }));
+    await user.click(await screen.findByRole("button", { name: "Sélectionner" }));
     await waitFor(() => expect(screen.getByText(/nominations are closed/)).toBeInTheDocument());
-    expect(screen.getByRole("button", { name: "Nominate" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Sélectionner" })).toBeInTheDocument();
   });
 
   it("tells the student when a nomination is refused", async () => {
@@ -222,7 +222,7 @@ describe("challenge page", () => {
       http.post("/api/nominations", () => HttpResponse.json({ error: "closed", message: "nominations are closed" }, { status: 409 })),
     );
     const { user } = renderAt("/c/abc");
-    await user.click(await screen.findByRole("button", { name: "Nominate" }));
+    await user.click(await screen.findByRole("button", { name: "Sélectionner" }));
     await waitFor(() => expect(screen.getByText(/nominations are closed/)).toBeInTheDocument());
   });
 });

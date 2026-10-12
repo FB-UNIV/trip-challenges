@@ -22,7 +22,7 @@ describe("accept invite (/teacher/accept?token=…)", () => {
       http.get("/api/trips/t1", () => HttpResponse.json({}, { status: 404 })), // the admin screen mounts next
     );
     const { location } = renderAt(url);
-    await screen.findByText("Not found.");
+    await screen.findByText("Sortie introuvable.");
     expect(location()).toBe("/teacher/trips/t1");
   });
 
@@ -31,12 +31,12 @@ describe("accept invite (/teacher/accept?token=…)", () => {
     renderAt(url);
     expect(await screen.findByText("Rome 2030")).toBeInTheDocument();
     expect(screen.getByText("co@school.test")).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Sign in & accept" })).toBeEnabled();
+    expect(screen.getByRole("button", { name: "Se connecter et accepter" })).toBeEnabled();
   });
 
   it.each([
     [200, null],
-    [403, "This invite was sent to a different email address. Sign in with that account."],
+    [403, "Cette invitation a été envoyée à une autre adresse e-mail. Connecte-toi avec ce compte."],
   ])("accepts on the button once signed in elsewhere (API answered %i)", async (status, message) => {
     let calls = 0;
     server.use(
@@ -51,15 +51,15 @@ describe("accept invite (/teacher/accept?token=…)", () => {
       http.get("/api/trips/t1", () => HttpResponse.json({}, { status: 404 })),
     );
     const { user, location } = renderAt(url);
-    await user.click(await screen.findByRole("button", { name: "Sign in & accept" }));
+    await user.click(await screen.findByRole("button", { name: "Se connecter et accepter" }));
     if (message) expect(await screen.findByText(message)).toBeInTheDocument();
     else await vi.waitFor(() => expect(location()).toBe("/teacher/trips/t1"));
   });
 
   it.each([
-    ["wrong_account", "This invite was sent to a different email address. Sign in with that account."],
-    ["not_found", "This invite is invalid, already used, or expired."],
-    ["boom", "Could not accept the invite."],
+    ["wrong_account", "Cette invitation a été envoyée à une autre adresse e-mail. Connecte-toi avec ce compte."],
+    ["not_found", "Cette invitation n'est pas valide, a déjà été utilisée ou a expiré."],
+    ["boom", "Impossible d'accepter l'invitation."],
   ])("explains a refused accept (%s)", async (error, message) => {
     server.use(preview(INVITE), http.post("/api/invites/accept", () => HttpResponse.json({ error }, { status: 403 })));
     renderAt(url);
@@ -67,8 +67,8 @@ describe("accept invite (/teacher/accept?token=…)", () => {
   });
 
   it.each([
-    [{ ...INVITE, expired: true }, 200, "Invite expired"],
-    [{ error: "not_found" }, 404, "Invite not found"],
+    [{ ...INVITE, expired: true }, 200, "Invitation expirée"],
+    [{ error: "not_found" }, 404, "Invitation introuvable"],
   ])("says when the invite is unusable (%#)", async (body, status, heading) => {
     server.use(preview(body, status), http.post("/api/invites/accept", () => HttpResponse.json({}, { status: 401 })));
     renderAt(url);
@@ -78,7 +78,7 @@ describe("accept invite (/teacher/accept?token=…)", () => {
   it("needs a token", () => {
     server.use(http.get("/api/invites/preview", () => HttpResponse.json({}, { status: 400 })));
     renderAt("/teacher/accept");
-    expect(screen.getByText("Missing invite token.")).toBeInTheDocument();
+    expect(screen.getByText("Jeton d'invitation manquant.")).toBeInTheDocument();
   });
 });
 
@@ -90,8 +90,8 @@ describe("loading placeholders", () => {
   ])("%s", async (_label, path, endpoint) => {
     server.use(http.get(endpoint, async () => { await delay("infinite"); return HttpResponse.json({}); }));
     renderAt(path);
-    expect(await screen.findByRole("status", { name: "Loading" })).toBeInTheDocument();
-    expect(screen.queryByText(/Loading…|Loading invite…/)).not.toBeInTheDocument();
+    expect(await screen.findByRole("status", { name: "Chargement" })).toBeInTheDocument();
+    expect(screen.queryByText(/Chargement…/)).not.toBeInTheDocument();
   });
 });
 
@@ -107,7 +107,7 @@ describe("ceremony (/ceremony/:id)", () => {
       row("6", "", 1, "Foxes", 6, true),
     ] })));
     renderAt("/ceremony/t1");
-    expect(await screen.findByText("And the winners are…")).toBeInTheDocument();
+    expect(await screen.findByText("Et les gagnants sont…")).toBeInTheDocument();
 
     fireEvent.keyDown(window, { key: "ArrowRight" });
     expect(screen.getByRole("heading", { name: "Gelato" })).toBeInTheDocument();
@@ -117,18 +117,18 @@ describe("ceremony (/ceremony/:id)", () => {
 
     fireEvent.keyDown(window, { key: " " });
     expect(screen.getByRole("heading", { name: "Fountain" })).toBeInTheDocument();
-    fireEvent.click(screen.getByRole("button", { name: "Reveal →" }));
-    expect(screen.getByText("Grand Champion")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Dévoiler →" }));
+    expect(screen.getByText("Grand champion")).toBeInTheDocument();
     expect(screen.getByRole("heading", { name: /Foxes/ })).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Reveal →" })).toBeDisabled();
+    expect(screen.getByRole("button", { name: "Dévoiler →" })).toBeDisabled();
     fireEvent.keyDown(window, { key: "Enter" }); // already at the end: stays
-    expect(screen.getByText("Grand Champion")).toBeInTheDocument();
+    expect(screen.getByText("Grand champion")).toBeInTheDocument();
 
     fireEvent.keyDown(window, { key: "ArrowLeft" });
     expect(screen.getByRole("heading", { name: "Fountain" })).toBeInTheDocument();
-    fireEvent.click(screen.getByRole("button", { name: "← Back" }));
-    fireEvent.click(screen.getByRole("button", { name: "← Back" }));
-    expect(screen.getByRole("button", { name: "← Back" })).toBeDisabled();
+    fireEvent.click(screen.getByRole("button", { name: "← Retour" }));
+    fireEvent.click(screen.getByRole("button", { name: "← Retour" }));
+    expect(screen.getByRole("button", { name: "← Retour" })).toBeDisabled();
   });
 
   it("shows a co-champion tie as such", async () => {
@@ -136,16 +136,16 @@ describe("ceremony (/ceremony/:id)", () => {
       row("1", "Gelato", 1, "Foxes", 5), row("2", "", 1, "Foxes", 5, true), row("3", "", 1, "Owls", 5, true),
     ] })));
     renderAt("/ceremony/t1");
-    await screen.findByText("And the winners are…");
-    fireEvent.click(screen.getByRole("button", { name: "Reveal →" }));
-    fireEvent.click(screen.getByRole("button", { name: "Reveal →" }));
-    expect(screen.getByText("(a tie — teacher decides)")).toBeInTheDocument();
+    await screen.findByText("Et les gagnants sont…");
+    fireEvent.click(screen.getByRole("button", { name: "Dévoiler →" }));
+    fireEvent.click(screen.getByRole("button", { name: "Dévoiler →" }));
+    expect(screen.getByText("(égalité — l'enseignant tranche)")).toBeInTheDocument();
   });
 
   it("says when there are no results yet", async () => {
     server.use(http.get("/api/trips/t1/results", () => HttpResponse.json({ results: [] })));
     renderAt("/ceremony/t1");
-    expect(await screen.findByRole("heading", { name: "No results yet" })).toBeInTheDocument();
+    expect(await screen.findByRole("heading", { name: "Pas encore de résultats" })).toBeInTheDocument();
   });
 });
 
@@ -199,7 +199,7 @@ describe("api client", () => {
 
     const down = await err(api.listTeams());
     expect([down.status, down.code, down.requestId]).toEqual([503, "storage_unavailable", "req-body"]);
-    expect(errorText(down)).toBe("Photo storage is unavailable right now. Reference: req-body");
+    expect(errorText(down)).toBe("Photo storage is unavailable right now. Référence : req-body");
 
     const edge = await err(api.joinTeam("t"));
     expect([edge.code, edge.requestId]).toEqual([null, "req-edge"]);
@@ -213,11 +213,11 @@ describe("api client", () => {
     );
     const err = (p: Promise<unknown>) => p.then(() => { throw new Error("resolved"); }, (e: HttpError) => e);
 
-    expect((await err(api.listTeams())).reason).toMatch(/temporarily unavailable/);
-    expect((await err(api.joinTeam("t"))).reason).toMatch(/busy/);
+    expect((await err(api.listTeams())).reason).toMatch(/momentanément indisponible/);
+    expect((await err(api.joinTeam("t"))).reason).toMatch(/occupé/);
     const offline = await err(api.leaveTeam());
     expect(offline).toBeInstanceOf(HttpError);
-    expect([offline.status, offline.reason]).toEqual([0, "Can't reach the server. Check your connection and try again."]);
+    expect([offline.status, offline.reason]).toEqual([0, "Impossible de joindre le serveur. Vérifie ta connexion et réessaie."]);
   });
 
   it("shows a reference only when something broke on our side", () => {

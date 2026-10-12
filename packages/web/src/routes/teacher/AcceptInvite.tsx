@@ -45,22 +45,22 @@ export function AcceptInvite() {
     }
   };
 
-  if (!token) return <Card><p style={{ margin: 0 }}>Missing invite token.</p></Card>;
+  if (!token) return <Card><p style={{ margin: 0 }}>Jeton d'invitation manquant.</p></Card>;
   if (preview.loading) return <Card><Skeleton /></Card>;
 
   if (preview.error || !preview.data) {
-    return <Card><h2>Invite not found</h2><p className="muted" style={{ marginBottom: 0 }}>This invite is invalid or has already been used.</p></Card>;
+    return <Card><h2>Invitation introuvable</h2><p className="muted" style={{ marginBottom: 0 }}>Cette invitation n'est pas valide ou a déjà été utilisée.</p></Card>;
   }
   if (preview.data.expired) {
-    return <Card><h2>Invite expired</h2><p className="muted" style={{ marginBottom: 0 }}>Ask the trip owner to send a new invite.</p></Card>;
+    return <Card><h2>Invitation expirée</h2><p className="muted" style={{ marginBottom: 0 }}>Demande au responsable de la sortie de t'envoyer une nouvelle invitation.</p></Card>;
   }
 
   return (
     <Card hero>
-      <h2>Co-teacher invite</h2>
-      <p style={{ margin: "6px 0 0" }}>You've been invited to co-manage <b>{preview.data.trip_name}</b>.</p>
-      <p className="muted tiny" style={{ margin: "6px 0 12px" }}>Sign in as <b>{preview.data.email}</b> to accept.</p>
-      <Button disabled={busy} onClick={acceptNow}>Sign in &amp; accept</Button>
+      <h2>Invitation co-enseignant</h2>
+      <p style={{ margin: "6px 0 0" }}>Tu es invité à co-gérer <b>{preview.data.trip_name}</b>.</p>
+      <p className="muted tiny" style={{ margin: "6px 0 12px" }}>Connecte-toi avec <b>{preview.data.email}</b> pour accepter.</p>
+      <Button disabled={busy} onClick={acceptNow}>Se connecter et accepter</Button>
       {error && <p className="err tiny" style={{ marginBottom: 0 }}>{error}</p>}
     </Card>
   );
@@ -68,7 +68,7 @@ export function AcceptInvite() {
 
 function describe(e: unknown): string {
   const m = e instanceof Error ? e.message : "";
-  if (m.includes("wrong_account")) return "This invite was sent to a different email address. Sign in with that account.";
-  if (m.includes("not_found")) return "This invite is invalid, already used, or expired.";
-  return "Could not accept the invite.";
+  if (m.includes("wrong_account")) return "Cette invitation a été envoyée à une autre adresse e-mail. Connecte-toi avec ce compte.";
+  if (m.includes("not_found")) return "Cette invitation n'est pas valide, a déjà été utilisée ou a expiré.";
+  return "Impossible d'accepter l'invitation.";
 }

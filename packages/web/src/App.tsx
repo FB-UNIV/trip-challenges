@@ -19,7 +19,7 @@ export function App() {
         <Link to="/" className="brand"><span className="medal">🏆</span> Trip Challenges</Link>
         {!tabs && (
           <nav className="tabs">
-            <Link to="/teacher" className={pathname.startsWith("/teacher") ? "navlink active" : "navlink"}>Teacher</Link>
+            <Link to="/teacher" className={pathname.startsWith("/teacher") ? "navlink active" : "navlink"}>Enseignant</Link>
           </nav>
         )}
       </header>
@@ -49,10 +49,10 @@ function studentTabs(me: Me, challenges: StudentChallenge[]): Tab[] {
   const toEnter = me.phase === "challenge" && me.teamId ? challenges.filter((c) => !c.nominated).length : 0;
   const toVote = me.phase === "voting" ? challenges.filter(canVote).length : 0;
   return [
-    { to: "/", label: "Home", icon: "🏠" },
-    { to: "/challenges", label: "Challenges", icon: "📸", badge: toEnter, also: ["/c"] },
+    { to: "/", label: "Accueil", icon: "🏠" },
+    { to: "/challenges", label: "Défis", icon: "📸", badge: toEnter, also: ["/c"] },
     // Teams are optional (#79): having none is not a to-do.
-    { to: "/team", label: "Team", icon: "🧑‍🤝‍🧑" },
+    { to: "/team", label: "Équipe", icon: "🧑‍🤝‍🧑" },
     { to: "/vote", label: "Vote", icon: "⚖️", badge: toVote, disabled: beforeVoting },
   ];
 }

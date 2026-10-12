@@ -3,7 +3,7 @@ import { useParams } from "react-router-dom";
 import type { EntryState } from "@trip/shared";
 import { api, errorText, HttpError, isBadCode } from "../api.js";
 import { qk, useLoad, useMe, useOptimistic, useRefresh } from "../query.js";
-import { Button, Card, Field, PhasePill, Skeleton } from "../ui.js";
+import { Button, Card, Field, PhasePill, phaseMeta, Skeleton } from "../ui.js";
 import { PlaySolo } from "./PlaySolo.js";
 
 export function ChallengePage() {
@@ -15,7 +15,7 @@ export function ChallengePage() {
   const [err, setErr] = useState("");
 
   if (challenge.loading) return <Card><Skeleton /></Card>;
-  if (challenge.error) return <Card><p style={{ margin: 0 }}>Challenge not found.</p></Card>;
+  if (challenge.error) return <Card><p style={{ margin: 0 }}>Défi introuvable.</p></Card>;
   const ch = challenge.data!;
   const authed = !!me.data;
 
@@ -31,18 +31,18 @@ export function ChallengePage() {
 
       {!authed ? (
         <Card>
-          <h3>Enter your access code to upload</h3>
-          <Field label="Access code" className="input-mono" placeholder="FOX-7Q2K" value={code} onChange={(e) => setCode(e.target.value)} />
+          <h3>Saisis ton code d'accès pour envoyer des photos</h3>
+          <Field label="Code d'accès" className="input-mono" placeholder="FOX-7Q2K" value={code} onChange={(e) => setCode(e.target.value)} />
           <Button
             onClick={async () => {
               try { await api.redeemCode(code.trim()); await refresh(qk.student); }
-              catch (e) { setErr(isBadCode(e) ? "Invalid code." : errorText(e)); }
+              catch (e) { setErr(isBadCode(e) ? "Code non valide." : errorText(e)); }
             }}
-          >Continue</Button>
+          >Continuer</Button>
           {err && <p className="err tiny" style={{ marginBottom: 0 }}>{err}</p>}
         </Card>
       ) : me.data!.phase !== "challenge" ? (
-        <Card><p className="muted" style={{ margin: 0 }}>Uploads are closed (phase: {me.data!.phase}).</p></Card>
+        <Card><p className="muted" style={{ margin: 0 }}>L'envoi de photos est fermé (phase : {phaseMeta(me.data!.phase).label}).</p></Card>
       ) : !me.data!.teamId ? (
         <Card><PlaySolo /></Card>
       ) : (
@@ -53,9 +53,9 @@ export function ChallengePage() {
 }
 
 const ENTRY_LABEL: Record<EntryState, string> = {
-  pending: "⏳ Waiting for your teacher",
-  approved: "✅ Approved",
-  rejected: "❌ Not accepted",
+  pending: "⏳ En attente de ton enseignant",
+  approved: "✅ Validée",
+  rejected: "❌ Refusée",
 };
 
 function UploadAndNominate({ challengeId }: { challengeId: string }) {
@@ -74,8 +74,8 @@ function UploadAndNominate({ challengeId }: { challengeId: string }) {
       <Card>
         <div className="upload">
           <span className="cam">📸</span>
-          <b>Add a photo</b>
-          <span className="muted tiny">Any teammate can add to this challenge</span>
+          <b>Ajouter une photo</b>
+          <span className="muted tiny">Tous les membres de l'équipe peuvent ajouter des photos à ce défi</span>
           {/* capture opens the camera on mobile; users can also pick from gallery */}
           <input ref={fileRef} type="file" accept="image/*" capture="environment" className="file-input" />
           <Button
@@ -85,24 +85,24 @@ function UploadAndNominate({ challengeId }: { challengeId: string }) {
               if (!f) return;
               setBusy(true); setErr("");
               try { await api.uploadSubmission(challengeId, f); if (fileRef.current) fileRef.current.value = ""; await changed(); }
-              catch (e) { setErr(e instanceof HttpError ? e.reason : "Upload failed"); }
+              catch (e) { setErr(e instanceof HttpError ? e.reason : "Échec de l'envoi"); }
               finally { setBusy(false); }
             }}
-          >{busy ? "Uploading…" : "Upload"}</Button>
+          >{busy ? "Envoi…" : "Envoyer"}</Button>
           {err && <p className="err tiny" style={{ margin: 0 }}>{err}</p>}
         </div>
       </Card>
 
       <Card>
         <h3 style={{ display: "flex", alignItems: "baseline", gap: 8 }}>
-          Your team's photos
-          <span className="muted tiny" style={{ fontWeight: 600, marginLeft: "auto" }}>pick one to enter</span>
+          Les photos de ton équipe
+          <span className="muted tiny" style={{ fontWeight: 600, marginLeft: "auto" }}>choisis celle à mettre en lice</span>
         </h3>
         {subs.loading && <Skeleton photos={2} />}
-        {subs.data?.submissions.length === 0 && <p className="muted">No photos yet.</p>}
+        {subs.data?.submissions.length === 0 && <p className="muted">Pas encore de photo.</p>}
         {/* #81: say why the entry is gone, instead of the mark just vanishing. */}
         {subs.data && !subs.data.submissions.some((s) => s.nominated) && subs.data.submissions.some((s) => s.entry === "rejected") && (
-          <p className="warncard">Your teacher didn't accept your entry. Pick another photo.</p>
+          <p className="warncard">Ton enseignant a refusé ta photo. Choisis-en une autre.</p>
         )}
         <div className="grid2" style={{ marginTop: 10 }}>
           {subs.data?.submissions.map((s) => (
@@ -126,9 +126,9 @@ function UploadAndNominate({ challengeId }: { challengeId: string }) {
                     );
                     await changed();
                   }
-                  catch (e) { setErr(e instanceof HttpError ? e.reason : "Nomination failed"); }
+                  catch (e) { setErr(e instanceof HttpError ? e.reason : "Échec de la sélection"); }
                 }}
-              >{s.nominated ? "Nominated ✓" : "Nominate"}</Button>
+              >{s.nominated ? "Sélectionnée ✓" : "Sélectionner"}</Button>
             </div>
           ))}
         </div>

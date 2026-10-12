@@ -23,10 +23,10 @@ describe("challenge checklist", () => {
 
     expect(await screen.findByRole("link", { name: /Pyramid/ })).toHaveAttribute("href", "/c/slug-c3");
     expect(titlesInOrder(container)).toEqual(["Gelato", "Pyramid", "Statue selfie"]);
-    expect(screen.getByRole("link", { name: /Gelato/ })).toHaveTextContent("2 photos · pick one");
-    expect(screen.getByRole("link", { name: /Gelato/ })).toContainElement(screen.getByLabelText("In progress"));
-    expect(screen.getByRole("link", { name: /Pyramid/ })).toHaveTextContent("No photo yet");
-    expect(screen.getByRole("link", { name: /Statue selfie/ })).toHaveTextContent("Entered");
+    expect(screen.getByRole("link", { name: /Gelato/ })).toHaveTextContent("2 photos · choisis-en une");
+    expect(screen.getByRole("link", { name: /Gelato/ })).toContainElement(screen.getByLabelText("En cours"));
+    expect(screen.getByRole("link", { name: /Pyramid/ })).toHaveTextContent("Pas encore de photo");
+    expect(screen.getByRole("link", { name: /Statue selfie/ })).toHaveTextContent("En lice");
     expect(screen.getByRole("link", { name: /Statue selfie/ })).toHaveAttribute("href", "/c/slug-c1");
   });
 
@@ -38,25 +38,25 @@ describe("challenge checklist", () => {
       ch("c3", "Pyramid", 2, false, "rejected"),
     ]));
     const { container } = renderAt("/challenges");
-    expect(await screen.findByRole("link", { name: /Pyramid/ })).toHaveTextContent("Not accepted · pick another photo");
-    expect(screen.getByRole("link", { name: /Pyramid/ })).toContainElement(screen.getByLabelText("In progress"));
-    expect(screen.getByRole("link", { name: /Gelato/ })).toHaveTextContent("Waiting for your teacher");
-    expect(screen.getByRole("link", { name: /Statue selfie/ })).toHaveTextContent("Approved");
+    expect(await screen.findByRole("link", { name: /Pyramid/ })).toHaveTextContent("Refusée · choisis une autre photo");
+    expect(screen.getByRole("link", { name: /Pyramid/ })).toContainElement(screen.getByLabelText("En cours"));
+    expect(screen.getByRole("link", { name: /Gelato/ })).toHaveTextContent("En attente de ton enseignant");
+    expect(screen.getByRole("link", { name: /Statue selfie/ })).toHaveTextContent("Validée");
     expect(titlesInOrder(container)[0]).toBe("Pyramid");
-    expect(screen.getByRole("link", { name: "Challenges, 1 to do" })).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Défis, 1 à faire" })).toBeInTheDocument();
   });
 
   it("after photo time, a rejected entry just says so", async () => {
     server.use(meIs({ ...ME, phase: "voting" }), listIs([ch("c3", "Pyramid", 2, false, "rejected")]));
     renderAt("/challenges");
-    expect(await screen.findByText("Not accepted")).toBeInTheDocument();
-    expect(screen.queryByText(/pick another/)).not.toBeInTheDocument();
+    expect(await screen.findByText("Refusée")).toBeInTheDocument();
+    expect(screen.queryByText(/choisis une autre/)).not.toBeInTheDocument();
   });
 
   it("shows overall progress as challenges entered", async () => {
     server.use(meIs(ME), listIs(THREE));
     renderAt("/challenges");
-    const bar = await screen.findByRole("progressbar", { name: "Challenges entered" });
+    const bar = await screen.findByRole("progressbar", { name: "Défis en lice" });
     expect(bar).toHaveAttribute("aria-valuenow", "1");
     expect(bar).toHaveAttribute("aria-valuemax", "3");
   });
@@ -64,19 +64,19 @@ describe("challenge checklist", () => {
   it("says “1 photo” for a single photo", async () => {
     server.use(meIs(ME), listIs([ch("c2", "Gelato", 1, false)]));
     renderAt("/challenges");
-    expect(await screen.findByRole("link", { name: /Gelato/ })).toHaveTextContent("1 photo · pick one");
+    expect(await screen.findByRole("link", { name: /Gelato/ })).toHaveTextContent("1 photo · choisis-en une");
   });
 
   it("celebrates when every challenge is entered", async () => {
     server.use(meIs(ME), listIs([ch("c1", "Statue selfie", 1, true)]));
     renderAt("/challenges");
-    expect(await screen.findByText("All entered!")).toBeInTheDocument();
+    expect(await screen.findByText("Tout est en lice !")).toBeInTheDocument();
   });
 
   it("previews the challenges, locked, before the trip starts", async () => {
     server.use(meIs({ ...ME, phase: "draft" }), listIs(THREE));
     renderAt("/challenges");
-    expect(await screen.findByText("Unlocks when the trip starts")).toBeInTheDocument();
+    expect(await screen.findByText("Se débloque au départ de la sortie")).toBeInTheDocument();
     expect(screen.getByText("Pyramid")).toBeInTheDocument();
     expect(screen.queryByRole("link", { name: /Pyramid/ })).not.toBeInTheDocument();
   });
@@ -84,29 +84,29 @@ describe("challenge checklist", () => {
   it("points to voting once photo time is over", async () => {
     server.use(meIs({ ...ME, phase: "voting" }), listIs(THREE));
     renderAt("/challenges");
-    expect(await screen.findByText("Photo time's over")).toBeInTheDocument();
-    expect(screen.getByRole("link", { name: /Go vote/ })).toHaveAttribute("href", "/vote");
+    expect(await screen.findByText("Le temps des photos est fini")).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: /Aller voter/ })).toHaveAttribute("href", "/vote");
     expect(screen.queryByRole("link", { name: /Pyramid/ })).not.toBeInTheDocument();
   });
 
   it("doesn't offer voting after it has ended", async () => {
     server.use(meIs({ ...ME, phase: "reveal" }), listIs(THREE));
     renderAt("/challenges");
-    expect(await screen.findByText("Photo time's over")).toBeInTheDocument();
-    expect(screen.queryByRole("link", { name: /Go vote/ })).not.toBeInTheDocument();
+    expect(await screen.findByText("Le temps des photos est fini")).toBeInTheDocument();
+    expect(screen.queryByRole("link", { name: /Aller voter/ })).not.toBeInTheDocument();
   });
 
   it("offers a student without a team to play solo right here (#79)", async () => {
     server.use(meIs({ ...ME, teamId: null }), listIs(THREE));
     renderAt("/challenges");
-    expect(await screen.findByRole("heading", { name: "Play solo" })).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Play solo" })).toBeDisabled(); // until named
+    expect(await screen.findByRole("heading", { name: "Jouer en solo" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Jouer en solo" })).toBeDisabled(); // until named
   });
 
   it("shows an empty state when the trip has no challenges", async () => {
     server.use(meIs(ME), listIs([]));
     renderAt("/challenges");
-    expect(await screen.findByText("No challenges yet")).toBeInTheDocument();
+    expect(await screen.findByText("Pas encore de défi")).toBeInTheDocument();
   });
 
   it("shows a loading placeholder, then a retry on failure", async () => {
@@ -114,8 +114,8 @@ describe("challenge checklist", () => {
     server.use(meIs(ME), http.get("/api/challenges/for-student", () =>
       fail ? HttpResponse.json({ error: "boom" }, { status: 500 }) : HttpResponse.json({ challenges: THREE })));
     const { user } = renderAt("/challenges");
-    expect(screen.getByRole("status", { name: "Loading" })).toBeInTheDocument();
-    const retry = await screen.findByRole("button", { name: "Try again" });
+    expect(screen.getByRole("status", { name: "Chargement" })).toBeInTheDocument();
+    const retry = await screen.findByRole("button", { name: "Réessayer" });
     fail = false;
     await user.click(retry);
     expect(await screen.findByRole("link", { name: /Pyramid/ })).toBeInTheDocument();

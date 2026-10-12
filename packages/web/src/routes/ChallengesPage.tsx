@@ -16,9 +16,9 @@ const ORDER: Record<CheckState, number> = { doing: 0, todo: 1, done: 2 };
 const photos = (n: number) => `${n} ${n === 1 ? "photo" : "photos"}`;
 /** `open`: photos can still be nominated (challenge phase). */
 function metaOf(c: StudentChallenge, open: boolean): string {
-  if (c.nominated) return c.entry === "approved" ? "Entered ⭐ · Approved ✅" : "Entered ⭐ · Waiting for your teacher ⏳";
-  if (rejected(c)) return open ? "Not accepted · pick another photo" : "Not accepted";
-  return c.photos > 0 ? `${photos(c.photos)} · pick one` : "No photo yet";
+  if (c.nominated) return c.entry === "approved" ? "En lice ⭐ · Validée ✅" : "En lice ⭐ · En attente de ton enseignant ⏳";
+  if (rejected(c)) return open ? "Refusée · choisis une autre photo" : "Refusée";
+  return c.photos > 0 ? `${photos(c.photos)} · choisis-en une` : "Pas encore de photo";
 }
 
 export function ChallengesPage() {
@@ -31,7 +31,7 @@ export function ChallengesPage() {
   }
   const { phase, teamId } = me.data;
   const challenges = list.data.challenges;
-  if (challenges.length === 0) return <Card><EmptyState icon="🗺️" title="No challenges yet" /></Card>;
+  if (challenges.length === 0) return <Card><EmptyState icon="🗺️" title="Pas encore de défi" /></Card>;
 
   const trail = <div style={{ padding: "2px 2px 6px" }}><PhaseTrail phase={phase} variant="student" /></div>;
 
@@ -39,7 +39,7 @@ export function ChallengesPage() {
     return (
       <div className="stack">
         {trail}
-        <Card><EmptyState icon="🔒" title="Unlocks when the trip starts" /></Card>
+        <Card><EmptyState icon="🔒" title="Se débloque au départ de la sortie" /></Card>
         <Card>{challenges.map((c) => <CheckRow key={c.id} state="todo" title={c.title} />)}</Card>
       </div>
     );
@@ -49,8 +49,8 @@ export function ChallengesPage() {
       <div className="stack">
         {trail}
         <Card>
-          <EmptyState icon="⏰" title="Photo time's over">
-            {phase === "voting" && <Link to="/vote" className="btn">Go vote →</Link>}
+          <EmptyState icon="⏰" title="Le temps des photos est fini">
+            {phase === "voting" && <Link to="/vote" className="btn">Aller voter →</Link>}
           </EmptyState>
         </Card>
         <Card>{challenges.map((c) => <CheckRow key={c.id} state={stateOf(c)} title={c.title} meta={metaOf(c, false)} />)}</Card>
@@ -71,15 +71,15 @@ export function ChallengesPage() {
     <div className="stack">
       {trail}
       {entered === challenges.length ? (
-        <Card><Celebrate icon="🏅" title="All entered!">Swap in a better shot any time before voting.</Celebrate></Card>
+        <Card><Celebrate icon="🏅" title="Tout est en lice !">Tu peux changer pour une meilleure photo jusqu'au vote.</Celebrate></Card>
       ) : (
         <Card hero>
           <div className="row" style={{ marginBottom: 10 }}>
-            <h2>Challenges</h2>
+            <h2>Défis</h2>
             <span className="spacer" />
-            <span className="muted tiny">{entered}/{challenges.length} entered</span>
+            <span className="muted tiny">{entered}/{challenges.length} en lice</span>
           </div>
-          <Progress value={entered} max={challenges.length} label="Challenges entered" tone="coral" />
+          <Progress value={entered} max={challenges.length} label="Défis en lice" tone="coral" />
         </Card>
       )}
       <Card>

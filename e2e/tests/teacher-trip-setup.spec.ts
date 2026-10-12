@@ -4,8 +4,8 @@ import { TeacherHomePage, TripAdminPage } from "../pages/teacher.js";
 
 test("signed-out visitors get the PocketID sign-in on the teacher area", async ({ page }) => {
   await page.goto("/teacher");
-  await expect(page.getByRole("heading", { name: "Teacher sign-in" })).toBeVisible();
-  await expect(page.getByRole("button", { name: "Sign in with PocketID" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Connexion enseignant" })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Se connecter avec PocketID" })).toBeVisible();
 });
 
 test("a teacher creates a trip, manages challenges and settings, and edits lock as phases advance", async ({ browser }) => {
@@ -32,50 +32,50 @@ test("a teacher creates a trip, manages challenges and settings, and edits lock 
   await test.step("print the QR sheet", async () => {
     const [sheet] = await Promise.all([
       teacher.context.waitForEvent("page"),
-      teacher.page.getByRole("link", { name: "Print QR codes" }).click(),
+      teacher.page.getByRole("link", { name: "Imprimer les QR codes" }).click(),
     ]);
     const card = sheet.getByRole("article").filter({ hasText: "Gelato selfie" });
     await expect(card.getByText("×2 points")).toBeVisible();
-    const qr = card.getByRole("img", { name: "QR code for Gelato selfie" });
+    const qr = card.getByRole("img", { name: "QR code du défi Gelato selfie" });
     await expect.poll(() => qr.evaluate((img: HTMLImageElement) => img.naturalWidth)).toBeGreaterThan(0);
     await sheet.close();
   });
 
   await test.step("edit the challenge", async () => {
-    const card = admin.card("Challenges");
-    await admin.challengeRow("Gelato selfie").getByRole("button", { name: "Edit" }).click();
-    await card.getByLabel("Title").first().fill("Gelato group selfie");
-    await card.getByRole("button", { name: "Save", exact: true }).click();
+    const card = admin.card("Défis");
+    await admin.challengeRow("Gelato selfie").getByRole("button", { name: "Modifier" }).click();
+    await card.getByLabel("Titre").first().fill("Gelato group selfie");
+    await card.getByRole("button", { name: "Enregistrer", exact: true }).click();
     await expect(admin.challengeRow("Gelato group selfie")).toBeVisible();
   });
 
   await test.step("delete a challenge while still in draft", async () => {
     await admin.addChallenge("Tower photo");
-    await admin.challengeRow("Tower photo").getByRole("button", { name: "Delete" }).click();
-    await admin.confirm("Delete");
+    await admin.challengeRow("Tower photo").getByRole("button", { name: "Supprimer" }).click();
+    await admin.confirm("Supprimer");
     await expect(admin.challengeRow("Tower photo")).toHaveCount(0);
   });
 
   await test.step("save settings", async () => {
-    await admin.open("Settings");
-    const settings = admin.card("Settings");
-    await settings.getByLabel("Trip name").fill(`${name} (edited)`);
-    await settings.getByLabel("Grace days").fill("3");
-    await settings.getByRole("button", { name: "Save settings" }).click();
+    await admin.open("Paramètres");
+    const settings = admin.card("Paramètres");
+    await settings.getByLabel("Nom de la sortie").fill(`${name} (edited)`);
+    await settings.getByLabel("Délai de grâce (jours)").fill("3");
+    await settings.getByRole("button", { name: "Enregistrer les paramètres" }).click();
     // The confirmation must survive the trip reload that follows a save (#30).
-    await expect(settings.getByText("Saved.")).toBeVisible();
+    await expect(settings.getByText("Enregistré.")).toBeVisible();
     await expect(teacher.page.getByRole("heading", { name: `${name} (edited)`, level: 2 })).toBeVisible();
-    await expect(settings.getByText("Saved.")).toBeVisible();
+    await expect(settings.getByText("Enregistré.")).toBeVisible();
     expect(await teacher.api.trip(tripId)).toMatchObject({ name: `${name} (edited)`, grace_days: 3 });
   });
 
   await test.step("plan the phase dates that drive auto-advance (#26)", async () => {
-    const settings = admin.card("Settings");
-    await settings.getByLabel("Challenge opens").fill("2030-05-01T09:00");
-    await settings.getByLabel("Voting opens").fill("2030-05-03T18:30");
-    await settings.getByLabel("Voting closes").fill("2030-05-04T12:00");
-    await settings.getByRole("button", { name: "Save settings" }).click();
-    await expect(settings.getByText("Saved.")).toBeVisible();
+    const settings = admin.card("Paramètres");
+    await settings.getByLabel("Ouverture des défis").fill("2030-05-01T09:00");
+    await settings.getByLabel("Ouverture du vote").fill("2030-05-03T18:30");
+    await settings.getByLabel("Clôture du vote").fill("2030-05-04T12:00");
+    await settings.getByRole("button", { name: "Enregistrer les paramètres" }).click();
+    await expect(settings.getByText("Enregistré.")).toBeVisible();
     // Paris is UTC+2 in May: local inputs are stored as the right instants.
     expect(await teacher.api.trip(tripId)).toMatchObject({
       challenge_opens_at: "2030-05-01T07:00:00.000Z",
@@ -83,15 +83,15 @@ test("a teacher creates a trip, manages challenges and settings, and edits lock 
       voting_closes_at: "2030-05-04T10:00:00.000Z",
     });
     await teacher.page.reload(); // values round-trip back into the form in local time
-    await expect(admin.card("Settings").getByLabel("Voting opens")).toHaveValue("2030-05-03T18:30");
+    await expect(admin.card("Paramètres").getByLabel("Ouverture du vote")).toHaveValue("2030-05-03T18:30");
   });
 
   await test.step("after the challenge starts: no deleting challenges, team size locked", async () => {
     await admin.advanceTo("challenge");
-    await admin.open("Challenges");
-    await expect(admin.challengeRow("Gelato group selfie").getByRole("button", { name: "Delete" })).toHaveCount(0);
-    await admin.open("Settings");
-    await expect(admin.card("Settings").getByLabel(/Max team size/)).toBeDisabled();
+    await admin.open("Défis");
+    await expect(admin.challengeRow("Gelato group selfie").getByRole("button", { name: "Supprimer" })).toHaveCount(0);
+    await admin.open("Paramètres");
+    await expect(admin.card("Paramètres").getByLabel(/Taille max. d'une équipe/)).toBeDisabled();
   });
 
   await closeAll(teacher);

@@ -12,7 +12,7 @@ export function TripSettings() {
       <Settings tripId={tripId} trip={trip} onSaved={reload} />
       <CoTeachers tripId={tripId} />
       {trip.phase === "erased"
-        ? <Card><Notice tone="ok">Student data erased. Only the results, without photos, are kept.</Notice></Card>
+        ? <Card><Notice tone="ok">Données des élèves effacées. Seuls les résultats, sans les photos, sont conservés.</Notice></Card>
         : <DangerZone tripId={tripId} name={trip.name} onErased={reload} />}
     </div>
   );
@@ -22,21 +22,21 @@ function DangerZone({ tripId, name, onErased }: { tripId: string; name: string; 
   const confirm = useConfirm();
   const erase = useAction(async () => {
     const ok = await confirm({
-      title: "Erase all student data?",
-      body: <>Photos, teams, votes and roster emails for <b>{name}</b> are destroyed for good. Only the results, without photos, are kept.</>,
-      confirmLabel: "Erase now", danger: true, typeToConfirm: name,
+      title: "Effacer toutes les données des élèves ?",
+      body: <>Les photos, équipes, votes et e-mails des élèves de <b>{name}</b> sont détruits définitivement. Seuls les résultats, sans les photos, sont conservés.</>,
+      confirmLabel: "Effacer maintenant", danger: true, typeToConfirm: name,
     });
     if (!ok) return;
     // Reload either way: a failed erase leaves the trip due (header: "Erasure pending").
     try { await api.erase(tripId); } finally { onErased(); }
-  }, "Could not erase the trip.");
+  }, "Impossible d'effacer la sortie.");
   return (
     <Card className="card-danger">
-      <h3>Danger zone</h3>
+      <h3>Zone de danger</h3>
       <p className="muted tiny">
-        Erasure happens by itself after the grace period. Erase now only if the trip must end early. This cannot be undone.
+        L'effacement se fait automatiquement après le délai de grâce. N'efface maintenant que si la sortie doit se terminer plus tôt. C'est irréversible.
       </p>
-      <Button variant="danger" busy={erase.busy} onClick={erase.run}>Erase all student data…</Button>
+      <Button variant="danger" busy={erase.busy} onClick={erase.run}>Effacer toutes les données des élèves…</Button>
       <Notice tone="err">{erase.error}</Notice>
     </Card>
   );
@@ -90,49 +90,49 @@ function Settings({ tripId, trip, onSaved }: { tripId: string; trip: any; onSave
     if (beforeReveal && JSON.stringify(normPoints) !== JSON.stringify(trip.points_table ?? [])) {
       patch.pointsTable = normPoints;
     }
-    if (Object.keys(patch).length === 0) { setMsg("No changes."); return; }
+    if (Object.keys(patch).length === 0) { setMsg("Aucune modification."); return; }
     try {
       await api.updateTrip(tripId, patch);
-      setMsg("Saved.");
+      setMsg("Enregistré.");
       onSaved();
     } catch (e: any) {
-      setErr(e instanceof HttpError && e.code === "locked_in_phase" ? "Some fields aren't editable in this phase." : errorText(e, "Could not save."));
+      setErr(e instanceof HttpError && e.code === "locked_in_phase" ? "Certains champs ne sont pas modifiables dans cette phase." : errorText(e, "Impossible d'enregistrer."));
     }
   };
 
   return (
     <Card>
-      <h3>Settings</h3>
-      <Field label="Trip name" value={form.name} onChange={set("name")} />
+      <h3>Paramètres</h3>
+      <Field label="Nom de la sortie" value={form.name} onChange={set("name")} />
       <Field
-        label={`Max team size${draft ? "" : " (locked — teams are formed)"}`}
+        label={`Taille max. d'une équipe${draft ? "" : " (verrouillée — les équipes sont formées)"}`}
         type="number" value={form.maxTeamSize} onChange={set("maxTeamSize")} disabled={!draft}
       />
       <div className="grid2">
-        <Field label="Grace days" type="number" value={form.graceDays} onChange={set("graceDays")} />
-        <Field label="Max retention days" type="number" value={form.maxRetentionDays} onChange={set("maxRetentionDays")} />
+        <Field label="Délai de grâce (jours)" type="number" value={form.graceDays} onChange={set("graceDays")} />
+        <Field label="Conservation max. (jours)" type="number" value={form.maxRetentionDays} onChange={set("maxRetentionDays")} />
       </div>
-      <Field label="Trip end date" type="date" value={form.tripEndDate} onChange={set("tripEndDate")} />
+      <Field label="Date de fin de la sortie" type="date" value={form.tripEndDate} onChange={set("tripEndDate")} />
 
-      <div className="settings-sub">Planned dates</div>
+      <div className="settings-sub">Dates prévues</div>
       <p className="muted tiny mt-0">
-        The trip moves on by itself: challenges open, then voting opens. Voting stops at its
-        close time; you start the reveal ceremony yourself.
+        La sortie avance toute seule : les défis s'ouvrent, puis le vote. Le vote s'arrête à
+        l'heure de clôture ; c'est toi qui lances la cérémonie de révélation.
       </p>
-      <Field label="Challenge opens" type="datetime-local" value={form.challengeOpensAt} onChange={set("challengeOpensAt")} />
-      <Field label="Voting opens" type="datetime-local" value={form.votingOpensAt} onChange={set("votingOpensAt")} />
-      <Field label="Voting closes" type="datetime-local" value={form.votingClosesAt} onChange={set("votingClosesAt")} />
+      <Field label="Ouverture des défis" type="datetime-local" value={form.challengeOpensAt} onChange={set("challengeOpensAt")} />
+      <Field label="Ouverture du vote" type="datetime-local" value={form.votingOpensAt} onChange={set("votingOpensAt")} />
+      <Field label="Clôture du vote" type="datetime-local" value={form.votingClosesAt} onChange={set("votingClosesAt")} />
 
       <div>
         <div className="settings-sub">
-          Points table{beforeReveal ? "" : " (locked — results computed)"}
+          Barème des points{beforeReveal ? "" : " (verrouillé — résultats calculés)"}
         </div>
         {points.map((p, i) => (
           <div key={i} className="row points-row">
             <span className="mono-tag">#{i + 1}</span>
             <input
               type="number" value={p.points} disabled={!beforeReveal} className="input"
-              aria-label={`Points for place ${i + 1}`}
+              aria-label={`Points pour la place ${i + 1}`}
               onChange={(e) => setPoints(points.map((q, j) => (j === i ? { ...q, points: Number(e.target.value) } : q)))}
             />
             <span className="muted tiny">pts</span>
@@ -140,15 +140,15 @@ function Settings({ tripId, trip, onSaved }: { tripId: string; trip: any; onSave
         ))}
         {beforeReveal && (
           <div className="row mt-2">
-            <Button variant="neutral" size="mini" onClick={() => setPoints([...points, { placement: points.length + 1, points: 0 }])}>+ placement</Button>
+            <Button variant="neutral" size="mini" onClick={() => setPoints([...points, { placement: points.length + 1, points: 0 }])}>+ place</Button>
             {points.length > 0 && (
-              <Button variant="neutral" size="mini" onClick={() => setPoints(points.slice(0, -1))}>− remove last</Button>
+              <Button variant="neutral" size="mini" onClick={() => setPoints(points.slice(0, -1))}>− retirer la dernière</Button>
             )}
           </div>
         )}
       </div>
 
-      <div className="mt-3"><Button onClick={save}>Save settings</Button></div>
+      <div className="mt-3"><Button onClick={save}>Enregistrer les paramètres</Button></div>
       <Notice tone="ok">{msg}</Notice>
       <Notice tone="err">{err}</Notice>
     </Card>
@@ -167,40 +167,40 @@ function CoTeachers({ tripId }: { tripId: string }) {
 
   return (
     <Card>
-      <h3>Teachers</h3>
+      <h3>Enseignants</h3>
       {teachers.data?.teachers.map((t) => (
         <div key={t.id} className="row people-row">
           <span>{t.email}</span>
-          <Pill tone={t.role === "owner" ? "accent" : "neutral"}>{t.role === "owner" ? "Owner" : "Co-teacher"}</Pill>
+          <Pill tone={t.role === "owner" ? "accent" : "neutral"}>{t.role === "owner" ? "Responsable" : "Co-enseignant"}</Pill>
         </div>
       ))}
 
       {invites.error && !invites.data && <ErrorCard inline error={invites.error} onRetry={invites.reload} />}
       {invites.data && invites.data.invites.length > 0 && (
         <div className="mt-2">
-          <div className="muted tiny">Pending invites</div>
+          <div className="muted tiny">Invitations en attente</div>
           {invites.data.invites.map((iv) => <Invite key={iv.id} tripId={tripId} invite={iv} onRevoked={reload} />)}
         </div>
       )}
 
       <div className="mt-3">
-        <Field label="Invite co-teacher by email" value={email} onChange={(e) => setEmail(e.target.value)} />
+        <Field label="Inviter un co-enseignant par e-mail" value={email} onChange={(e) => setEmail(e.target.value)} />
         <Button
           disabled={!email.trim()}
           onClick={async () => {
             setMsg(""); setErr("");
             try {
               const r = await api.invite(tripId, email.trim());
-              setMsg(`Invite emailed to ${r.invited}.`);
+              setMsg(`Invitation envoyée à ${r.invited}.`);
               setEmail(""); reload();
             } catch (e: any) {
               const code = e instanceof HttpError ? e.code : null;
-              setErr(code === "already_member" ? "Already a teacher on this trip."
-                : code === "forbidden" ? "Only the trip owner can invite co-teachers."
-                : errorText(e, "Could not send invite."));
+              setErr(code === "already_member" ? "Déjà enseignant sur cette sortie."
+                : code === "forbidden" ? "Seul le responsable de la sortie peut inviter des co-enseignants."
+                : errorText(e, "Impossible d'envoyer l'invitation."));
             }
           }}
-        >Send invite</Button>
+        >Envoyer l'invitation</Button>
         <Notice tone="ok">{msg}</Notice>
         <Notice tone="err">{err}</Notice>
       </div>
@@ -209,12 +209,12 @@ function CoTeachers({ tripId }: { tripId: string }) {
 }
 
 function Invite({ tripId, invite, onRevoked }: { tripId: string; invite: { id: string; email: string }; onRevoked: () => void }) {
-  const revoke = useAction(async () => { await api.revokeInvite(tripId, invite.id); onRevoked(); }, "Could not revoke the invite.");
+  const revoke = useAction(async () => { await api.revokeInvite(tripId, invite.id); onRevoked(); }, "Impossible de révoquer l'invitation.");
   return (
     <div className="people-row">
       <div className="row">
         <span className="grow">{invite.email}</span>
-        <Button variant="neutral" size="mini" busy={revoke.busy} onClick={revoke.run}>Revoke</Button>
+        <Button variant="neutral" size="mini" busy={revoke.busy} onClick={revoke.run}>Révoquer</Button>
       </div>
       <Notice tone="err">{revoke.error}</Notice>
     </div>

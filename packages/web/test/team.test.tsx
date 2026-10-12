@@ -47,10 +47,10 @@ describe("teams page", () => {
   it("during photo time, a student without a team can still play solo", async () => {
     const api = teamApi({ phase: "challenge" });
     const { user } = renderAt("/team");
-    expect(await screen.findByRole("heading", { name: "Play solo" })).toBeInTheDocument();
-    expect(screen.queryByRole("button", { name: "Join" })).not.toBeInTheDocument();
-    await user.type(screen.getByLabelText("Your player name"), "  Lone wolf ");
-    await user.click(screen.getByRole("button", { name: "Play solo" }));
+    expect(await screen.findByRole("heading", { name: "Jouer en solo" })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Rejoindre" })).not.toBeInTheDocument();
+    await user.type(screen.getByLabelText("Ton nom de joueur"), "  Lone wolf ");
+    await user.click(screen.getByRole("button", { name: "Jouer en solo" }));
     await waitFor(() => expect(api.calls).toEqual(["create Lone wolf"]));
     expect(await screen.findByRole("heading", { name: "Lone wolf" })).toBeInTheDocument();
   });
@@ -58,37 +58,37 @@ describe("teams page", () => {
   it("locked without a team during voting points straight to the vote", async () => {
     teamApi({ phase: "voting" });
     renderAt("/team");
-    expect(await screen.findByText("Teams are locked")).toBeInTheDocument();
-    expect(screen.getByRole("link", { name: /Go vote/ })).toHaveAttribute("href", "/vote");
+    expect(await screen.findByText("Les équipes sont verrouillées")).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: /Aller voter/ })).toHaveAttribute("href", "/vote");
   });
 
   it("creates a team with a trimmed name and switches to the in-team view", async () => {
     const api = teamApi();
     const { user } = renderAt("/team");
-    const create = await screen.findByRole("button", { name: "Create team" });
+    const create = await screen.findByRole("button", { name: "Créer l'équipe" });
     expect(create).toBeDisabled();
-    expect(screen.getByText("No teams yet")).toBeInTheDocument();
-    await user.type(screen.getByLabelText("New team name"), "  Foxes ");
+    expect(screen.getByText("Pas encore d'équipe")).toBeInTheDocument();
+    await user.type(screen.getByLabelText("Nom de la nouvelle équipe"), "  Foxes ");
     await user.click(create);
-    expect(await screen.findByRole("button", { name: "Leave team" })).toBeInTheDocument();
+    expect(await screen.findByRole("button", { name: "Quitter l'équipe" })).toBeInTheDocument();
     expect(api.calls).toEqual(["create Foxes"]);
   });
 
   it("joins a listed team, and can leave it again", async () => {
     const api = teamApi({ teams: [{ id: "owls", name: "Owls", members: 1 }, { id: "bats", name: "Bats", members: 3 }] });
     const { user } = renderAt("/team");
-    expect(await screen.findByText("1 member")).toBeInTheDocument();
-    expect(screen.getByText("3 members")).toBeInTheDocument();
-    await user.click(screen.getAllByRole("button", { name: "Join" })[0]!);
-    await user.click(await screen.findByRole("button", { name: "Leave team" }));
-    expect(await screen.findByRole("button", { name: "Create team" })).toBeInTheDocument();
+    expect(await screen.findByText("1 membre")).toBeInTheDocument();
+    expect(screen.getByText("3 membres")).toBeInTheDocument();
+    await user.click(screen.getAllByRole("button", { name: "Rejoindre" })[0]!);
+    await user.click(await screen.findByRole("button", { name: "Quitter l'équipe" }));
+    expect(await screen.findByRole("button", { name: "Créer l'équipe" })).toBeInTheDocument();
     expect(api.calls).toEqual(["join owls", "leave"]);
   });
 
   it("shows why a join was refused", async () => {
     teamApi({ teams: [{ id: "full", name: "Full", members: 4 }] });
     const { user } = renderAt("/team");
-    await user.click(await screen.findByRole("button", { name: "Join" }));
+    await user.click(await screen.findByRole("button", { name: "Rejoindre" }));
     expect(await screen.findByText("team is full")).toBeInTheDocument();
   });
 
@@ -96,37 +96,37 @@ describe("teams page", () => {
     teamApi({ teamId: "owls", teams: [{ id: "owls", name: "Owls", members: 2 }], challenges: ["Gelato", "Pyramid"] });
     renderAt("/team");
     expect(await screen.findByRole("heading", { name: "Owls" })).toBeInTheDocument();
-    expect(screen.getByText("2 members")).toBeInTheDocument();
+    expect(screen.getByText("2 membres")).toBeInTheDocument();
 
-    const steps = within(screen.getByRole("list", { name: "Next steps" })).getAllByRole("listitem");
-    expect(steps.map((li) => li.textContent?.replace(/^\W*\d?/, ""))).toEqual([
-      "Team joined", "Wait for the start", "Snap the challenges", "Vote for the best",
+    const steps = within(screen.getByRole("list", { name: "Prochaines étapes" })).getAllByRole("listitem");
+    expect(steps.map((li) => li.textContent?.replace(/^[^\p{L}]*/u, ""))).toEqual([
+      "Équipe rejointe", "Attendre le départ", "Relever les défis", "Voter pour les meilleures",
     ]);
     expect(steps[1]).toHaveAttribute("aria-current", "step");
 
-    expect(await screen.findByText("Coming up")).toBeInTheDocument();
+    expect(await screen.findByText("À venir")).toBeInTheDocument();
     expect(screen.getByText("Pyramid")).toBeInTheDocument();
-    expect(screen.queryByRole("button", { name: "Join" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Rejoindre" })).not.toBeInTheDocument();
   });
 
   it("hides the preview when the trip has no challenges yet", async () => {
     teamApi({ teamId: "owls", teams: [{ id: "owls", name: "Owls", members: 1 }] });
     renderAt("/team");
-    expect(await screen.findByText("1 member")).toBeInTheDocument();
-    expect(screen.queryByText("Coming up")).not.toBeInTheDocument();
+    expect(await screen.findByText("1 membre")).toBeInTheDocument();
+    expect(screen.queryByText("À venir")).not.toBeInTheDocument();
   });
 
   it.each([
-    ["challenge", "Snap the challenges", /See your challenges/, "/challenges"],
-    ["voting", "Vote for the best", /Go vote/, "/vote"],
-    ["reveal", "Winners revealed", null, null],
+    ["challenge", "Relever les défis", /Voir tes défis/, "/challenges"],
+    ["voting", "Voter pour les meilleures", /Aller voter/, "/vote"],
+    ["reveal", "Gagnants dévoilés", null, null],
   ] as const)("locked in %s with a team: the current step is “%s”", async (phase, current, link, href) => {
     teamApi({ phase, teamId: "owls", teams: [{ id: "owls", name: "Owls", members: 3 }] });
     renderAt("/team");
     expect(await screen.findByRole("heading", { name: "Owls" })).toBeInTheDocument();
-    const steps = within(screen.getByRole("list", { name: "Next steps" })).getAllByRole("listitem");
+    const steps = within(screen.getByRole("list", { name: "Prochaines étapes" })).getAllByRole("listitem");
     expect(steps.find((li) => li.getAttribute("aria-current") === "step")).toHaveTextContent(current);
     if (link) expect(screen.getByRole("link", { name: link })).toHaveAttribute("href", href);
-    expect(screen.queryByRole("button", { name: "Leave team" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Quitter l'équipe" })).not.toBeInTheDocument();
   });
 });

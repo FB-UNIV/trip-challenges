@@ -23,7 +23,7 @@ export function VoteHome() {
   if (challenges.length > 0 && challenges.every((c) => !c.vote)) return <Card><VotingShut /></Card>;
   const votable = challenges.filter((c) => c.vote && c.vote.status !== "not_enough");
   if (votable.length === 0) {
-    return <Card><EmptyState icon="🗳️" title="Nothing to vote on yet" /></Card>;
+    return <Card><EmptyState icon="🗳️" title="Rien à voter pour l'instant" /></Card>;
   }
   const finished = votable.filter((c) => c.vote!.status === "done").length;
 
@@ -31,15 +31,15 @@ export function VoteHome() {
     <div className="stack">
       {phase && <div style={{ padding: "2px 2px 6px" }}><PhaseTrail phase={phase} variant="student" /></div>}
       {finished === votable.length ? (
-        <Card><Celebrate icon="🎉" title="All voted!">Winners drop at the ceremony.</Celebrate></Card>
+        <Card><Celebrate icon="🎉" title="Tout est voté !">Les gagnants seront dévoilés à la cérémonie.</Celebrate></Card>
       ) : (
         <Card hero>
           <div className="row" style={{ marginBottom: 10 }}>
             <h2>Vote</h2>
             <span className="spacer" />
-            <span className="muted tiny">{finished}/{votable.length} done</span>
+            <span className="muted tiny">{finished}/{votable.length} terminés</span>
           </div>
-          <Progress value={finished} max={votable.length} label="Challenges voted" tone="sky" />
+          <Progress value={finished} max={votable.length} label="Défis votés" tone="sky" />
         </Card>
       )}
       <Card>
@@ -51,19 +51,19 @@ export function VoteHome() {
 
 function VoteRow({ c }: { c: StudentChallenge }) {
   const v = c.vote!;
-  if (v.status === "not_enough") return <CheckRow state="todo" icon="⏳" title={c.title} meta="Waiting for photos" />;
-  if (v.status === "done") return <CheckRow state="done" title={c.title} meta="All voted" />;
+  if (v.status === "not_enough") return <CheckRow state="todo" icon="⏳" title={c.title} meta="En attente de photos" />;
+  if (v.status === "done") return <CheckRow state="done" title={c.title} meta="Tout est voté" />;
   return (
     <CheckRow
       state={v.status === "in_progress" ? "doing" : "todo"} title={c.title}
-      meta={`${v.voted} of ${v.total} duels`} to={`/vote/${c.id}`}
-      trailing={<ProgressRing value={v.voted} max={v.total} label={`${c.title} duels`} />}
+      meta={`${v.voted} duels sur ${v.total}`} to={`/vote/${c.id}`}
+      trailing={<ProgressRing value={v.voted} max={v.total} label={`Duels ${c.title}`} />}
     />
   );
 }
 
 function VotingShut({ opensLater = false }: { opensLater?: boolean }) {
   return opensLater
-    ? <EmptyState icon="⏳" title="Voting opens soon" />
-    : <EmptyState icon="🔒" title="Voting is closed" />;
+    ? <EmptyState icon="⏳" title="Le vote ouvre bientôt" />
+    : <EmptyState icon="🔒" title="Le vote est fermé" />;
 }

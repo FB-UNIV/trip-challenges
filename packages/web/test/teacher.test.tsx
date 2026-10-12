@@ -18,7 +18,7 @@ describe("teacher home", () => {
       http.get("/api/trips", () => HttpResponse.json({}, { status: 401 })),
     );
     renderAt("/teacher");
-    expect(await screen.findByRole("button", { name: "Sign in with PocketID" })).toBeInTheDocument();
+    expect(await screen.findByRole("button", { name: "Se connecter avec PocketID" })).toBeInTheDocument();
   });
 
   // #69: an outage must never read as "you have no trips".
@@ -30,11 +30,11 @@ describe("teacher home", () => {
     );
     const { user } = renderAt("/teacher");
     expect(await screen.findByText("The database is unavailable right now.")).toBeInTheDocument();
-    expect(screen.getByText(/^Reference:/)).toHaveTextContent("r-trips");
-    expect(screen.queryByText("No trips yet")).not.toBeInTheDocument();
+    expect(screen.getByText(/^Référence :/)).toHaveTextContent("r-trips");
+    expect(screen.queryByText("Pas encore de sortie")).not.toBeInTheDocument();
     failing = false;
-    await user.click(screen.getByRole("button", { name: "Try again" }));
-    expect(await screen.findByText("No trips yet")).toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "Réessayer" }));
+    expect(await screen.findByText("Pas encore de sortie")).toBeInTheDocument();
   });
 
   it("explains a failed sign-in check instead of showing an empty home", async () => {
@@ -44,7 +44,7 @@ describe("teacher home", () => {
     );
     renderAt("/teacher");
     expect((await screen.findAllByText("The database is unavailable right now.")).length).toBeGreaterThan(0);
-    expect(screen.queryByRole("button", { name: "Sign in with PocketID" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Se connecter avec PocketID" })).not.toBeInTheDocument();
   });
 
   const home = (trips: object[]) => server.use(
@@ -61,14 +61,14 @@ describe("teacher home", () => {
     renderAt("/teacher");
     const rome = await screen.findByRole("link", { name: /Rome 2030/ });
     expect(rome).toHaveAttribute("href", "/teacher/trips/t1");
-    expect(rome).toHaveTextContent("Challenge");
-    expect(rome).toHaveTextContent("Owner");
-    expect(screen.getByRole("link", { name: /Oslo 2030/ })).toHaveTextContent("Co-teacher");
+    expect(rome).toHaveTextContent("Défis");
+    expect(rome).toHaveTextContent("Responsable");
+    expect(screen.getByRole("link", { name: /Oslo 2030/ })).toHaveTextContent("Co-enseignant");
 
-    const active = screen.getByRole("region", { name: "Your trips" });
-    const past = screen.getByRole("region", { name: "Past trips" });
+    const active = screen.getByRole("region", { name: "Tes sorties" });
+    const past = screen.getByRole("region", { name: "Sorties passées" });
     expect(within(active).queryByText("Lyon 2029")).not.toBeInTheDocument();
-    expect(within(past).getByRole("link", { name: /Lyon 2029/ })).toHaveTextContent("Erased");
+    expect(within(past).getByRole("link", { name: /Lyon 2029/ })).toHaveTextContent("Effacée");
   });
 
   it("opens the new-trip form on demand and adds the created trip", async () => {
@@ -82,28 +82,28 @@ describe("teacher home", () => {
     }));
     const { user } = renderAt("/teacher");
     await screen.findByRole("link", { name: /Rome 2030/ });
-    expect(screen.queryByLabelText("Name")).not.toBeInTheDocument();
-    await user.click(screen.getByRole("button", { name: "New trip" }));
+    expect(screen.queryByLabelText("Nom")).not.toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "Nouvelle sortie" }));
 
-    const create = screen.getByRole("button", { name: "Create trip" });
+    const create = screen.getByRole("button", { name: "Créer la sortie" });
     expect(create).toBeDisabled();
-    await user.type(screen.getByLabelText("Name"), " Paris 2031 ");
-    await user.type(screen.getByLabelText("Trip end date"), "2031-01-01");
-    await user.clear(screen.getByLabelText("Max team size"));
-    await user.type(screen.getByLabelText("Max team size"), "5");
+    await user.type(screen.getByLabelText("Nom"), " Paris 2031 ");
+    await user.type(screen.getByLabelText("Date de fin de la sortie"), "2031-01-01");
+    await user.clear(screen.getByLabelText("Taille max. d'une équipe"));
+    await user.type(screen.getByLabelText("Taille max. d'une équipe"), "5");
     await user.click(create);
 
     expect(await screen.findByRole("link", { name: /Paris 2031/ })).toBeInTheDocument();
     expect(created).toEqual({ name: "Paris 2031", tripEndDate: "2031-01-01", maxTeamSize: 5 });
-    expect(screen.queryByLabelText("Name")).not.toBeInTheDocument();
+    expect(screen.queryByLabelText("Nom")).not.toBeInTheDocument();
   });
 
   it("starts with the form open when there are no trips yet", async () => {
     home([]);
     renderAt("/teacher");
-    expect(await screen.findByText("No trips yet")).toBeInTheDocument();
-    expect(screen.getByLabelText("Name")).toBeInTheDocument();
-    expect(screen.queryByRole("button", { name: "Cancel" })).not.toBeInTheDocument();
+    expect(await screen.findByText("Pas encore de sortie")).toBeInTheDocument();
+    expect(screen.getByLabelText("Nom")).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Annuler" })).not.toBeInTheDocument();
   });
 
   it("tells the teacher when a trip can't be created", async () => {
@@ -112,9 +112,9 @@ describe("teacher home", () => {
       http.post("/api/trips", () => HttpResponse.json({ error: "bad_request", message: "maxTeamSize too big" }, { status: 400 })),
     );
     const { user } = renderAt("/teacher");
-    await user.type(await screen.findByLabelText("Name"), "Paris");
-    await user.type(screen.getByLabelText("Trip end date"), "2031-01-01");
-    await user.click(screen.getByRole("button", { name: "Create trip" }));
+    await user.type(await screen.findByLabelText("Nom"), "Paris");
+    await user.type(screen.getByLabelText("Date de fin de la sortie"), "2031-01-01");
+    await user.click(screen.getByRole("button", { name: "Créer la sortie" }));
     expect(await screen.findByRole("alert")).toHaveTextContent("maxTeamSize too big");
   });
 });
@@ -302,7 +302,7 @@ function adminApi(over: Partial<Trip> = {}) {
 }
 
 const card = (heading: string) => screen.getByRole("heading", { name: heading }).closest(".card") as HTMLElement;
-const nav = () => screen.getByRole("navigation", { name: "Trip sections" });
+const nav = () => screen.getByRole("navigation", { name: "Sections de la sortie" });
 
 describe("trip admin", () => {
   describe("live data", () => {
@@ -312,40 +312,40 @@ describe("trip admin", () => {
       const api = adminApi();
       const { user } = renderAt("/teacher/trips/t1/overview");
       const tile = (k: string) => [...document.querySelectorAll(".tile")].find((t) => t.querySelector(".k")?.textContent === k);
-      await waitFor(() => expect(tile("Students")).toHaveTextContent("3"));
-      await screen.findByRole("heading", { name: "Getting ready" });
-      await user.click(within(nav()).getByRole("link", { name: "Challenges" }));
+      await waitFor(() => expect(tile("Élèves")).toHaveTextContent("3"));
+      await screen.findByRole("heading", { name: "Préparation" });
+      await user.click(within(nav()).getByRole("link", { name: "Défis" }));
       await screen.findByText("Gelato selfie");
       // From now on the server is slow: only a cache can show the overview right away.
       server.use(http.get("/api/trips/t1/progress", async () => { await delay(400); return HttpResponse.json(api.progress); }));
-      await user.click(within(nav()).getByRole("link", { name: "Overview" }));
-      expect(screen.getByRole("heading", { name: "Getting ready" })).toBeInTheDocument(); // no skeleton, no wait
-      expect(tile("Students")).toHaveTextContent("3");
+      await user.click(within(nav()).getByRole("link", { name: "Vue d'ensemble" }));
+      expect(screen.getByRole("heading", { name: "Préparation" })).toBeInTheDocument(); // no skeleton, no wait
+      expect(tile("Élèves")).toHaveTextContent("3");
     });
 
     it("an open screen picks up what changed elsewhere: a new nomination, a scheduled phase change", async () => {
       vi.useFakeTimers({ shouldAdvanceTime: true });
       const api = adminApi();
       renderAt("/teacher/trips/t1/review");
-      expect(await screen.findByRole("link", { name: "Review, 1 pending" })).toBeInTheDocument();
+      expect(await screen.findByRole("link", { name: "Modération, 1 en attente" })).toBeInTheDocument();
 
       api.nominations.push({ id: "n2", challenge_id: "ch1", team_id: "team2", submission_id: "sub2", state: "pending" });
       api.trip.phase = "challenge"; // the planned date passed
       await act(() => vi.advanceTimersByTimeAsync(LIVE_MS + 100));
-      expect(await within(nav()).findByRole("link", { name: "Review, 2 pending" })).toBeInTheDocument();
-      expect(screen.getByText("Challenge", { selector: ".trip-head .pill" })).toBeInTheDocument();
+      expect(await within(nav()).findByRole("link", { name: "Modération, 2 en attente" })).toBeInTheDocument();
+      expect(screen.getByText("Défis", { selector: ".trip-head .pill" })).toBeInTheDocument();
     });
 
     it("an action refreshes the rest of the trip: approving updates the overview counts", async () => {
       const api = adminApi();
       const { user } = renderAt("/teacher/trips/t1/review");
-      const queue = await screen.findByRole("region", { name: "Waiting for review" });
-      await user.click(await within(queue).findByRole("button", { name: "Approve" }));
+      const queue = await screen.findByRole("region", { name: "En attente de modération" });
+      await user.click(await within(queue).findByRole("button", { name: "Valider" }));
       api.progress.challenges[0]!.approved = 1;
       api.progress.challenges[0]!.pending = 0;
-      await within(queue).findByText("Nothing to review");
-      await user.click(within(nav()).getByRole("link", { name: "Overview" }));
-      const tile = () => [...document.querySelectorAll(".tile")].find((t) => t.querySelector(".k")?.textContent === "To review");
+      await within(queue).findByText("Rien à modérer");
+      await user.click(within(nav()).getByRole("link", { name: "Vue d'ensemble" }));
+      const tile = () => [...document.querySelectorAll(".tile")].find((t) => t.querySelector(".k")?.textContent === "À modérer");
       await waitFor(() => expect(tile()).toHaveTextContent("0"));
       expect(tile()).not.toHaveClass("flag");
     });
@@ -357,26 +357,26 @@ describe("trip admin", () => {
       const { location } = renderAt("/teacher/trips/t1");
       expect(await screen.findByRole("heading", { name: "Rome 2030" })).toBeInTheDocument();
       await waitFor(() => expect(location()).toBe("/teacher/trips/t1/overview"));
-      expect(within(nav()).getByRole("link", { name: "Overview" })).toHaveAttribute("aria-current", "page");
-      for (const [label, path] of [["Challenges", "challenges"], ["Students", "students"], ["Settings", "settings"]]) {
+      expect(within(nav()).getByRole("link", { name: "Vue d'ensemble" })).toHaveAttribute("aria-current", "page");
+      for (const [label, path] of [["Défis", "challenges"], ["Élèves", "students"], ["Paramètres", "settings"]]) {
         expect(within(nav()).getByRole("link", { name: label })).toHaveAttribute("href", `/teacher/trips/t1/${path}`);
       }
-      expect(await within(nav()).findByRole("link", { name: "Review, 1 pending" })).toHaveAttribute("href", "/teacher/trips/t1/review");
-      expect(within(nav()).queryByRole("link", { name: "Results" })).not.toBeInTheDocument();
+      expect(await within(nav()).findByRole("link", { name: "Modération, 1 en attente" })).toHaveAttribute("href", "/teacher/trips/t1/review");
+      expect(within(nav()).queryByRole("link", { name: "Résultats" })).not.toBeInTheDocument();
     });
 
     it("lands on the results during the reveal", async () => {
       adminApi({ phase: "reveal" });
       const { location } = renderAt("/teacher/trips/t1");
       await waitFor(() => expect(location()).toBe("/teacher/trips/t1/results"));
-      expect(await screen.findByRole("heading", { name: "Results & ceremony" })).toBeInTheDocument();
-      expect(within(nav()).getByRole("link", { name: "Results" })).toHaveAttribute("aria-current", "page");
+      expect(await screen.findByRole("heading", { name: "Résultats et cérémonie" })).toBeInTheDocument();
+      expect(within(nav()).getByRole("link", { name: "Résultats" })).toHaveAttribute("aria-current", "page");
     });
 
     it("says so for a trip it can't load", async () => {
       server.use(http.get("/api/trips/zzz", () => HttpResponse.json({}, { status: 404 })));
       renderAt("/teacher/trips/zzz");
-      expect(await screen.findByText("Not found.")).toBeInTheDocument();
+      expect(await screen.findByText("Sortie introuvable.")).toBeInTheDocument();
     });
   });
 
@@ -385,37 +385,37 @@ describe("trip admin", () => {
       adminApi();
       const { user, location } = renderAt("/teacher/trips/t1/overview");
       const tile = (k: string) => [...document.querySelectorAll(".tile")].find((t) => t.querySelector(".k")?.textContent === k)!;
-      await waitFor(() => expect(tile("Students")).toHaveTextContent("3"));
-      expect(tile("Teams")).toHaveTextContent("1");
-      expect(tile("Challenges")).toHaveTextContent("1");
-      await waitFor(() => expect(tile("To review")).toHaveTextContent("1"));
-      expect(tile("To review")).toHaveClass("flag");
-      await user.click(screen.getByRole("link", { name: /To review/ }));
+      await waitFor(() => expect(tile("Élèves")).toHaveTextContent("3"));
+      expect(tile("Équipes")).toHaveTextContent("1");
+      expect(tile("Défis")).toHaveTextContent("1");
+      await waitFor(() => expect(tile("À modérer")).toHaveTextContent("1"));
+      expect(tile("À modérer")).toHaveClass("flag");
+      await user.click(screen.getByRole("link", { name: /À modérer/ }));
       expect(location()).toBe("/teacher/trips/t1/review");
     });
 
     it("lists what's ready and what's missing, each linking to where it's done", async () => {
       adminApi();
       renderAt("/teacher/trips/t1/overview");
-      const now = await waitFor(() => card("Getting ready"));
-      expect(await within(now).findByRole("link", { name: /Import the roster/ })).toHaveAttribute("href", "/teacher/trips/t1/students");
-      expect(within(now).getByRole("link", { name: /Add challenges/ })).toHaveTextContent("1 challenge");
-      expect(within(now).getByRole("link", { name: /Students form teams/ })).toHaveTextContent("1 without a team");
-      expect(within(now).getByRole("link", { name: /Plan the dates/ })).toHaveAttribute("href", "/teacher/trips/t1/settings");
+      const now = await waitFor(() => card("Préparation"));
+      expect(await within(now).findByRole("link", { name: /Importer la liste d'élèves/ })).toHaveAttribute("href", "/teacher/trips/t1/students");
+      expect(within(now).getByRole("link", { name: /Ajouter des défis/ })).toHaveTextContent("1 défi");
+      expect(within(now).getByRole("link", { name: /Les élèves forment les équipes/ })).toHaveTextContent("1 sans équipe");
+      expect(within(now).getByRole("link", { name: /Planifier les dates/ })).toHaveAttribute("href", "/teacher/trips/t1/settings");
     });
 
     it("warns when student data is about to be erased", async () => {
       const api = adminApi({ phase: "voting" });
       api.progress.eraseAt = new Date(Date.now() + 2.2 * 86_400_000).toISOString();
       renderAt("/teacher/trips/t1/overview");
-      expect(await screen.findByText("Student data will be erased in 2 days.")).toBeInTheDocument();
+      expect(await screen.findByText("Les données des élèves seront effacées après-demain.")).toBeInTheDocument();
     });
 
     it("keeps erasure away from the everyday controls", async () => {
       adminApi();
       renderAt("/teacher/trips/t1/overview");
-      await screen.findByRole("heading", { name: "Getting ready" });
-      expect(screen.queryByRole("button", { name: /Erase/ })).not.toBeInTheDocument();
+      await screen.findByRole("heading", { name: "Préparation" });
+      expect(screen.queryByRole("button", { name: /Effacer/ })).not.toBeInTheDocument();
     });
   });
 
@@ -423,39 +423,39 @@ describe("trip admin", () => {
     it("moves the trip on after confirming what that does", async () => {
       const api = adminApi();
       const { user } = renderAt("/teacher/trips/t1/overview");
-      await user.click(await screen.findByRole("button", { name: "Start the challenge →" }));
-      const dialog = screen.getByRole("alertdialog", { name: "Start the challenge?" });
-      expect(dialog).toHaveTextContent("1 student has no team yet");
-      await user.click(within(dialog).getByRole("button", { name: "Start the challenge" }));
-      expect(await screen.findByRole("heading", { name: "Challenge under way" })).toBeInTheDocument();
-      expect(screen.getByRole("button", { name: "Open voting →" })).toBeInTheDocument();
+      await user.click(await screen.findByRole("button", { name: "Lancer les défis →" }));
+      const dialog = screen.getByRole("alertdialog", { name: "Lancer les défis ?" });
+      expect(dialog).toHaveTextContent("1 élève n'a pas encore d'équipe");
+      await user.click(within(dialog).getByRole("button", { name: "Lancer les défis" }));
+      expect(await screen.findByRole("heading", { name: "Défis en cours" })).toBeInTheDocument();
+      expect(screen.getByRole("button", { name: "Ouvrir le vote →" })).toBeInTheDocument();
       expect(api.calls).toContain("advance challenge");
     });
 
     it("does nothing when the teacher cancels", async () => {
       const api = adminApi();
       const { user } = renderAt("/teacher/trips/t1/overview");
-      await user.click(await screen.findByRole("button", { name: "Start the challenge →" }));
-      await user.click(within(screen.getByRole("alertdialog")).getByRole("button", { name: "Cancel" }));
+      await user.click(await screen.findByRole("button", { name: "Lancer les défis →" }));
+      await user.click(within(screen.getByRole("alertdialog")).getByRole("button", { name: "Annuler" }));
       expect(api.calls).not.toContain("advance challenge");
-      expect(screen.getByRole("heading", { name: "Getting ready" })).toBeInTheDocument();
+      expect(screen.getByRole("heading", { name: "Préparation" })).toBeInTheDocument();
     });
 
     it("catches up when the trip already moved on (another teacher, or the planned date)", async () => {
       const api = adminApi();
       api.advanceRefusal = "challenge";
       const { user } = renderAt("/teacher/trips/t1/overview");
-      await user.click(await screen.findByRole("button", { name: "Start the challenge →" }));
-      await user.click(within(screen.getByRole("alertdialog")).getByRole("button", { name: "Start the challenge" }));
-      expect(await screen.findByRole("button", { name: "Open voting →" })).toBeInTheDocument();
+      await user.click(await screen.findByRole("button", { name: "Lancer les défis →" }));
+      await user.click(within(screen.getByRole("alertdialog")).getByRole("button", { name: "Lancer les défis" }));
+      expect(await screen.findByRole("button", { name: "Ouvrir le vote →" })).toBeInTheDocument();
     });
 
     it("explains an advance that failed for another reason", async () => {
       adminApi();
       server.use(http.post("/api/trips/t1/advance", () => HttpResponse.json({ error: "oops", message: "Vault is unreachable." }, { status: 503 })));
       const { user } = renderAt("/teacher/trips/t1/overview");
-      await user.click(await screen.findByRole("button", { name: "Start the challenge →" }));
-      await user.click(within(screen.getByRole("alertdialog")).getByRole("button", { name: "Start the challenge" }));
+      await user.click(await screen.findByRole("button", { name: "Lancer les défis →" }));
+      await user.click(within(screen.getByRole("alertdialog")).getByRole("button", { name: "Lancer les défis" }));
       expect(await screen.findByRole("alert")).toHaveTextContent("Vault is unreachable.");
     });
   });
@@ -464,16 +464,16 @@ describe("trip admin", () => {
     it("saves only what changed, with planned dates as instants, and keeps “Saved.” visible (#30)", async () => {
       const api = adminApi();
       const { user } = renderAt("/teacher/trips/t1/settings");
-      const name = await screen.findByLabelText("Trip name");
+      const name = await screen.findByLabelText("Nom de la sortie");
       await user.clear(name);
       await user.type(name, "Rome 2031");
-      await user.type(screen.getByLabelText("Voting closes"), "2030-01-05T18:30");
-      await user.click(screen.getByRole("button", { name: "+ placement" }));
-      await user.click(screen.getByRole("button", { name: "Save settings" }));
+      await user.type(screen.getByLabelText("Clôture du vote"), "2030-01-05T18:30");
+      await user.click(screen.getByRole("button", { name: "+ place" }));
+      await user.click(screen.getByRole("button", { name: "Enregistrer les paramètres" }));
 
-      expect(await screen.findByText("Saved.")).toBeInTheDocument();
+      expect(await screen.findByText("Enregistré.")).toBeInTheDocument();
       expect(await screen.findByRole("heading", { name: "Rome 2031" })).toBeInTheDocument();
-      expect(screen.getByText("Saved.")).toBeInTheDocument();
+      expect(screen.getByText("Enregistré.")).toBeInTheDocument();
       expect(api.patches).toEqual([{
         name: "Rome 2031",
         votingClosesAt: new Date("2030-01-05T18:30").toISOString(),
@@ -484,53 +484,53 @@ describe("trip admin", () => {
     it("says when there is nothing to save", async () => {
       adminApi();
       const { user } = renderAt("/teacher/trips/t1/settings");
-      await user.click(await screen.findByRole("button", { name: "Save settings" }));
-      expect(screen.getByText("No changes.")).toBeInTheDocument();
+      await user.click(await screen.findByRole("button", { name: "Enregistrer les paramètres" }));
+      expect(screen.getByText("Aucune modification.")).toBeInTheDocument();
     });
 
     it("locks team size once teams are formed, and points once results are computed", async () => {
       adminApi({ phase: "reveal" });
       renderAt("/teacher/trips/t1/settings");
-      expect(await screen.findByLabelText(/Max team size \(locked/)).toBeDisabled();
-      expect(screen.getByText(/Points table \(locked/)).toBeInTheDocument();
-      expect(screen.queryByRole("button", { name: "+ placement" })).not.toBeInTheDocument();
+      expect(await screen.findByLabelText(/Taille max. d'une équipe \(verrouillée/)).toBeDisabled();
+      expect(screen.getByText(/Barème des points \(verrouillé/)).toBeInTheDocument();
+      expect(screen.queryByRole("button", { name: "+ place" })).not.toBeInTheDocument();
     });
 
     it("is gone once the trip is erased, along with the erase control", async () => {
       adminApi({ phase: "erased" });
       renderAt("/teacher/trips/t1/settings");
-      await screen.findByRole("heading", { name: "Teachers" });
-      expect(screen.queryByRole("heading", { name: "Settings" })).not.toBeInTheDocument();
-      expect(screen.queryByRole("button", { name: /Erase/ })).not.toBeInTheDocument();
+      await screen.findByRole("heading", { name: "Enseignants" });
+      expect(screen.queryByRole("heading", { name: "Paramètres" })).not.toBeInTheDocument();
+      expect(screen.queryByRole("button", { name: /Effacer/ })).not.toBeInTheDocument();
     });
 
     it("explains a phase-locked save", async () => {
       // The UI never offers a locked field, but a stale screen (phase moved underneath) can still send one.
       const api = adminApi();
       const { user } = renderAt("/teacher/trips/t1/settings");
-      await user.type(await screen.findByLabelText("Max team size"), "0");
+      await user.type(await screen.findByLabelText("Taille max. d'une équipe"), "0");
       api.trip.phase = "challenge";
-      await user.click(screen.getByRole("button", { name: "Save settings" }));
-      expect(await screen.findByText("Some fields aren't editable in this phase.")).toBeInTheDocument();
+      await user.click(screen.getByRole("button", { name: "Enregistrer les paramètres" }));
+      expect(await screen.findByText("Certains champs ne sont pas modifiables dans cette phase.")).toBeInTheDocument();
     });
 
     it("erases only once the trip's name is typed to confirm", async () => {
       const api = adminApi();
       const { user } = renderAt("/teacher/trips/t1/settings");
-      const danger = await waitFor(() => card("Danger zone"));
-      await user.click(within(danger).getByRole("button", { name: "Erase all student data…" }));
-      let dialog = screen.getByRole("alertdialog", { name: "Erase all student data?" });
-      await user.click(within(dialog).getByRole("button", { name: "Cancel" }));
+      const danger = await waitFor(() => card("Zone de danger"));
+      await user.click(within(danger).getByRole("button", { name: "Effacer toutes les données des élèves…" }));
+      let dialog = screen.getByRole("alertdialog", { name: "Effacer toutes les données des élèves ?" });
+      await user.click(within(dialog).getByRole("button", { name: "Annuler" }));
       expect(api.calls).not.toContain("erase");
 
-      await user.click(within(danger).getByRole("button", { name: "Erase all student data…" }));
-      dialog = screen.getByRole("alertdialog", { name: "Erase all student data?" });
-      const erase = within(dialog).getByRole("button", { name: "Erase now" });
+      await user.click(within(danger).getByRole("button", { name: "Effacer toutes les données des élèves…" }));
+      dialog = screen.getByRole("alertdialog", { name: "Effacer toutes les données des élèves ?" });
+      const erase = within(dialog).getByRole("button", { name: "Effacer maintenant" });
       expect(erase).toBeDisabled();
-      await user.type(within(dialog).getByLabelText(/Type “Rome 2030” to confirm/), "Rome 2030");
+      await user.type(within(dialog).getByLabelText(/Tape « Rome 2030 » pour confirmer/), "Rome 2030");
       await user.click(erase);
       await waitFor(() => expect(api.calls).toContain("erase"));
-      expect(await screen.findByText(/Student data erased/)).toBeInTheDocument();
+      expect(await screen.findByText(/Données des élèves effacées/)).toBeInTheDocument();
     });
 
     // #68: a failed erase used to look like nothing happened.
@@ -538,55 +538,55 @@ describe("trip admin", () => {
       const api = adminApi({ phase: "voting" });
       api.eraseFails = true;
       const { user } = renderAt("/teacher/trips/t1/settings");
-      const danger = await waitFor(() => card("Danger zone"));
-      expect(screen.queryByText("Erasure pending")).not.toBeInTheDocument();
-      await user.click(within(danger).getByRole("button", { name: "Erase all student data…" }));
-      const dialog = screen.getByRole("alertdialog", { name: "Erase all student data?" });
-      await user.type(within(dialog).getByLabelText(/Type “Rome 2030” to confirm/), "Rome 2030");
-      await user.click(within(dialog).getByRole("button", { name: "Erase now" }));
+      const danger = await waitFor(() => card("Zone de danger"));
+      expect(screen.queryByText("Effacement en attente")).not.toBeInTheDocument();
+      await user.click(within(danger).getByRole("button", { name: "Effacer toutes les données des élèves…" }));
+      const dialog = screen.getByRole("alertdialog", { name: "Effacer toutes les données des élèves ?" });
+      await user.type(within(dialog).getByLabelText(/Tape « Rome 2030 » pour confirmer/), "Rome 2030");
+      await user.click(within(dialog).getByRole("button", { name: "Effacer maintenant" }));
       expect(await within(danger).findByText(/will retry automatically/)).toBeInTheDocument();
-      expect(await screen.findByText("Erasure pending")).toBeInTheDocument();
+      expect(await screen.findByText("Effacement en attente")).toBeInTheDocument();
     });
   });
 
   describe("students", () => {
-    const list = () => screen.findByRole("list", { name: "Students" });
-    const students = () => screen.getByRole("list", { name: "Students" });
+    const list = () => screen.findByRole("list", { name: "Élèves" });
+    const students = () => screen.getByRole("list", { name: "Élèves" });
     const row = (email: string) => within(students()).getByText(email).closest("li") as HTMLElement;
 
     it("shows each student's status and team, with a hint when they asked for a new code", async () => {
       adminApi();
       renderAt("/teacher/trips/t1/students");
       await list();
-      expect(row("ana@school.test")).toHaveTextContent("Joined");
+      expect(row("ana@school.test")).toHaveTextContent("Inscrit");
       expect(row("ana@school.test")).toHaveTextContent("Léa & Tom 4B");
-      expect(row("ana@school.test")).toHaveTextContent("new code requested");
-      expect(row("tom@school.test")).toHaveTextContent("Invited");
-      expect(row("tom@school.test")).toHaveTextContent("no team");
-      expect(row("lea@shcool.test")).toHaveTextContent("Undelivered");
+      expect(row("ana@school.test")).toHaveTextContent("nouveau code demandé");
+      expect(row("tom@school.test")).toHaveTextContent("Invité");
+      expect(row("tom@school.test")).toHaveTextContent("sans équipe");
+      expect(row("lea@shcool.test")).toHaveTextContent("Non distribué");
     });
 
     it("filters with chips kept in the URL, and searches by email", async () => {
       adminApi();
       const { user, location } = renderAt("/teacher/trips/t1/students");
-      const chips = await screen.findByRole("group", { name: "Filter students" });
-      expect(within(chips).getByRole("button", { name: "All 4" })).toHaveAttribute("aria-pressed", "true");
-      await user.click(within(chips).getByRole("button", { name: "Not joined 3" }));
+      const chips = await screen.findByRole("group", { name: "Filtrer les élèves" });
+      expect(within(chips).getByRole("button", { name: "Tous 4" })).toHaveAttribute("aria-pressed", "true");
+      await user.click(within(chips).getByRole("button", { name: "Pas inscrits 3" }));
       expect(location()).toBe("/teacher/trips/t1/students?filter=not-joined");
       expect(within(await list()).getAllByRole("listitem")).toHaveLength(3);
       expect(within(students()).queryByText("ana@school.test")).not.toBeInTheDocument();
 
-      await user.type(screen.getByRole("searchbox", { name: "Search by email" }), "shcool");
+      await user.type(screen.getByRole("searchbox", { name: "Rechercher par e-mail" }), "shcool");
       expect(within(await list()).getAllByRole("listitem")).toHaveLength(2);
-      await user.type(screen.getByRole("searchbox", { name: "Search by email" }), "-nobody");
-      expect(await screen.findByText("No one here")).toBeInTheDocument();
+      await user.type(screen.getByRole("searchbox", { name: "Rechercher par e-mail" }), "-nobody");
+      expect(await screen.findByText("Personne ici")).toBeInTheDocument();
     });
 
     it("opens straight on a filter from a link", async () => {
       adminApi();
       renderAt("/teacher/trips/t1/students?filter=undelivered");
       expect(within(await list()).getAllByRole("listitem")).toHaveLength(2);
-      expect(within(screen.getByRole("group", { name: "Filter students" })).getByRole("button", { name: "Undelivered 2" }))
+      expect(within(screen.getByRole("group", { name: "Filtrer les élèves" })).getByRole("button", { name: "Non distribués 2" }))
         .toHaveAttribute("aria-pressed", "true");
     });
 
@@ -594,13 +594,13 @@ describe("trip admin", () => {
       const api = adminApi();
       const { user } = renderAt("/teacher/trips/t1/students");
       await list();
-      expect(within(row("ana@school.test")).queryByRole("button", { name: "Resend code" })).not.toBeInTheDocument();
-      await user.click(within(row("tom@school.test")).getByRole("button", { name: "Resend code" }));
-      expect(await within(row("tom@school.test")).findByRole("status")).toHaveTextContent("Code sent");
+      expect(within(row("ana@school.test")).queryByRole("button", { name: "Renvoyer le code" })).not.toBeInTheDocument();
+      await user.click(within(row("tom@school.test")).getByRole("button", { name: "Renvoyer le code" }));
+      expect(await within(row("tom@school.test")).findByRole("status")).toHaveTextContent("Code envoyé");
       expect(api.calls).toContain("resend s2");
 
       api.resendFails = true;
-      await user.click(within(row("lea@shcool.test")).getByRole("button", { name: "Resend code" }));
+      await user.click(within(row("lea@shcool.test")).getByRole("button", { name: "Renvoyer le code" }));
       expect(await within(row("lea@shcool.test")).findByRole("alert")).toHaveTextContent("couldn't be sent");
     });
 
@@ -608,14 +608,14 @@ describe("trip admin", () => {
       const api = adminApi();
       const { user } = renderAt("/teacher/trips/t1/students");
       await list();
-      await user.click(within(row("lea@shcool.test")).getByRole("button", { name: "Fix address" }));
-      const field = screen.getByLabelText("Correct address for lea@shcool.test");
+      await user.click(within(row("lea@shcool.test")).getByRole("button", { name: "Corriger l'adresse" }));
+      const field = screen.getByLabelText("Adresse corrigée pour lea@shcool.test");
       expect(field).toHaveValue("lea@shcool.test");
       await user.clear(field);
       await user.type(field, "lea@school.test");
-      await user.click(screen.getByRole("button", { name: "Save & send" }));
+      await user.click(screen.getByRole("button", { name: "Enregistrer et envoyer" }));
       expect(await within(students()).findByText("lea@school.test")).toBeInTheDocument();
-      expect(row("lea@school.test")).toHaveTextContent("Invited");
+      expect(row("lea@school.test")).toHaveTextContent("Invité");
       expect(api.calls).toContain("fix s3 lea@school.test");
     });
 
@@ -623,13 +623,13 @@ describe("trip admin", () => {
       const api = adminApi();
       const { user } = renderAt("/teacher/trips/t1/students");
       await list();
-      await user.click(within(row("orphan@shcool.test")).getByRole("button", { name: "Fix address" }));
-      const field = screen.getByLabelText("Correct address for orphan@shcool.test");
+      await user.click(within(row("orphan@shcool.test")).getByRole("button", { name: "Corriger l'adresse" }));
+      const field = screen.getByLabelText("Adresse corrigée pour orphan@shcool.test");
       await user.clear(field);
       await user.type(field, "orphan@school.test");
-      await user.click(screen.getByRole("button", { name: "Save & send" }));
+      await user.click(screen.getByRole("button", { name: "Enregistrer et envoyer" }));
       expect(await within(students()).findByText("orphan@school.test")).toBeInTheDocument();
-      expect(row("orphan@school.test")).toHaveTextContent("Sending");
+      expect(row("orphan@school.test")).toHaveTextContent("Envoi");
       expect(api.calls).toContain("retry i1 orphan@school.test");
     });
 
@@ -643,22 +643,22 @@ describe("trip admin", () => {
         expect(t).toHaveTextContent("ana@school.test");
         expect(t).toHaveTextContent("1/4");
         expect(t).toHaveTextContent("2 photos");
-        expect(t).toHaveTextContent("Not checked");
-        expect(card("Teams")).toHaveTextContent("become “Team 1”");
+        expect(t).toHaveTextContent("Non vérifié");
+        expect(card("Équipes")).toHaveTextContent("deviennent « Équipe 1 »");
       });
 
       it("marks a name OK, or renames it (which also counts as checked)", async () => {
         const api = adminApi();
         const { user } = renderAt("/teacher/trips/t1/students");
-        await user.click(within(await team()).getByRole("button", { name: "Name OK" }));
-        expect(await within(await team()).findByText("Checked")).toBeInTheDocument();
+        await user.click(within(await team()).getByRole("button", { name: "Nom OK" }));
+        expect(await within(await team()).findByText("Vérifié")).toBeInTheDocument();
         expect(api.calls).toContain("review team1");
 
-        await user.click(within(await team()).getByRole("button", { name: "Rename" }));
-        const field = screen.getByLabelText("New name for Léa & Tom 4B");
+        await user.click(within(await team()).getByRole("button", { name: "Renommer" }));
+        const field = screen.getByLabelText("Nouveau nom pour Léa & Tom 4B");
         await user.clear(field);
         await user.type(field, "Les Renards");
-        await user.click(screen.getByRole("button", { name: "Save name" }));
+        await user.click(screen.getByRole("button", { name: "Enregistrer le nom" }));
         expect(await screen.findByRole("article", { name: "Les Renards" })).toBeInTheDocument();
         expect(api.calls).toContain("rename team1 Les Renards");
       });
@@ -667,19 +667,19 @@ describe("trip admin", () => {
         adminApi({ phase: "reveal" });
         renderAt("/teacher/trips/t1/students");
         const t = await team();
-        expect(within(t).queryByRole("button", { name: "Rename" })).not.toBeInTheDocument();
-        expect(within(t).queryByRole("button", { name: "Name OK" })).not.toBeInTheDocument();
-        expect(card("Teams")).toHaveTextContent("Names are final");
+        expect(within(t).queryByRole("button", { name: "Renommer" })).not.toBeInTheDocument();
+        expect(within(t).queryByRole("button", { name: "Nom OK" })).not.toBeInTheDocument();
+        expect(card("Équipes")).toHaveTextContent("Les noms sont définitifs");
       });
     });
 
     it("imports pasted emails and reports progress", async () => {
       const api = adminApi();
       const { user } = renderAt("/teacher/trips/t1/students");
-      const box = await screen.findByLabelText(/Student emails/);
+      const box = await screen.findByLabelText(/E-mails des élèves/);
       await user.type(box, "a@school.test, b@school.test\nc@school.test");
-      await user.click(screen.getByRole("button", { name: "Import + email codes" }));
-      expect(await screen.findByText(/Queued 3 of 3/)).toBeInTheDocument();
+      await user.click(screen.getByRole("button", { name: "Importer et envoyer les codes" }));
+      expect(await screen.findByText(/3 sur 3 en file d'attente/)).toBeInTheDocument();
       expect(api.calls).toContain("roster a@school.test,b@school.test,c@school.test");
       expect(box).toHaveValue("");
     });
@@ -687,41 +687,41 @@ describe("trip admin", () => {
     it("offers the lost-code recovery link to copy", async () => {
       adminApi();
       renderAt("/teacher/trips/t1/students");
-      expect(await screen.findByLabelText("Lost-code recovery link")).toHaveValue(`${location.origin}/join?trip=t1`);
-      expect(screen.getByRole("button", { name: "Copy" })).toBeInTheDocument();
+      expect(await screen.findByLabelText("Lien de récupération de code")).toHaveValue(`${location.origin}/join?trip=t1`);
+      expect(screen.getByRole("button", { name: "Copier" })).toBeInTheDocument();
     });
 
     it("tells the teacher when an import is refused", async () => {
       const api = adminApi();
       api.rosterRefusal = true;
       const { user } = renderAt("/teacher/trips/t1/students");
-      await user.type(await screen.findByLabelText(/Student emails/), "not-an-email");
-      await user.click(screen.getByRole("button", { name: "Import + email codes" }));
+      await user.type(await screen.findByLabelText(/E-mails des élèves/), "not-an-email");
+      await user.click(screen.getByRole("button", { name: "Importer et envoyer les codes" }));
       expect(await screen.findByRole("alert")).toHaveTextContent("invalid email");
-      expect(screen.getByLabelText(/Student emails/)).toHaveValue("not-an-email");
+      expect(screen.getByLabelText(/E-mails des élèves/)).toHaveValue("not-an-email");
     });
 
     it("can't import an empty list", async () => {
       adminApi();
       renderAt("/teacher/trips/t1/students");
-      expect(await screen.findByRole("button", { name: "Import + email codes" })).toBeDisabled();
+      expect(await screen.findByRole("button", { name: "Importer et envoyer les codes" })).toBeDisabled();
     });
 
     it("shows how far the access codes have gone out", async () => {
       const api = adminApi();
       api.roster = { pending: 1, done: 2, failed: 0, students: 3 };
       renderAt("/teacher/trips/t1/students");
-      const bar = await screen.findByRole("progressbar", { name: "Codes emailed" });
+      const bar = await screen.findByRole("progressbar", { name: "Codes envoyés" });
       expect(bar).toHaveAttribute("aria-valuenow", "2");
       expect(bar).toHaveAttribute("aria-valuemax", "3");
-      expect(screen.getByText(/2 of 3 codes emailed — sending/)).toBeInTheDocument();
+      expect(screen.getByText(/2 codes envoyés sur 3 — envoi/)).toBeInTheDocument();
     });
 
     it("flags emails that couldn't be sent", async () => {
       const api = adminApi();
       api.roster = { pending: 0, done: 2, failed: 1, students: 3 };
       renderAt("/teacher/trips/t1/students");
-      expect(await screen.findByText(/1 email failed/)).toBeInTheDocument();
+      expect(await screen.findByText(/1 e-mail en échec/)).toBeInTheDocument();
     });
   });
 
@@ -729,29 +729,29 @@ describe("trip admin", () => {
     it("adds, edits and (in draft) deletes challenges after confirming", async () => {
       const api = adminApi();
       const { user } = renderAt("/teacher/trips/t1/challenges");
-      const ch = await waitFor(() => card("Challenges"));
+      const ch = await waitFor(() => card("Défis"));
       expect(await within(ch).findByText("Gelato selfie")).toBeInTheDocument();
       expect(within(ch).getByText("×2")).toBeInTheDocument();
-      expect(within(ch).getByAltText("QR code for Gelato selfie")).toHaveAttribute("src", "/api/challenges/ch1/qr.png");
+      expect(within(ch).getByAltText("QR code du défi Gelato selfie")).toHaveAttribute("src", "/api/challenges/ch1/qr.png");
 
-      const add = card("New challenge");
-      await user.type(within(add).getByLabelText("Title"), " Fountain ");
-      await user.type(within(add).getByLabelText("Instructions"), "Throw a coin{enter}Make a wish");
-      await user.click(within(add).getByRole("button", { name: "Add challenge" }));
+      const add = card("Nouveau défi");
+      await user.type(within(add).getByLabelText("Titre"), " Fountain ");
+      await user.type(within(add).getByLabelText("Consignes"), "Throw a coin{enter}Make a wish");
+      await user.click(within(add).getByRole("button", { name: "Ajouter le défi" }));
       expect(await within(ch).findByText("Fountain")).toBeInTheDocument();
-      expect(within(add).getByLabelText("Title")).toHaveValue("");
+      expect(within(add).getByLabelText("Titre")).toHaveValue("");
 
-      await user.click(within(ch).getAllByRole("button", { name: "Edit" })[0]!);
-      const title = within(ch).getByLabelText("Title");
+      await user.click(within(ch).getAllByRole("button", { name: "Modifier" })[0]!);
+      const title = within(ch).getByLabelText("Titre");
       await user.clear(title);
       await user.type(title, "Gelato duo");
-      await user.click(within(ch).getByRole("button", { name: "Save" }));
+      await user.click(within(ch).getByRole("button", { name: "Enregistrer" }));
       expect(await within(ch).findByText("Gelato duo")).toBeInTheDocument();
 
-      await user.click(within(ch).getAllByRole("button", { name: "Delete" })[1]!);
-      const dialog = screen.getByRole("alertdialog", { name: "Delete “Fountain”?" });
-      expect(dialog).toHaveTextContent("Its QR code will stop working.");
-      await user.click(within(dialog).getByRole("button", { name: "Delete" }));
+      await user.click(within(ch).getAllByRole("button", { name: "Supprimer" })[1]!);
+      const dialog = screen.getByRole("alertdialog", { name: "Supprimer « Fountain » ?" });
+      expect(dialog).toHaveTextContent("Son QR code ne fonctionnera plus.");
+      await user.click(within(dialog).getByRole("button", { name: "Supprimer" }));
       await waitFor(() => expect(within(ch).queryByText("Fountain")).not.toBeInTheDocument());
       expect(api.calls).toEqual([
         `create {"tripId":"t1","title":"Fountain","instructions":"Throw a coin\\nMake a wish","multiplier":1}`,
@@ -763,34 +763,34 @@ describe("trip admin", () => {
     it("explains a challenge that can't be added, and keeps what was typed", async () => {
       adminApi();
       const { user } = renderAt("/teacher/trips/t1/challenges");
-      const add = await waitFor(() => card("New challenge"));
-      await user.type(within(add).getByLabelText("Title"), "Refused");
-      await user.click(within(add).getByRole("button", { name: "Add challenge" }));
+      const add = await waitFor(() => card("Nouveau défi"));
+      await user.type(within(add).getByLabelText("Titre"), "Refused");
+      await user.click(within(add).getByRole("button", { name: "Ajouter le défi" }));
       expect(await within(add).findByRole("alert")).toHaveTextContent("multiplier must be positive");
-      expect(within(add).getByLabelText("Title")).toHaveValue("Refused");
+      expect(within(add).getByLabelText("Titre")).toHaveValue("Refused");
     });
 
     it("shows an empty state before the first challenge", async () => {
       const api = adminApi();
       api.challenges = [];
       renderAt("/teacher/trips/t1/challenges");
-      expect(await screen.findByText("No challenges yet")).toBeInTheDocument();
+      expect(await screen.findByText("Pas encore de défi")).toBeInTheDocument();
     });
 
     it("stops adding at voting, editing at reveal, and deleting after draft", async () => {
       adminApi({ phase: "voting" });
       renderAt("/teacher/trips/t1/challenges");
-      const ch = await waitFor(() => card("Challenges"));
+      const ch = await waitFor(() => card("Défis"));
       await within(ch).findByText("Gelato selfie");
-      expect(screen.queryByRole("heading", { name: "New challenge" })).not.toBeInTheDocument();
-      expect(within(ch).getByRole("button", { name: "Edit" })).toBeInTheDocument();
-      expect(within(ch).queryByRole("button", { name: "Delete" })).not.toBeInTheDocument();
+      expect(screen.queryByRole("heading", { name: "Nouveau défi" })).not.toBeInTheDocument();
+      expect(within(ch).getByRole("button", { name: "Modifier" })).toBeInTheDocument();
+      expect(within(ch).queryByRole("button", { name: "Supprimer" })).not.toBeInTheDocument();
     });
 
     it("opens a printable sheet of the QR codes", async () => {
       adminApi();
       renderAt("/teacher/trips/t1/challenges");
-      const print = await screen.findByRole("link", { name: "Print QR codes" });
+      const print = await screen.findByRole("link", { name: "Imprimer les QR codes" });
       expect(print).toHaveAttribute("href", "/qr/t1");
       expect(print).toHaveAttribute("target", "_blank");
     });
@@ -808,15 +808,15 @@ describe("trip admin", () => {
       expect(within(cards[0]!).getByRole("heading", { name: "Gelato selfie" })).toBeInTheDocument();
       expect(within(cards[0]!).getByText("×2 points")).toBeInTheDocument();
       expect(within(cards[1]!).getByText("Throw a coin")).toBeInTheDocument();
-      expect(within(cards[1]!).getByRole("img", { name: "QR code for Fountain" })).toHaveAttribute("src", "/api/challenges/ch2/qr.png");
-      await user.click(screen.getByRole("button", { name: "Print" }));
+      expect(within(cards[1]!).getByRole("img", { name: "QR code du défi Fountain" })).toHaveAttribute("src", "/api/challenges/ch2/qr.png");
+      await user.click(screen.getByRole("button", { name: "Imprimer" }));
       expect(print).toHaveBeenCalled();
     });
 
     it("says so when the trip can't be loaded", async () => {
       server.use(http.get("/api/trips/zzz", () => HttpResponse.json({}, { status: 404 })));
       renderAt("/qr/zzz");
-      expect(await screen.findByText("Not found.")).toBeInTheDocument();
+      expect(await screen.findByText("Sortie introuvable.")).toBeInTheDocument();
     });
   });
 
@@ -827,7 +827,7 @@ describe("trip admin", () => {
       server.use(http.get("/api/nominations/trip/t1", () => down("r-noms")));
       renderAt("/teacher/trips/t1/review");
       expect((await screen.findAllByText("The database is unavailable right now.")).length).toBeGreaterThan(0);
-      expect(screen.queryByText("Nothing to review")).not.toBeInTheDocument();
+      expect(screen.queryByText("Rien à modérer")).not.toBeInTheDocument();
     });
 
     it("results say so instead of an empty board", async () => {
@@ -835,7 +835,7 @@ describe("trip admin", () => {
       server.use(http.get("/api/trips/t1/results", () => down("r-res")));
       renderAt("/teacher/trips/t1/results");
       expect(await screen.findByText("The database is unavailable right now.")).toBeInTheDocument();
-      expect(screen.getByText(/^Reference:/)).toHaveTextContent("r-res");
+      expect(screen.getByText(/^Référence :/)).toHaveTextContent("r-res");
     });
 
     it("the overview says so instead of planning from a missing roster", async () => {
@@ -843,7 +843,7 @@ describe("trip admin", () => {
       server.use(http.get("/api/trips/t1/roster/status", () => down("r-roster")));
       renderAt("/teacher/trips/t1/overview");
       expect(await screen.findByText("The database is unavailable right now.")).toBeInTheDocument();
-      expect(screen.queryByText("Paste the students' emails")).not.toBeInTheDocument();
+      expect(screen.queryByText("Colle les e-mails des élèves")).not.toBeInTheDocument();
     });
 
     it("teams say so", async () => {
@@ -862,9 +862,9 @@ describe("trip admin", () => {
   });
 
   describe("review", () => {
-    const queue = () => screen.getByRole("region", { name: "Waiting for review" });
+    const queue = () => screen.getByRole("region", { name: "En attente de modération" });
     /** The queue once the trip (and so the section) has loaded. */
-    const loaded = () => screen.findByRole("region", { name: "Waiting for review" });
+    const loaded = () => screen.findByRole("region", { name: "En attente de modération" });
 
     it("groups what waits for review by challenge", async () => {
       const api = adminApi();
@@ -873,21 +873,21 @@ describe("trip admin", () => {
       renderAt("/teacher/trips/t1/review");
       const gelato = await screen.findByRole("group", { name: "Gelato selfie" });
       const fountain = screen.getByRole("group", { name: "Fountain" });
-      expect(within(gelato).getAllByRole("button", { name: "Approve" })).toHaveLength(1);
-      expect(within(fountain).getByRole("button", { name: "Enlarge photo" }).querySelector("img")).toHaveAttribute("src", "/api/submissions/sub2/photo");
-      expect(within(queue()).getByText("2 waiting")).toBeInTheDocument();
+      expect(within(gelato).getAllByRole("button", { name: "Valider" })).toHaveLength(1);
+      expect(within(fountain).getByRole("button", { name: "Agrandir la photo" }).querySelector("img")).toHaveAttribute("src", "/api/submissions/sub2/photo");
+      expect(within(queue()).getByText("2 en attente")).toBeInTheDocument();
     });
 
     it.each([
-      ["Approve", "approve n1"],
-      ["Reject", "reject n1"],
+      ["Valider", "approve n1"],
+      ["Refuser", "reject n1"],
     ])("%s takes the nomination off the queue and the nav badge", async (button, call) => {
       const api = adminApi();
       const { user } = renderAt("/teacher/trips/t1/review");
-      expect(await screen.findByRole("link", { name: "Review, 1 pending" })).toBeInTheDocument();
+      expect(await screen.findByRole("link", { name: "Modération, 1 en attente" })).toBeInTheDocument();
       await user.click(await within(await loaded()).findByRole("button", { name: button }));
-      expect(await within(queue()).findByText("Nothing to review")).toBeInTheDocument();
-      expect(await within(nav()).findByRole("link", { name: "Review" })).toBeInTheDocument();
+      expect(await within(queue()).findByText("Rien à modérer")).toBeInTheDocument();
+      expect(await within(nav()).findByRole("link", { name: "Modération" })).toBeInTheDocument();
       expect(api.calls).toEqual([call]);
     });
 
@@ -895,64 +895,64 @@ describe("trip admin", () => {
     it("warns before rejecting once voting has opened: the team can't replace its entry", async () => {
       const api = adminApi({ phase: "voting" });
       const { user } = renderAt("/teacher/trips/t1/review");
-      await user.click(await within(await loaded()).findByRole("button", { name: "Reject" }));
-      let dialog = screen.getByRole("alertdialog", { name: "Reject this entry?" });
-      expect(dialog).toHaveTextContent(/can't nominate another photo/);
-      await user.click(within(dialog).getByRole("button", { name: "Cancel" }));
+      await user.click(await within(await loaded()).findByRole("button", { name: "Refuser" }));
+      let dialog = screen.getByRole("alertdialog", { name: "Refuser cette photo ?" });
+      expect(dialog).toHaveTextContent(/ne peut plus sélectionner d'autre photo/);
+      await user.click(within(dialog).getByRole("button", { name: "Annuler" }));
       expect(api.calls).toEqual([]);
 
-      await user.click(within(queue()).getByRole("button", { name: "Reject" }));
-      dialog = screen.getByRole("alertdialog", { name: "Reject this entry?" });
-      await user.click(within(dialog).getByRole("button", { name: "Reject" }));
+      await user.click(within(queue()).getByRole("button", { name: "Refuser" }));
+      dialog = screen.getByRole("alertdialog", { name: "Refuser cette photo ?" });
+      await user.click(within(dialog).getByRole("button", { name: "Refuser" }));
       await waitFor(() => expect(api.calls).toEqual(["reject n1"]));
     });
 
     it("lists approved photos, which can still be removed", async () => {
       adminApi();
       const { user } = renderAt("/teacher/trips/t1/review");
-      await user.click(await within(await loaded()).findByRole("button", { name: "Approve" }));
-      const approved = await screen.findByRole("region", { name: "Approved — votable" });
-      expect(await within(approved).findByRole("button", { name: "Remove photo…" })).toBeInTheDocument();
+      await user.click(await within(await loaded()).findByRole("button", { name: "Valider" }));
+      const approved = await screen.findByRole("region", { name: "Validées — ouvertes au vote" });
+      expect(await within(approved).findByRole("button", { name: "Retirer la photo…" })).toBeInTheDocument();
     });
 
     it("removes a photo only after confirming", async () => {
       const api = adminApi();
       const { user } = renderAt("/teacher/trips/t1/review");
-      await user.click(await within(await loaded()).findByRole("button", { name: "Remove photo…" }));
-      const dialog = screen.getByRole("alertdialog", { name: "Remove this photo?" });
-      expect(dialog).toHaveTextContent("No one will see it again");
-      await user.click(within(dialog).getByRole("button", { name: "Cancel" }));
+      await user.click(await within(await loaded()).findByRole("button", { name: "Retirer la photo…" }));
+      const dialog = screen.getByRole("alertdialog", { name: "Retirer cette photo ?" });
+      expect(dialog).toHaveTextContent("Plus personne ne la verra");
+      await user.click(within(dialog).getByRole("button", { name: "Annuler" }));
       expect(api.calls).toEqual([]);
 
-      await user.click(within(queue()).getByRole("button", { name: "Remove photo…" }));
-      await user.click(within(screen.getByRole("alertdialog")).getByRole("button", { name: "Remove photo" }));
-      expect(await within(queue()).findByText("Nothing to review")).toBeInTheDocument();
+      await user.click(within(queue()).getByRole("button", { name: "Retirer la photo…" }));
+      await user.click(within(screen.getByRole("alertdialog")).getByRole("button", { name: "Retirer la photo" }));
+      expect(await within(queue()).findByText("Rien à modérer")).toBeInTheDocument();
       expect(api.calls).toEqual(["remove sub1"]);
     });
 
     it("a decision takes the photo off the queue and the badge at once, before the server answers", async () => {
       adminApi();
       const { user } = renderAt("/teacher/trips/t1/review");
-      const approve = await within(await loaded()).findByRole("button", { name: "Approve" });
+      const approve = await within(await loaded()).findByRole("button", { name: "Valider" });
       server.use(http.post("/api/nominations/:id/:decision", async () => { await delay(400); return HttpResponse.json({ ok: true }); }));
       await user.click(approve);
-      expect(within(queue()).queryByRole("button", { name: "Approve" })).not.toBeInTheDocument();
-      expect(within(nav()).getByRole("link", { name: "Review" })).toBeInTheDocument();
+      expect(within(queue()).queryByRole("button", { name: "Valider" })).not.toBeInTheDocument();
+      expect(within(nav()).getByRole("link", { name: "Modération" })).toBeInTheDocument();
     });
 
     it("explains a refused decision and keeps the nomination", async () => {
       const api = adminApi();
       api.moderationRefusal = "Moderation is closed in this phase.";
       const { user } = renderAt("/teacher/trips/t1/review");
-      await user.click(await within(await loaded()).findByRole("button", { name: "Approve" }));
+      await user.click(await within(await loaded()).findByRole("button", { name: "Valider" }));
       expect(await within(queue()).findByRole("alert")).toHaveTextContent("Moderation is closed in this phase.");
-      expect(within(queue()).getByRole("button", { name: "Approve" })).toBeEnabled();
+      expect(within(queue()).getByRole("button", { name: "Valider" })).toBeEnabled();
     });
 
     it("enlarges a photo from the keyboard", async () => {
       adminApi();
       const { user } = renderAt("/teacher/trips/t1/review");
-      const enlarge = await within(await loaded()).findByRole("button", { name: "Enlarge photo" });
+      const enlarge = await within(await loaded()).findByRole("button", { name: "Agrandir la photo" });
       enlarge.focus();
       await user.keyboard("{Enter}");
       const dialog = screen.getByRole("dialog", { name: "Photo" });
@@ -964,21 +964,21 @@ describe("trip admin", () => {
 
   describe("co-teachers", () => {
     it.each([
-      ["new@school.test", "Invite emailed to new@school.test."],
-      ["owner@school.test", "Already a teacher on this trip."],
-      ["nope@school.test", "Only the trip owner can invite co-teachers."],
+      ["new@school.test", "Invitation envoyée à new@school.test."],
+      ["owner@school.test", "Déjà enseignant sur cette sortie."],
+      ["nope@school.test", "Seul le responsable de la sortie peut inviter des co-enseignants."],
     ])("inviting %s → “%s”", async (email, message) => {
       adminApi();
       const { user } = renderAt("/teacher/trips/t1/settings");
-      await user.type(await screen.findByLabelText("Invite co-teacher by email"), email);
-      await user.click(screen.getByRole("button", { name: "Send invite" }));
+      await user.type(await screen.findByLabelText("Inviter un co-enseignant par e-mail"), email);
+      await user.click(screen.getByRole("button", { name: "Envoyer l'invitation" }));
       expect(await screen.findByText(message)).toBeInTheDocument();
     });
 
     it("revokes a pending invite", async () => {
       const api = adminApi();
       const { user } = renderAt("/teacher/trips/t1/settings");
-      await user.click(await screen.findByRole("button", { name: "Revoke" }));
+      await user.click(await screen.findByRole("button", { name: "Révoquer" }));
       await waitFor(() => expect(screen.queryByText("pending@school.test")).not.toBeInTheDocument());
       expect(api.calls).toEqual(["revoke inv1"]);
     });
@@ -987,7 +987,7 @@ describe("trip admin", () => {
       const api = adminApi();
       api.revokeRefusal = true;
       const { user } = renderAt("/teacher/trips/t1/settings");
-      await user.click(await screen.findByRole("button", { name: "Revoke" }));
+      await user.click(await screen.findByRole("button", { name: "Révoquer" }));
       expect(await screen.findByRole("alert")).toHaveTextContent("Only the trip owner can revoke invites.");
       expect(screen.getByText("pending@school.test")).toBeInTheDocument();
     });
@@ -1004,7 +1004,7 @@ describe("trip admin", () => {
       adminApi({ phase: "voting" });
       const { location } = renderAt("/teacher/trips/t1/results");
       await waitFor(() => expect(location()).toBe("/teacher/trips/t1/overview"));
-      expect(screen.queryByRole("heading", { name: "Results & ceremony" })).not.toBeInTheDocument();
+      expect(screen.queryByRole("heading", { name: "Résultats et cérémonie" })).not.toBeInTheDocument();
     });
 
     it("let the teacher break a Grand Champion tie and launch the ceremony", async () => {
@@ -1012,12 +1012,12 @@ describe("trip admin", () => {
       api.results = [...results];
       const open = vi.spyOn(window, "open").mockReturnValue(null);
       const { user } = renderAt("/teacher/trips/t1/results");
-      expect(await screen.findByText(/It's a tie for Grand Champion/)).toBeInTheDocument();
-      await user.click(screen.getAllByRole("button", { name: "Crown this team" })[1]!);
-      await waitFor(() => expect(screen.queryByText(/It's a tie/)).not.toBeInTheDocument());
+      expect(await screen.findByText(/Égalité pour le titre de grand champion/)).toBeInTheDocument();
+      await user.click(screen.getAllByRole("button", { name: "Couronner cette équipe" })[1]!);
+      await waitFor(() => expect(screen.queryByText(/Égalité/)).not.toBeInTheDocument());
       expect(api.calls).toEqual(["crown g2"]);
 
-      await user.click(screen.getByRole("button", { name: "🏆 Launch ceremony" }));
+      await user.click(screen.getByRole("button", { name: "🏆 Lancer la cérémonie" }));
       expect(open).toHaveBeenCalledWith("/ceremony/t1", "_blank", "noopener");
     });
 
@@ -1026,14 +1026,14 @@ describe("trip admin", () => {
       api.results = [...results];
       api.crownRefusal = true;
       const { user } = renderAt("/teacher/trips/t1/results");
-      await user.click((await screen.findAllByRole("button", { name: "Crown this team" }))[0]!);
+      await user.click((await screen.findAllByRole("button", { name: "Couronner cette équipe" }))[0]!);
       expect(await screen.findByRole("alert")).toHaveTextContent("The ceremony is over.");
     });
 
     it("says when there are no results", async () => {
       adminApi({ phase: "grace" });
       renderAt("/teacher/trips/t1/results");
-      expect(await screen.findByText("No results")).toBeInTheDocument();
+      expect(await screen.findByText("Aucun résultat")).toBeInTheDocument();
     });
   });
 });

@@ -16,10 +16,10 @@ test("the teacher imports a roster and each student joins from their emailed lin
   await admin.goto(tripId);
   await admin.importRoster(emails);
   // The roster card polls the background worker until every code is emailed.
-  const sent = admin.card("Roster").getByRole("progressbar", { name: "Codes emailed" });
+  const sent = admin.card("Liste d'élèves").getByRole("progressbar", { name: "Codes envoyés" });
   await expect(sent).toHaveAttribute("aria-valuenow", "2", { timeout: 30_000 });
   await expect(sent).toHaveAttribute("aria-valuemax", "2");
-  await expect(admin.card("Roster").getByText("2 of 2 codes emailed", { exact: true })).toBeVisible();
+  await expect(admin.card("Liste d'élèves").getByText("2 codes envoyés sur 2", { exact: true })).toBeVisible();
 
   const mail = await waitForMail(emails[0]!, { subject: ACCESS_CODE_SUBJECT });
   expect(mail.subject).toBe(`Your access code for ${name}`);
@@ -28,8 +28,8 @@ test("the teacher imports a roster and each student joins from their emailed lin
   const kid = await joinByEmail(browser, emails[0]!);
   const home = new StudentHomePage(kid.page);
   await home.expectSignedIn(name);
-  await expect(kid.page.getByRole("heading", { name: "No team yet" })).toBeVisible();
-  await expect(kid.page.getByRole("button", { name: "Go to teams" })).toBeVisible();
+  await expect(kid.page.getByRole("heading", { name: "Pas encore d'équipe" })).toBeVisible();
+  await expect(kid.page.getByRole("button", { name: "Voir les équipes" })).toBeVisible();
 
   await closeAll(teacher, kid);
 });
@@ -49,13 +49,13 @@ test("an access-code link works once; used and bogus codes are refused", async (
   const second = await phoneContext(browser);
   const p2 = await second.newPage();
   await p2.goto(link);
-  await expect(p2.getByText("This link is invalid or has already been used.")).toBeVisible();
+  await expect(p2.getByText("Ce lien n'est pas valide ou a déjà été utilisé.")).toBeVisible();
 
   const home = new StudentHomePage(p2);
   await home.goto();
   await home.expectSignedOut();
   await home.enterCode("BOGUS-CODE-123456");
-  await expect(p2.getByText("That code is invalid or has already been used.")).toBeVisible();
+  await expect(p2.getByText("Ce code n'est pas valide ou a déjà été utilisé.")).toBeVisible();
 
   await Promise.all([first.close(), second.close(), teacher.context.close()]);
 });
@@ -71,9 +71,9 @@ test("a student who lost their phone gets a fresh code, and using it signs the o
   const newPhone = await phoneContext(browser);
   const page = await newPhone.newPage();
   await page.goto(`/join?trip=${tripId}`);
-  await page.getByLabel("Email").fill(email);
-  await page.getByRole("button", { name: "Send me a new code" }).click();
-  await expect(page.getByRole("heading", { name: "Check your inbox" })).toBeVisible();
+  await page.getByLabel("E-mail").fill(email);
+  await page.getByRole("button", { name: "M'envoyer un nouveau code" }).click();
+  await expect(page.getByRole("heading", { name: "Regarde ta boîte mail" })).toBeVisible();
 
   const mails = await waitForMails(email, { subject: ACCESS_CODE_SUBJECT, count: 2 });
   const freshLink = relative(linkIn(mails[1]!, "/join?code="));
@@ -104,9 +104,9 @@ test("the lost-code form never reveals whether an email is on the roster", async
   const page = await phone.newPage();
   for (const email of [stranger, known]) {
     await page.goto(`/join?trip=${tripId}`);
-    await page.getByLabel("Email").fill(email);
-    await page.getByRole("button", { name: "Send me a new code" }).click();
-    await expect(page.getByRole("heading", { name: "Check your inbox" })).toBeVisible();
+    await page.getByLabel("E-mail").fill(email);
+    await page.getByRole("button", { name: "M'envoyer un nouveau code" }).click();
+    await expect(page.getByRole("heading", { name: "Regarde ta boîte mail" })).toBeVisible();
   }
   // The known student got a second code; the stranger got nothing.
   await waitForMails(known, { subject: ACCESS_CODE_SUBJECT, count: 2 });

@@ -32,16 +32,16 @@ export function TripStudents() {
 
 // ---------- the student list ----------
 const FILTERS = [
-  { key: "all", label: "All", count: "all", test: () => true },
-  { key: "not-joined", label: "Not joined", count: "notJoined", test: (s: RosterEntry) => s.status !== "joined" },
-  { key: "undelivered", label: "Undelivered", count: "undelivered", test: (s: RosterEntry) => s.status === "undelivered" },
-  { key: "no-team", label: "No team", count: "noTeam", test: (s: RosterEntry) => s.kind === "student" && !s.teamId },
+  { key: "all", label: "Tous", count: "all", test: () => true },
+  { key: "not-joined", label: "Pas inscrits", count: "notJoined", test: (s: RosterEntry) => s.status !== "joined" },
+  { key: "undelivered", label: "Non distribués", count: "undelivered", test: (s: RosterEntry) => s.status === "undelivered" },
+  { key: "no-team", label: "Sans équipe", count: "noTeam", test: (s: RosterEntry) => s.kind === "student" && !s.teamId },
 ] as const;
 const STATUS: Record<RosterEntry["status"], { label: string; tone: Tone }> = {
-  joined: { label: "Joined", tone: "good" },
-  invited: { label: "Invited", tone: "neutral" },
-  undelivered: { label: "Undelivered", tone: "crit" },
-  sending: { label: "Sending", tone: "sky" },
+  joined: { label: "Inscrit", tone: "good" },
+  invited: { label: "Invité", tone: "neutral" },
+  undelivered: { label: "Non distribué", tone: "crit" },
+  sending: { label: "Envoi", tone: "sky" },
 };
 
 function Students({
@@ -60,10 +60,10 @@ function Students({
 
   return (
     <Card>
-      <h3>Students</h3>
+      <h3>Élèves</h3>
       {!data ? <Skeleton /> : (
         <>
-          <div className="chips mt-2" role="group" aria-label="Filter students">
+          <div className="chips mt-2" role="group" aria-label="Filtrer les élèves">
             {FILTERS.map((f) => (
               <button
                 key={f.key} type="button" className="chip" aria-pressed={f === filter}
@@ -72,13 +72,13 @@ function Students({
             ))}
           </div>
           <input
-            type="search" className="input mt-2" placeholder="Search by email" aria-label="Search by email"
+            type="search" className="input mt-2" placeholder="Rechercher par e-mail" aria-label="Rechercher par e-mail"
             value={query} onChange={(e) => setQuery(e.target.value)}
           />
           {shown.length === 0
-            ? <EmptyState icon="🔍" title={data.counts.all === 0 ? "No students yet — import the roster below" : "No one here"} />
+            ? <EmptyState icon="🔍" title={data.counts.all === 0 ? "Pas encore d'élèves — importe la liste ci-dessous" : "Personne ici"} />
             : (
-              <ul className="roster-list" aria-label="Students">
+              <ul className="roster-list" aria-label="Élèves">
                 {shown.map((s) => <StudentRow key={s.id} tripId={tripId} s={s} team={teamName(s.teamId)} onChange={onChange} />)}
               </ul>
             )}
@@ -95,15 +95,15 @@ function StudentRow({ tripId, s, team, onChange }: { tripId: string; s: RosterEn
   const resend = useAction(async () => {
     setSentNote("");
     await api.resendCode(tripId, s.id);
-    setSentNote("Code sent.");
+    setSentNote("Code envoyé.");
     onChange();
-  }, "Could not resend the code.");
+  }, "Impossible de renvoyer le code.");
   const fix = useAction(async () => {
     if (s.kind === "student") await api.fixAddress(tripId, s.id, email.trim());
     else await api.retryRosterItem(tripId, s.id, email.trim());
     setFixing(false);
     onChange();
-  }, "Could not fix the address.");
+  }, "Impossible de corriger l'adresse.");
   const st = STATUS[s.status];
 
   return (
@@ -113,16 +113,16 @@ function StudentRow({ tripId, s, team, onChange }: { tripId: string; s: RosterEn
         <span className="grow">
           <b className="roster-email">{s.email}</b>
           <span className="d">
-            {s.kind === "student" ? (team ?? "no team") : "not on the trip yet"}
-            {s.newCodeRequested && " · new code requested"}
+            {s.kind === "student" ? (team ?? "sans équipe") : "pas encore dans la sortie"}
+            {s.newCodeRequested && " · nouveau code demandé"}
           </span>
         </span>
         <span className="roster-acts">
           {s.kind === "student" && (s.status === "invited" || s.status === "undelivered") && (
-            <Button variant="neutral" size="mini" busy={resend.busy} onClick={resend.run}>Resend code</Button>
+            <Button variant="neutral" size="mini" busy={resend.busy} onClick={resend.run}>Renvoyer le code</Button>
           )}
           {s.status === "undelivered" && !fixing && (
-            <Button variant="soft" size="mini" onClick={() => { setEmail(s.email); setFixing(true); }}>Fix address</Button>
+            <Button variant="soft" size="mini" onClick={() => { setEmail(s.email); setFixing(true); }}>Corriger l'adresse</Button>
           )}
         </span>
       </div>
@@ -130,10 +130,10 @@ function StudentRow({ tripId, s, team, onChange }: { tripId: string; s: RosterEn
         <div className="roster-fix">
           <input
             type="email" className="input" value={email} onChange={(e) => setEmail(e.target.value)}
-            aria-label={`Correct address for ${s.email}`} autoComplete="off"
+            aria-label={`Adresse corrigée pour ${s.email}`} autoComplete="off"
           />
-          <Button size="mini" disabled={!email.trim()} busy={fix.busy} onClick={fix.run}>Save &amp; send</Button>
-          <Button variant="neutral" size="mini" onClick={() => setFixing(false)}>Cancel</Button>
+          <Button size="mini" disabled={!email.trim()} busy={fix.busy} onClick={fix.run}>Enregistrer et envoyer</Button>
+          <Button variant="neutral" size="mini" onClick={() => setFixing(false)}>Annuler</Button>
         </div>
       )}
       <Notice tone="ok">{sentNote}</Notice>
@@ -153,16 +153,16 @@ function Teams({
   return (
     <Card>
       <div className="row">
-        <h3 className="grow">Teams</h3>
+        <h3 className="grow">Équipes</h3>
         {data && <Pill>{teams.length}</Pill>}
       </div>
       <p className="muted tiny mt-0">
         {editable
-          ? <>Team names are kept after the trip only if you've checked them. Unchecked names become “Team 1”, “Team 2”… when the trip's data is erased.</>
-          : <>Names are final: results have been computed. Unchecked names become their “Team N” label when the trip's data is erased.</>}
+          ? <>Les noms d'équipe ne sont conservés après la sortie que si tu les as vérifiés. Les noms non vérifiés deviennent « Équipe 1 », « Équipe 2 »… à l'effacement des données de la sortie.</>
+          : <>Les noms sont définitifs : les résultats ont été calculés. Les noms non vérifiés deviennent « Équipe N » à l'effacement des données de la sortie.</>}
       </p>
       {error ? <ErrorCard inline error={error} onRetry={onRetry} />
-        : !data ? <Skeleton /> : teams.length === 0 ? <EmptyState icon="🧑‍🤝‍🧑" title="No teams yet" /> : (
+        : !data ? <Skeleton /> : teams.length === 0 ? <EmptyState icon="🧑‍🤝‍🧑" title="Pas encore d'équipe" /> : (
         <div className="team-grid">
           {teams.map((t) => (
             <TeamCard key={t.id} tripId={tripId} t={t} max={data.maxTeamSize} emailOf={emailOf} editable={editable} onChange={onChange} />
@@ -178,35 +178,35 @@ function TeamCard({
 }: { tripId: string; t: TripTeam; max: number; emailOf: (id: string) => string; editable: boolean; onChange: () => void }) {
   const [renaming, setRenaming] = useState(false);
   const [name, setName] = useState(t.name);
-  const review = useAction(async () => { await api.reviewTeam(tripId, t.id); onChange(); }, "Could not mark the name.");
+  const review = useAction(async () => { await api.reviewTeam(tripId, t.id); onChange(); }, "Impossible de valider le nom.");
   const rename = useAction(async () => {
     await api.renameTeam(tripId, t.id, name.trim());
     setRenaming(false);
     onChange();
-  }, "Could not rename the team.");
+  }, "Impossible de renommer l'équipe.");
   const headingId = `team-${t.id}`;
   return (
     <article className="team-card" aria-labelledby={headingId}>
       <div className="row">
         <h4 id={headingId} className="grow">{t.name}</h4>
-        <Pill tone={t.nameReviewed ? "good" : "warn"} dot>{t.nameReviewed ? "Checked" : "Not checked"}</Pill>
+        <Pill tone={t.nameReviewed ? "good" : "warn"} dot>{t.nameReviewed ? "Vérifié" : "Non vérifié"}</Pill>
       </div>
       <p className="d mt-0 mb-0">
-        {t.members.length}/{max} · {t.photos} {t.photos === 1 ? "photo" : "photos"} · {t.challengesEntered} {t.challengesEntered === 1 ? "challenge" : "challenges"}
-        {!t.nameReviewed && <> · will show as “{t.label}” after erasure</>}
+        {t.members.length}/{max} · {t.photos} {t.photos <= 1 ? "photo" : "photos"} · {t.challengesEntered} {t.challengesEntered <= 1 ? "défi" : "défis"}
+        {!t.nameReviewed && <> · s'affichera « {t.label} » après l'effacement</>}
       </p>
       {t.members.length > 0 && <ul className="team-members">{t.members.map((m) => <li key={m}>{emailOf(m)}</li>)}</ul>}
       {editable && !renaming && (
         <div className="row mt-2">
-          {!t.nameReviewed && <Button variant="good" size="mini" busy={review.busy} onClick={review.run}>Name OK</Button>}
-          <Button variant="neutral" size="mini" onClick={() => { setName(t.name); setRenaming(true); }}>Rename</Button>
+          {!t.nameReviewed && <Button variant="good" size="mini" busy={review.busy} onClick={review.run}>Nom OK</Button>}
+          <Button variant="neutral" size="mini" onClick={() => { setName(t.name); setRenaming(true); }}>Renommer</Button>
         </div>
       )}
       {renaming && (
         <div className="roster-fix">
-          <input className="input" value={name} maxLength={80} onChange={(e) => setName(e.target.value)} aria-label={`New name for ${t.name}`} />
-          <Button size="mini" disabled={!name.trim()} busy={rename.busy} onClick={rename.run}>Save name</Button>
-          <Button variant="neutral" size="mini" onClick={() => setRenaming(false)}>Cancel</Button>
+          <input className="input" value={name} maxLength={80} onChange={(e) => setName(e.target.value)} aria-label={`Nouveau nom pour ${t.name}`} />
+          <Button size="mini" disabled={!name.trim()} busy={rename.busy} onClick={rename.run}>Enregistrer le nom</Button>
+          <Button variant="neutral" size="mini" onClick={() => setRenaming(false)}>Annuler</Button>
         </div>
       )}
       <Notice tone="err">{review.error || rename.error}</Notice>
@@ -248,37 +248,37 @@ function Roster({ tripId, onSettled }: { tripId: string; onSettled: () => void }
   const importRoster = useAction(async () => {
     setQueued("");
     const r = await api.importRoster(tripId, emails);
-    setQueued(`Queued ${r.queued} of ${r.requested}. Sending access codes in the background…`);
+    setQueued(`${r.queued} sur ${r.requested} en file d'attente. Envoi des codes d'accès en arrière-plan…`);
     setText("");
     onSettled(); // the new addresses show up as "sending"
     startPolling();
-  }, "Could not import the roster.");
+  }, "Impossible d'importer la liste.");
   const sent = status && status.students > 0 ? status : null;
 
   return (
     <Card>
-      <h3>Roster</h3>
+      <h3>Liste d'élèves</h3>
       <label className="field">
-        <span>Student emails — one per line or comma-separated</span>
+        <span>E-mails des élèves — un par ligne ou séparés par des virgules</span>
         <textarea value={text} onChange={(e) => setText(e.target.value)} rows={5} />
       </label>
-      <Button disabled={emails.length === 0} busy={importRoster.busy} onClick={importRoster.run}>Import + email codes</Button>
+      <Button disabled={emails.length === 0} busy={importRoster.busy} onClick={importRoster.run}>Importer et envoyer les codes</Button>
       <Notice tone="ok">{queued}</Notice>
       <Notice tone="err">{importRoster.error}</Notice>
       {sent && (
         <div className="roster-progress">
-          <Progress value={sent.done} max={sent.students} label="Codes emailed" tone="good" />
-          <p className="muted tiny mb-0">{sent.done} of {sent.students} codes emailed{sent.pending > 0 && " — sending…"}</p>
+          <Progress value={sent.done} max={sent.students} label="Codes envoyés" tone="good" />
+          <p className="muted tiny mb-0">{sent.done} codes envoyés sur {sent.students}{sent.pending > 0 && " — envoi…"}</p>
           {sent.failed > 0 && (
             <p className="warncard tiny mb-0">
-              <b>{sent.failed === 1 ? "1 email failed" : `${sent.failed} emails failed`}</b> — check the address{sent.failed === 1 ? "" : "es"} and import {sent.failed === 1 ? "it" : "them"} again.
+              <b>{sent.failed === 1 ? "1 e-mail en échec" : `${sent.failed} e-mails en échec`}</b> — vérifie {sent.failed === 1 ? "l'adresse et réimporte-la" : "les adresses et réimporte-les"}.
             </p>
           )}
         </div>
       )}
       <div className="mt-4">
-        <CopyField label="Lost-code recovery link" value={`${location.origin}/join?trip=${tripId}`} />
-        <p className="muted tiny mt-0">Share it with any student who changed or lost their device.</p>
+        <CopyField label="Lien de récupération de code" value={`${location.origin}/join?trip=${tripId}`} />
+        <p className="muted tiny mt-0">Partage-le avec tout élève qui a changé ou perdu son appareil.</p>
       </div>
     </Card>
   );

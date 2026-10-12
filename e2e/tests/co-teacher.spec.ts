@@ -11,10 +11,10 @@ test("the owner invites a co-teacher by email; only the invited account can acce
   const coEmail = uniqueEmail("co");
 
   await admin.goto(tripId);
-  await admin.open("Settings");
-  const teachers = admin.card("Teachers");
-  await teachers.getByLabel("Invite co-teacher by email").fill(coEmail);
-  await teachers.getByRole("button", { name: "Send invite" }).click();
+  await admin.open("Paramètres");
+  const teachers = admin.card("Enseignants");
+  await teachers.getByLabel("Inviter un co-enseignant par e-mail").fill(coEmail);
+  await teachers.getByRole("button", { name: "Envoyer l'invitation" }).click();
   await expect(teachers.getByText(`Invite emailed to ${coEmail}.`)).toBeVisible();
 
   const mail = await waitForMail(coEmail, { subject: /^You've been invited to co-manage / });
@@ -23,7 +23,7 @@ test("the owner invites a co-teacher by email; only the invited account can acce
   await test.step("a forwarded link opened by someone else is refused", async () => {
     const intruder = await signInTeacher(browser);
     await intruder.page.goto(acceptPath);
-    await expect(intruder.page.getByText("This invite was sent to a different email address")).toBeVisible();
+    await expect(intruder.page.getByText("Cette invitation a été envoyée à une autre adresse e-mail")).toBeVisible();
     await closeAll(intruder);
   });
 
@@ -34,13 +34,13 @@ test("the owner invites a co-teacher by email; only the invited account can acce
     await expect(co.page.getByRole("heading", { name, level: 2 })).toBeVisible();
 
     const coAdmin = new TripAdminPage(co.page);
-    await coAdmin.open("Settings");
-    await expect(coAdmin.card("Teachers").getByText(coEmail)).toBeVisible();
+    await coAdmin.open("Paramètres");
+    await expect(coAdmin.card("Enseignants").getByText(coEmail)).toBeVisible();
 
     await test.step("co-teachers can't invite others", async () => {
-      await coAdmin.card("Teachers").getByLabel("Invite co-teacher by email").fill(uniqueEmail("x"));
-      await coAdmin.card("Teachers").getByRole("button", { name: "Send invite" }).click();
-      await expect(coAdmin.card("Teachers").getByText("Only the trip owner can invite co-teachers.")).toBeVisible();
+      await coAdmin.card("Enseignants").getByLabel("Inviter un co-enseignant par e-mail").fill(uniqueEmail("x"));
+      await coAdmin.card("Enseignants").getByRole("button", { name: "Envoyer l'invitation" }).click();
+      await expect(coAdmin.card("Enseignants").getByText("Seul le responsable de la sortie peut inviter des co-enseignants.")).toBeVisible();
     });
     await closeAll(co);
   });

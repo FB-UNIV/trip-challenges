@@ -14,7 +14,7 @@ export function TripReview() {
     () => api.listNominations(tripId, "approved"),
     { live: true },
   );
-  const titleOf = (id: string) => challenges.data?.challenges.find((c) => c.id === id)?.title ?? "Challenge";
+  const titleOf = (id: string) => challenges.data?.challenges.find((c) => c.id === id)?.title ?? "Défi";
   const changed = () => void reloadPending(); // the whole trip: queue, approved list, badge, overview
   // Kept here, not in each photo: an undone decision brings the photo back as a new element.
   const [errors, setErrors] = useState<Record<string, string>>({});
@@ -25,27 +25,27 @@ export function TripReview() {
     <>
       <section className="card" aria-labelledby="review-queue">
         <div className="row">
-          <h3 id="review-queue" className="grow">Waiting for review</h3>
-          {pending.length > 0 && <Pill tone="warn">{pending.length} waiting</Pill>}
+          <h3 id="review-queue" className="grow">En attente de modération</h3>
+          {pending.length > 0 && <Pill tone="warn">{pending.length} en attente</Pill>}
         </div>
         {pendingError ? <ErrorCard inline error={pendingError} onRetry={changed} />
           : pending.length === 0
-          ? <EmptyState icon="✅" title="Nothing to review" />
+          ? <EmptyState icon="✅" title="Rien à modérer" />
           : <Groups noms={pending} titleOf={titleOf} decide onChange={changed} errors={errors} setError={setError} />}
         <p className="muted tiny mb-0">
-          Only approved nominations become votable. You can remove <b>any</b> photo, anytime.
+          Seules les photos validées sont soumises au vote. Tu peux retirer <b>n'importe quelle</b> photo, à tout moment.
         </p>
       </section>
 
       {approved.error && !approved.data && (
         <section className="card" aria-labelledby="review-approved">
-          <h3 id="review-approved">Approved — votable</h3>
+          <h3 id="review-approved">Validées — ouvertes au vote</h3>
           <ErrorCard inline error={approved.error} onRetry={approved.reload} />
         </section>
       )}
       {votable.length > 0 && (
         <section className="card" aria-labelledby="review-approved">
-          <h3 id="review-approved">Approved — votable</h3>
+          <h3 id="review-approved">Validées — ouvertes au vote</h3>
           <Groups noms={votable} titleOf={titleOf} onChange={changed} errors={errors} setError={setError} />
         </section>
       )}
@@ -93,9 +93,9 @@ function Nomination({
     // Once voting opened the team can't nominate another photo: say so first (#81, owner decision).
     if (decision === "reject" && rankOf(trip.phase) >= rankOf("voting")) {
       const ok = await confirm({
-        title: "Reject this entry?",
-        body: "Voting has started, so this team can't nominate another photo: their entry leaves the vote for this challenge.",
-        confirmLabel: "Reject", danger: true,
+        title: "Refuser cette photo ?",
+        body: "Le vote a commencé : cette équipe ne peut plus sélectionner d'autre photo et sort du vote pour ce défi.",
+        confirmLabel: "Refuser", danger: true,
       });
       if (!ok) return;
     }
@@ -108,37 +108,37 @@ function Nomination({
       );
       onChange();
     } catch (e) {
-      setError(n.id, e instanceof HttpError ? e.reason : `Could not ${decision}.`);
+      setError(n.id, e instanceof HttpError ? e.reason : decision === "approve" ? "Impossible de valider." : "Impossible de refuser.");
     }
   };
   const remove = useAction(async () => {
     const ok = await confirm({
-      title: "Remove this photo?",
-      body: "No one will see it again — not the team, not the voters. Use this for anything inappropriate.",
-      confirmLabel: "Remove photo", danger: true,
+      title: "Retirer cette photo ?",
+      body: "Plus personne ne la verra — ni l'équipe, ni les votants. À utiliser pour tout contenu inapproprié.",
+      confirmLabel: "Retirer la photo", danger: true,
     });
     if (!ok) return;
     await api.removeSubmission(n.submission_id);
     onChange();
-  }, "Could not remove the photo.");
+  }, "Impossible de retirer la photo.");
   const busy = remove.busy;
   const src = api.photoUrl(n.submission_id);
 
   return (
     <div className="review-item">
       <button
-        type="button" className="photo-btn" aria-label="Enlarge photo"
-        onClick={() => openLightbox({ src, title, subtitle: decide ? "Waiting for review" : "Approved" })}
+        type="button" className="photo-btn" aria-label="Agrandir la photo"
+        onClick={() => openLightbox({ src, title, subtitle: decide ? "En attente de modération" : "Validée" })}
       >
         <img src={src} alt="" className="photo" loading="lazy" />
       </button>
       {decide && (
         <div className="review-acts">
-          <Button variant="good" disabled={busy} onClick={decideAs("approve")}>Approve</Button>
-          <Button variant="crit" disabled={busy} onClick={decideAs("reject")}>Reject</Button>
+          <Button variant="good" disabled={busy} onClick={decideAs("approve")}>Valider</Button>
+          <Button variant="crit" disabled={busy} onClick={decideAs("reject")}>Refuser</Button>
         </div>
       )}
-      <Button variant="neutral" size="mini" busy={remove.busy} disabled={busy} onClick={remove.run}>Remove photo…</Button>
+      <Button variant="neutral" size="mini" busy={remove.busy} disabled={busy} onClick={remove.run}>Retirer la photo…</Button>
       <Notice tone="err">{error || remove.error}</Notice>
     </div>
   );

@@ -23,10 +23,11 @@ const VOTABLE = 3;
 const DAY = 86_400_000;
 const WARN_BEFORE_ERASURE = 7 * DAY;
 
-const plural = (n: number, one: string, many = `${one}s`) => `${n} ${n === 1 ? one : many}`;
+// French: 0 and 1 take the singular.
+const plural = (n: number, one: string, many = `${one}s`) => `${n} ${n <= 1 ? one : many}`;
 
-const rtf = new Intl.RelativeTimeFormat("en", { numeric: "auto" });
-/** "in 3 days", "tomorrow", "in 5 hours", "2 days ago". */
+const rtf = new Intl.RelativeTimeFormat("fr", { numeric: "auto" });
+/** "dans 3 jours", "demain", "dans 5 heures", "il y a 2 jours". */
 export function relTime(iso: string, now = new Date()): string {
   const ms = new Date(iso).getTime() - now.getTime();
   const abs = Math.abs(ms);
@@ -38,19 +39,19 @@ export function relTime(iso: string, now = new Date()): string {
 export function nowPlan({ phase, trip, progress, roster, pending = 0, now = new Date() }: PlanInput): Plan {
   const rel = (iso: string) => relTime(iso, now);
   const review: PlanCheck[] = pending > 0
-    ? [{ title: "Review nominations", state: "doing", meta: `${pending} waiting`, to: "review" }]
+    ? [{ title: "Modérer les photos en lice", state: "doing", meta: `${pending} en attente`, to: "review" }]
     : [];
   // Team names are only kept after the trip if a teacher checked them (ADR 0007).
   const unchecked = progress.teamsUnreviewed;
   const names: PlanCheck[] = progress.teams > 0
     ? [unchecked > 0
-      ? { title: "Check team names", state: "doing", meta: `${unchecked} not checked`, to: "students" }
-      : { title: "Check team names", state: "done", meta: "All checked", to: "students" }]
+      ? { title: "Vérifier les noms d'équipe", state: "doing", meta: `${plural(unchecked, "non vérifié", "non vérifiés")}`, to: "students" }
+      : { title: "Vérifier les noms d'équipe", state: "done", meta: "Tous vérifiés", to: "students" }]
     : [];
   const plan = planFor();
   const untilErasure = new Date(progress.eraseAt).getTime() - now.getTime();
   if (phase !== "grace" && phase !== "erased" && untilErasure <= WARN_BEFORE_ERASURE) {
-    plan.eraseWarning = `Student data will be erased ${rel(progress.eraseAt)}.`;
+    plan.eraseWarning = `Les données des élèves seront effacées ${rel(progress.eraseAt)}.`;
   }
   return plan;
 
@@ -60,97 +61,97 @@ export function nowPlan({ phase, trip, progress, roster, pending = 0, now = new 
         const n = progress.challenges.length;
         const { students, teams, studentsWithoutTeam: loose } = progress;
         const rosterCheck: PlanCheck = roster.failed > 0
-          ? { title: "Import the roster", state: "doing", meta: roster.failed === 1 ? "1 email failed — check the address" : `${roster.failed} emails failed — check the addresses` }
+          ? { title: "Importer la liste d'élèves", state: "doing", meta: roster.failed === 1 ? "1 e-mail en échec — vérifie l'adresse" : `${roster.failed} e-mails en échec — vérifie les adresses` }
           : roster.pending > 0
-            ? { title: "Import the roster", state: "doing", meta: `${roster.done} of ${roster.students} codes emailed` }
+            ? { title: "Importer la liste d'élèves", state: "doing", meta: `${roster.done} codes envoyés sur ${roster.students}` }
             : roster.students > 0
-              ? { title: "Import the roster", state: "done", meta: `${roster.done} codes emailed` }
-              : { title: "Import the roster", state: "todo", meta: "Paste the students' emails" };
+              ? { title: "Importer la liste d'élèves", state: "done", meta: `${plural(roster.done, "code envoyé", "codes envoyés")}` }
+              : { title: "Importer la liste d'élèves", state: "todo", meta: "Colle les e-mails des élèves" };
         const teamCheck: PlanCheck = students === 0
-          ? { title: "Students form teams", state: "todo", meta: "Once they've joined" }
+          ? { title: "Les élèves forment les équipes", state: "todo", meta: "Une fois inscrits" }
           : loose > 0
-            ? { title: "Students form teams", state: teams > 0 ? "doing" : "todo", meta: `${loose} without a team` }
-            : { title: "Students form teams", state: "done", meta: `${plural(students, "student")} in ${plural(teams, "team")}` };
+            ? { title: "Les élèves forment les équipes", state: teams > 0 ? "doing" : "todo", meta: `${loose} sans équipe` }
+            : { title: "Les élèves forment les équipes", state: "done", meta: `${plural(students, "élève")} dans ${plural(teams, "équipe")}` };
         return {
-          title: "Getting ready",
+          title: "Préparation",
           checks: [
-            { title: "Add challenges", state: n > 0 ? "done" : "todo", meta: n > 0 ? plural(n, "challenge") : undefined, to: "challenges" },
+            { title: "Ajouter des défis", state: n > 0 ? "done" : "todo", meta: n > 0 ? plural(n, "défi") : undefined, to: "challenges" },
             { ...rosterCheck, to: roster.failed > 0 ? "students?filter=undelivered" : "students" },
             { ...teamCheck, to: loose > 0 ? "students?filter=no-team" : "students" },
             trip.challenge_opens_at
-              ? { title: "Plan the dates", state: "done", meta: `Challenge opens ${rel(trip.challenge_opens_at)}`, to: "settings" }
-              : { title: "Plan the dates", state: "todo", meta: "Optional — or start the challenge yourself", to: "settings" },
+              ? { title: "Planifier les dates", state: "done", meta: `Les défis commencent ${rel(trip.challenge_opens_at)}`, to: "settings" }
+              : { title: "Planifier les dates", state: "todo", meta: "Facultatif — ou lance les défis toi-même", to: "settings" },
           ],
           action: {
-            label: "Start the challenge", to: "challenge",
-            confirm: "Teams lock and students can start uploading photos."
-              + (loose > 0 ? ` ${plural(loose, "student")} ${loose === 1 ? "has" : "have"} no team yet and won't be able to take part.` : ""),
+            label: "Lancer les défis", to: "challenge",
+            confirm: "Les équipes sont verrouillées et les élèves peuvent envoyer des photos."
+              + (loose > 0 ? ` ${plural(loose, "élève n'a", "élèves n'ont")} pas encore d'équipe et ne ${loose === 1 ? "pourra" : "pourront"} pas participer.` : ""),
           },
         };
       }
       case "challenge":
         return {
-          title: "Challenge under way",
+          title: "Défis en cours",
           checks: [
             ...progress.challenges.map((c): PlanCheck => ({
               title: c.title,
               state: progress.teams > 0 && c.teamsWithPhotos >= progress.teams ? "done" : c.teamsWithPhotos > 0 ? "doing" : "todo",
-              meta: `${c.teamsWithPhotos} of ${progress.teams} teams entered`,
+              meta: `${plural(c.teamsWithPhotos, "équipe")} sur ${progress.teams} ${c.teamsWithPhotos <= 1 ? "a" : "ont"} participé`,
               to: "challenges",
             })),
             ...review,
             ...names,
           ],
-          when: trip.voting_opens_at ? `Voting opens ${rel(trip.voting_opens_at)}` : undefined,
+          when: trip.voting_opens_at ? `Le vote ouvre ${rel(trip.voting_opens_at)}` : undefined,
           action: {
-            label: "Open voting", to: "voting",
-            confirm: "Uploads close. Teams that didn't nominate a photo get their latest one nominated."
-              + (pending > 0 ? ` ${plural(pending, "nomination")} still ${pending === 1 ? "waits" : "wait"} for review.` : ""),
+            label: "Ouvrir le vote", to: "voting",
+            confirm: "L'envoi de photos se ferme. Les équipes qui n'ont pas sélectionné de photo voient leur dernière photo sélectionnée."
+              + (pending > 0 ? ` ${plural(pending, "photo attend", "photos attendent")} encore d'être modérée${pending > 1 ? "s" : ""}.` : ""),
           },
         };
       case "voting": {
         const closes = trip.voting_closes_at;
         return {
-          title: "Voting",
+          title: "Vote",
           checks: [
             ...progress.challenges.map((c): PlanCheck => ({
               title: c.title,
               state: c.approved >= VOTABLE ? "done" : "todo",
-              meta: c.approved >= VOTABLE ? `${c.approved} approved — votable` : `${c.approved} approved — needs ${VOTABLE} to be votable`,
+              meta: c.approved >= VOTABLE ? `${plural(c.approved, "validée", "validées")} — ouvert au vote` : `${plural(c.approved, "validée", "validées")} — il en faut ${VOTABLE} pour voter`,
               to: "review",
             })),
             ...review,
             ...names,
             ...(progress.students > 0 ? [{
-              title: "Students who voted",
+              title: "Élèves ayant voté",
               state: progress.voters === 0 ? "todo" : progress.voters >= progress.students ? "done" : "doing",
-              meta: `${progress.voters} of ${progress.students}`,
+              meta: `${progress.voters} sur ${progress.students}`,
             } satisfies PlanCheck] : []),
           ],
-          when: closes ? `Voting ${new Date(closes) <= now ? "closed" : "closes"} ${rel(closes)}` : undefined,
+          when: closes ? `Le vote ${new Date(closes) <= now ? "s'est fermé" : "se ferme"} ${rel(closes)}` : undefined,
           action: {
-            label: "Close voting & compute results", to: "reveal",
-            confirm: "Voting stops and results are computed. Students see them only after the ceremony."
+            label: "Fermer le vote et calculer les résultats", to: "reveal",
+            confirm: "Le vote s'arrête et les résultats sont calculés. Les élèves ne les voient qu'après la cérémonie."
               + (unchecked > 0
-                ? ` ${plural(unchecked, "team name")} ${unchecked === 1 ? "isn't" : "aren't"} checked: they'll show at the ceremony, then become “Team N” after erasure.`
+                ? ` ${plural(unchecked, "nom d'équipe n'est pas vérifié", "noms d'équipe ne sont pas vérifiés")} : ${unchecked === 1 ? "il s'affichera" : "ils s'afficheront"} à la cérémonie, puis deviendr${unchecked === 1 ? "a" : "ont"} « Équipe N » après l'effacement.`
                 : ""),
           },
         };
       }
       case "reveal":
         return {
-          title: "Ceremony time",
-          checks: [{ title: "Run the ceremony", state: "todo", to: "results", meta: "Project it from Results" }],
+          title: "C'est l'heure de la cérémonie",
+          checks: [{ title: "Animer la cérémonie", state: "todo", to: "results", meta: "Projette-la depuis Résultats" }],
           action: {
-            label: "Publish results", to: "grace",
-            confirm: "Results become visible to students. "
-              + (progress.graceEndsAt ? `Student data is erased ${rel(progress.graceEndsAt)}.` : "Student data is erased after the grace period."),
+            label: "Publier les résultats", to: "grace",
+            confirm: "Les résultats deviennent visibles pour les élèves. "
+              + (progress.graceEndsAt ? `Les données des élèves seront effacées ${rel(progress.graceEndsAt)}.` : "Les données des élèves seront effacées après le délai de grâce."),
           },
         };
       case "grace":
-        return { title: "Results published", checks: [], when: `Student data is erased ${rel(progress.eraseAt)}` };
+        return { title: "Résultats publiés", checks: [], when: `Les données des élèves seront effacées ${rel(progress.eraseAt)}` };
       default:
-        return { title: "Trip erased", checks: [] };
+        return { title: "Sortie effacée", checks: [] };
     }
   }
 }

@@ -56,21 +56,21 @@ export function Ceremony() {
       {res.loading ? (
         <Skeleton dark />
       ) : scene?.kind === "empty" ? (
-        <div style={S.center}><h1 style={S.h1}>No results yet</h1><p style={S.sub}>Results appear once voting closes.</p></div>
+        <div style={S.center}><h1 style={S.h1}>Pas encore de résultats</h1><p style={S.sub}>Les résultats apparaissent à la clôture du vote.</p></div>
       ) : (
         <SceneView key={i} scene={scene!} />
       )}
 
       <div style={S.hud} onClick={(e) => e.stopPropagation()}>
-        <button style={S.ghost} onClick={prev} disabled={i === 0}>← Back</button>
+        <button style={S.ghost} onClick={prev} disabled={i === 0}>← Retour</button>
         <div style={S.dots}>
           {scenes.map((_, n) => (
             <span key={n} style={{ ...S.dot, ...(n === i ? S.dotOn : null) }} />
           ))}
         </div>
-        <button style={S.ghost} onClick={next} disabled={i >= scenes.length - 1}>Reveal →</button>
+        <button style={S.ghost} onClick={next} disabled={i >= scenes.length - 1}>Dévoiler →</button>
       </div>
-      <div style={S.hint}>Click, Space or → to reveal · ← to go back</div>
+      <div style={S.hint}>Clic, Espace ou → pour dévoiler · ← pour revenir</div>
     </div>
   );
 }
@@ -80,8 +80,8 @@ function SceneView({ scene }: { scene: Scene }) {
     return (
       <div style={S.center}>
         <div style={{ ...S.pop, fontSize: 96 }}>🏆</div>
-        <h1 style={{ ...S.h1, animation: "rise .6s .1s both" }}>And the winners are…</h1>
-        <p style={{ ...S.sub, animation: "rise .6s .35s both" }}>Tap to begin the ceremony</p>
+        <h1 style={{ ...S.h1, animation: "rise .6s .1s both" }}>Et les gagnants sont…</h1>
+        <p style={{ ...S.sub, animation: "rise .6s .35s both" }}>Touche l'écran pour commencer la cérémonie</p>
       </div>
     );
   }
@@ -111,14 +111,14 @@ function SceneView({ scene }: { scene: Scene }) {
     return (
       <div style={S.center}>
         <div style={{ fontSize: 120, animation: "pop .7s both" }}>👑</div>
-        <p style={{ ...S.sub, animation: "rise .5s .2s both" }}>Grand Champion</p>
+        <p style={{ ...S.sub, animation: "rise .5s .2s both" }}>Grand champion</p>
         {scene.teams.map((t, n) => (
           <h1 key={n} style={{ ...S.champ, animation: `pop .7s ${0.4 + n * 0.2}s both` }}>
             {t.team_name_vetted}
             <span style={S.champPts}> · {t.points} pts</span>
           </h1>
         ))}
-        {scene.teams.length > 1 && <p style={S.sub}>(a tie — teacher decides)</p>}
+        {scene.teams.length > 1 && <p style={S.sub}>(égalité — l'enseignant tranche)</p>}
       </div>
     );
   }

@@ -13,14 +13,14 @@ test("students form teams up to the size limit, can switch, and teams lock when 
     await a.goto();
     await a.create("Foxes");
     await b.goto();
-    await expect(b.row("Foxes")).toContainText("1 member");
+    await expect(b.row("Foxes")).toContainText("1 membre");
     await b.join("Foxes");
     await b.expectInTeam();
   });
 
   await test.step("a full team refuses a third member", async () => {
     await c.goto();
-    await expect(c.row("Foxes")).toContainText("2 members");
+    await expect(c.row("Foxes")).toContainText("2 membres");
     await c.join("Foxes");
     await expect(cleo!.page.locator(".err")).toContainText("full");
   });
@@ -37,8 +37,8 @@ test("students form teams up to the size limit, can switch, and teams lock when 
     await a.goto();
     // Locked: no leaving, and the team page points at the challenges instead.
     await expect(ana!.page.getByRole("heading", { name: "Foxes" })).toBeVisible();
-    await expect(ana!.page.getByRole("button", { name: "Leave team" })).toHaveCount(0);
-    await expect(ana!.page.getByRole("link", { name: /See your challenges/ })).toBeVisible();
+    await expect(ana!.page.getByRole("button", { name: "Quitter l'équipe" })).toHaveCount(0);
+    await expect(ana!.page.getByRole("link", { name: /Voir tes défis/ })).toBeVisible();
     const home = new StudentHomePage(ana!.page);
     await home.goto();
     await expect(ana!.page.getByRole("heading", { name: "Foxes" })).toBeVisible();

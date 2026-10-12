@@ -13,12 +13,12 @@ export class StudentHomePage {
   }
 
   async expectSignedOut() {
-    await expect(this.page.getByRole("heading", { name: "Enter your access code" })).toBeVisible();
+    await expect(this.page.getByRole("heading", { name: "Saisis ton code d'accès" })).toBeVisible();
   }
 
   async enterCode(code: string) {
-    await this.page.getByLabel("Access code").fill(code);
-    await this.page.getByRole("button", { name: "Continue" }).click();
+    await this.page.getByLabel("Code d'accès").fill(code);
+    await this.page.getByRole("button", { name: "Continuer" }).click();
   }
 }
 
@@ -30,14 +30,14 @@ export class TeamPage {
   }
 
   async create(name: string) {
-    await this.page.getByLabel("New team name").fill(name);
-    await this.page.getByRole("button", { name: "Create team" }).click();
+    await this.page.getByLabel("Nom de la nouvelle équipe").fill(name);
+    await this.page.getByRole("button", { name: "Créer l'équipe" }).click();
     await this.expectInTeam();
   }
 
   /** The in-team view: my team's next steps. */
   async expectInTeam() {
-    await expect(this.page.getByRole("list", { name: "Next steps" })).toBeVisible();
+    await expect(this.page.getByRole("list", { name: "Prochaines étapes" })).toBeVisible();
   }
 
   row(name: string): Locator {
@@ -45,12 +45,12 @@ export class TeamPage {
   }
 
   async join(name: string) {
-    await this.row(name).getByRole("button", { name: "Join" }).click();
+    await this.row(name).getByRole("button", { name: "Rejoindre" }).click();
   }
 
   async leave() {
-    await this.page.getByRole("button", { name: "Leave team" }).click();
-    await expect(this.page.getByLabel("New team name")).toBeVisible();
+    await this.page.getByRole("button", { name: "Quitter l'équipe" }).click();
+    await expect(this.page.getByLabel("Nom de la nouvelle équipe")).toBeVisible();
   }
 }
 
@@ -68,13 +68,13 @@ export class ChallengePage {
   async upload(file: { name: string; mimeType: string; buffer: Buffer }) {
     const before = await this.photos().count();
     await this.page.locator('input[type="file"]').setInputFiles(file);
-    await this.page.getByRole("button", { name: "Upload" }).click();
+    await this.page.getByRole("button", { name: "Envoyer" }).click();
     await expect(this.photos()).toHaveCount(before + 1);
   }
 
   async nominate(index = 0) {
-    await this.photos().nth(index).getByRole("button", { name: "Nominate" }).click();
-    await expect(this.photos().nth(index).getByRole("button", { name: "Nominated ✓" })).toBeVisible();
+    await this.photos().nth(index).getByRole("button", { name: "Sélectionner" }).click();
+    await expect(this.photos().nth(index).getByRole("button", { name: "Sélectionnée ✓" })).toBeVisible();
   }
 }
 
@@ -91,7 +91,7 @@ export class VotePage {
   }
 
   async pick(submissionId: string) {
-    await expect(this.page.getByRole("heading", { name: "Which is better?" })).toBeVisible();
+    await expect(this.page.getByRole("heading", { name: "Laquelle est la meilleure ?" })).toBeVisible();
     // In dev, React StrictMode runs the page's load effect twice, so a second pair can
     // re-render the sides (possibly swapped) right as we click. Wait until it settles.
     await this.page.waitForLoadState("networkidle");
@@ -100,6 +100,6 @@ export class VotePage {
 
   /** This challenge has no pairs left: "Challenge done!" (more to vote) or "All voted!" (last one). */
   async expectAllJudged() {
-    await expect(this.page.getByRole("heading", { name: /^(Challenge done!|All voted!)$/ })).toBeVisible();
+    await expect(this.page.getByRole("heading", { name: /^(Défi terminé !|Tout est voté !)$/ })).toBeVisible();
   }
 }
