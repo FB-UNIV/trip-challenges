@@ -55,7 +55,7 @@ describe("error responses", () => {
     const res = await a.inject({ method: "GET", url: `/boom/${kind}` });
     expect(res.statusCode).toBe(503);
     expect(res.json()).toMatchObject({ error, requestId: expect.any(String) });
-    expect(res.json().message).toMatch(/unavailable/i);
+    expect(res.json().message).toMatch(/indisponible/i);
   });
 
   it.each(["vault-bad-request", "pg-unique"])("treat a %s (our bug, not an outage) as internal_error", async (kind) => {
@@ -70,7 +70,7 @@ describe("error responses", () => {
     const { app: a } = await app();
     const res = await a.inject({ method: "GET", url: "/boom/too-large" });
     expect(res.statusCode).toBe(413);
-    expect(res.json()).toMatchObject({ error: "payload_too_large", message: "request file too large", requestId: expect.any(String) });
+    expect(res.json()).toMatchObject({ error: "payload_too_large", message: "Le fichier est trop volumineux.", requestId: expect.any(String) });
   });
 
   it("keep the rate limiter's own code and message", async () => {

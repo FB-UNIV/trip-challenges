@@ -132,7 +132,7 @@ describe("POST /api/trips/:id/students/:studentId/resend", () => {
     mailer.fail = true;
     const res = await resend(trip, lea);
     expect(res.statusCode).toBe(502);
-    expect(res.json().message).toMatch(/couldn't be sent/i);
+    expect(res.json().message).toMatch(/n'a pas pu être envoyé/i);
     expect(JSON.stringify(res.json())).not.toContain("lea@");
     expect((await list(trip)).students[0]).toMatchObject({ status: "undelivered" });
   });

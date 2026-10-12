@@ -206,6 +206,6 @@ describe("POST /api/duels/cast", () => {
 
     const other = await makeStudent(trip);
     expect((await cast(other.cookie, pair.pairToken, pair.aNominationId)).json().error).toBe("bad_token");
-    expect((await cast(voter.cookie, pair.pairToken, noms.A!)).json().message).toBe("winner not in pair");
+    expect((await cast(voter.cookie, pair.pairToken, noms.A!)).json().message).toBe("Cette photo ne fait pas partie du duel.");
   });
 });

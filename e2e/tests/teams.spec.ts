@@ -22,7 +22,7 @@ test("students form teams up to the size limit, can switch, and teams lock when 
     await c.goto();
     await expect(c.row("Foxes")).toContainText("2 membres");
     await c.join("Foxes");
-    await expect(cleo!.page.locator(".err")).toContainText("full");
+    await expect(cleo!.page.locator(".err")).toContainText("complète");
   });
 
   await test.step("switch teams before the lock", async () => {

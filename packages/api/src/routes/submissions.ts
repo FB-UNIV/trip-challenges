@@ -20,16 +20,16 @@ export async function submissionRoutes(app: FastifyInstance) {
       query: z.object({ challengeId: z.string() }),
       trip: tripFrom.challenge("query.challengeId"),
       phases: ["challenge"],
-      closed: { status: 409, body: { error: "closed", message: "submissions are closed" } },
+      closed: { status: 409, body: { error: "closed", message: "L'envoi de photos est fermé." } },
     }),
   }, async (req, reply) => {
     const ctx = studentOf(req);
-    if (!ctx.teamId) return reply.code(409).send({ error: "no_team", message: "join a team first" });
+    if (!ctx.teamId) return reply.code(409).send({ error: "no_team", message: "Rejoins d'abord une équipe." });
     const { challengeId } = req.query as { challengeId: string };
 
     const file = await req.file();
     if (!file || !file.mimetype.startsWith("image/")) {
-      return reply.code(400).send({ error: "bad_file", message: "image required" });
+      return reply.code(400).send({ error: "bad_file", message: "Une image est requise." });
     }
     const raw = await file.toBuffer();
 
@@ -41,19 +41,19 @@ export async function submissionRoutes(app: FastifyInstance) {
         verdict = await scanBuffer(raw);
       } catch (e) {
         req.log.error({ err: e }, "av scan unavailable");
-        return reply.code(503).send({ error: "scan_unavailable", message: "virus scan unavailable, try again later" });
+        return reply.code(503).send({ error: "scan_unavailable", message: "L'analyse antivirus est indisponible, réessaie plus tard." });
       }
       if (!verdict.clean) {
         await pool.query(
           `INSERT INTO audit_log (trip_id, action) VALUES ($1, 'submission_infected_rejected')`,
           [ctx.tripId],
         );
-        return reply.code(422).send({ error: "infected", message: "file failed the virus scan" });
+        return reply.code(422).send({ error: "infected", message: "Le fichier n'a pas passé l'analyse antivirus." });
       }
     }
 
     const normalized = await normalizeImage(raw).catch(() => null);
-    if (!normalized) return reply.code(400).send({ error: "bad_image", message: "unreadable image" });
+    if (!normalized) return reply.code(400).send({ error: "bad_image", message: "Image illisible." });
 
     const submissionId = randomUUID();
     const key = blobKey(ctx.tripId, submissionId);
@@ -114,7 +114,7 @@ export async function submissionRoutes(app: FastifyInstance) {
       [id],
     );
     const s = rows[0];
-    if (!s || s.removed) return reply.code(404).send({ error: "not_found", message: "photo" });
+    if (!s || s.removed) return reply.code(404).send({ error: "not_found", message: "Photo introuvable." });
 
     let allowed = false;
     const teacher = readTeacher(req, reply);
@@ -128,7 +128,7 @@ export async function submissionRoutes(app: FastifyInstance) {
         allowed = ownTeam || publicNow;
       }
     }
-    if (!allowed) return reply.code(403).send({ error: "forbidden", message: "not visible" });
+    if (!allowed) return reply.code(403).send({ error: "forbidden", message: "Tu n'as pas accès à cette photo." });
 
     const plain = await openBlob(s.trip_id, await getBlob(s.blob_key));
     reply.header("content-type", s.content_type);

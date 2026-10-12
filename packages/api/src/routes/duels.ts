@@ -84,18 +84,18 @@ export async function duelRoutes(app: FastifyInstance) {
     preHandler: guard({
       role: "student",
       phases: ["voting"],
-      closed: { status: 409, body: { error: "closed", message: "closed" } },
+      closed: { status: 409, body: { error: "closed", message: "Le vote est fermé." } },
     }),
   }, async (req, reply) => {
     const ctx = studentOf(req);
     const parsed = CastDuel.safeParse(req.body);
-    if (!parsed.success) return reply.code(400).send({ error: "bad_request", message: "invalid" });
+    if (!parsed.success) return reply.code(400).send({ error: "bad_request", message: "Données invalides." });
 
     const pair = verifyPair(parsed.data.pairToken, ctx.studentId);
-    if (!pair) return reply.code(400).send({ error: "bad_token", message: "invalid pair token" });
+    if (!pair) return reply.code(400).send({ error: "bad_token", message: "Ce duel n'est pas valide." });
     const winner = parsed.data.winnerNominationId;
     if (winner !== pair.lo && winner !== pair.hi) {
-      return reply.code(400).send({ error: "bad_request", message: "winner not in pair" });
+      return reply.code(400).send({ error: "bad_request", message: "Cette photo ne fait pas partie du duel." });
     }
 
     try {
@@ -103,8 +103,8 @@ export async function duelRoutes(app: FastifyInstance) {
         // Re-check trip + phase at cast time, holding the trip row so a concurrent phase
         // change can't land between the check and the vote (#16, #17).
         const phase = await challengePhase(c, pair.challengeId, ctx.tripId, "FOR SHARE OF t");
-        if (!phase) throw Object.assign(new Error("not found"), { httpStatus: 404, error: "not_found" });
-        if (phase !== "voting") throw Object.assign(new Error("closed"), { httpStatus: 409, error: "closed" });
+        if (!phase) throw Object.assign(new Error("Défi introuvable."), { httpStatus: 404, error: "not_found" });
+        if (phase !== "voting") throw Object.assign(new Error("Le vote est fermé."), { httpStatus: 409, error: "closed" });
 
         await c.query(
           `INSERT INTO duel (trip_id, challenge_id, voter_student_id,
@@ -120,7 +120,7 @@ export async function duelRoutes(app: FastifyInstance) {
     } catch (e: any) {
       if (e?.httpStatus) return reply.code(e.httpStatus).send({ error: e.error, message: e.message });
       // unique violation = repeat pair for this voter
-      if (e?.code === "23505") return reply.code(409).send({ error: "duplicate", message: "already voted this pair" });
+      if (e?.code === "23505") return reply.code(409).send({ error: "duplicate", message: "Tu as déjà voté pour ce duel." });
       throw e;
     }
     return { ok: true };

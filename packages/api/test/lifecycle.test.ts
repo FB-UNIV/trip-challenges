@@ -162,9 +162,9 @@ describe("computeResults (via advance voting -> reveal)", () => {
       [trip],
     );
     expect(rows).toEqual([
-      { challenge_title: "Gelato", team_name_vetted: "Léa & Tom 4B", team_label: "Team 1", team_name_reviewed: false },
-      { challenge_title: "Gelato", team_name_vetted: "Les Owls", team_label: "Team 3", team_name_reviewed: true },
-      { challenge_title: "Grand Champion", team_name_vetted: "Léa & Tom 4B", team_label: "Team 1", team_name_reviewed: false },
+      { challenge_title: "Gelato", team_name_vetted: "Léa & Tom 4B", team_label: "Équipe 1", team_name_reviewed: false },
+      { challenge_title: "Gelato", team_name_vetted: "Les Owls", team_label: "Équipe 3", team_name_reviewed: true },
+      { challenge_title: "Grand Champion", team_name_vetted: "Léa & Tom 4B", team_label: "Équipe 1", team_name_reviewed: false },
     ]);
   });
 

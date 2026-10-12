@@ -10,7 +10,7 @@ import { decrypt, encrypt } from "../crypto/vault.js";
 
 const BEFORE_REVEAL: Phase[] = ["draft", "challenge", "voting"];
 const TeamParams = z.object({ id: z.string().uuid(), teamId: z.string().uuid() });
-const closed = { status: 409, body: { error: "closed", message: "team names are final once results are computed" } };
+const closed = { status: 409, body: { error: "closed", message: "Les noms d'équipe sont définitifs une fois les résultats calculés." } };
 
 export async function tripTeamRoutes(app: FastifyInstance) {
   const member = guard({ role: "teacher", trip: tripFrom.trip("params.id") });
@@ -37,7 +37,7 @@ export async function tripTeamRoutes(app: FastifyInstance) {
     const teams = await Promise.all(rows.map(async (r, i) => ({
       id: r.id,
       name: (await decrypt(trip.id, r.name_enc.toString("utf8"))).toString("utf8"),
-      label: `Team ${i + 1}`, // same rule as the results' label (lifecycle.ts)
+      label: `Équipe ${i + 1}`, // same rule as the results' label (lifecycle.ts)
       nameReviewed: r.name_reviewed,
       members: r.members,
       photos: r.photos,
@@ -70,7 +70,7 @@ export async function tripTeamRoutes(app: FastifyInstance) {
   async function mark(req: FastifyRequest, reply: FastifyReply, teamId: string, set: string, action: string, extra: unknown[]) {
     const trip = tripOf(req);
     const { rowCount } = await pool.query(`UPDATE team SET ${set} WHERE id = $1 AND trip_id = $2`, [teamId, trip.id, ...extra]);
-    if (!rowCount) return reply.code(404).send({ error: "not_found", message: "team" });
+    if (!rowCount) return reply.code(404).send({ error: "not_found", message: "Équipe introuvable." });
     await pool.query(
       `INSERT INTO audit_log (trip_id, teacher_id, action, target_opaque_id) VALUES ($1, $2, $3, $4)`,
       [trip.id, teacherOf(req).teacherId, action, teamId],

@@ -117,7 +117,7 @@ test("a full trip: roster → teams → photos → moderation → duels → cere
     expect((await teacher.api.r.get(`/api/submissions/${kids.Foxes.submissionId}/photo`)).status()).toBe(404);
     const results = await teacher.api.results(tripId);
     // Nobody reviewed "Foxes", so only its neutral label survives (#92): Foxes was created first.
-    expect(results.filter((r) => r.is_grand_champion).map((r) => r.team_name_vetted)).toEqual(["Team 1"]);
+    expect(results.filter((r) => r.is_grand_champion).map((r) => r.team_name_vetted)).toEqual(["Équipe 1"]);
     expect(results.map((r) => r.team_name_vetted)).not.toContain("Foxes");
   });
 

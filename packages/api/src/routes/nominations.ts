@@ -12,13 +12,13 @@ export async function nominationRoutes(app: FastifyInstance) {
     preHandler: guard({
       role: "student",
       phases: ["challenge"],
-      closed: { status: 409, body: { error: "closed", message: "nominations are closed" } },
+      closed: { status: 409, body: { error: "closed", message: "La sélection des photos est fermée." } },
     }),
   }, async (req, reply) => {
     const ctx = studentOf(req);
-    if (!ctx.teamId) return reply.code(409).send({ error: "no_team", message: "join a team first" });
+    if (!ctx.teamId) return reply.code(409).send({ error: "no_team", message: "Rejoins d'abord une équipe." });
     const parsed = NominateInput.safeParse(req.body);
-    if (!parsed.success) return reply.code(400).send({ error: "bad_request", message: "invalid" });
+    if (!parsed.success) return reply.code(400).send({ error: "bad_request", message: "Données invalides." });
     const { challengeId, submissionId } = parsed.data;
 
     // Submission must be this team's, for this challenge, in this trip, and not removed.
@@ -28,7 +28,7 @@ export async function nominationRoutes(app: FastifyInstance) {
           AND s.trip_id = $4 AND s.removed_by_teacher_id IS NULL`,
       [submissionId, challengeId, ctx.teamId, ctx.tripId],
     );
-    if (!rowCount) return reply.code(404).send({ error: "not_found", message: "submission" });
+    if (!rowCount) return reply.code(404).send({ error: "not_found", message: "Photo introuvable." });
 
     await tx(async (c) => {
       // Retire the current active nomination for this (team, challenge), then add the new one.

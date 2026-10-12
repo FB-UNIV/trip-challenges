@@ -3,6 +3,7 @@
 // Security: the link carries a high-entropy single-use token (we store only its SHA-256),
 // it expires, AND on accept the signed-in teacher's email must match the invited address —
 // so a forwarded link can't grant a stranger access to minors' data.
+import { invalidFields } from "../lib/errors.js";
 import type { FastifyInstance } from "fastify";
 import { randomBytes, createHash } from "node:crypto";
 import { z } from "zod";
@@ -47,12 +48,12 @@ export async function tripInviteRoutes(app: FastifyInstance) {
 
   // Invite a co-teacher by email (owner only).
   app.post("/:id/invites", {
-    preHandler: guard({ role: "teacher", trip: tripFrom.trip("params.id"), owner: "only the trip owner can invite co-teachers" }),
+    preHandler: guard({ role: "teacher", trip: tripFrom.trip("params.id"), owner: "Seul le responsable de la sortie peut inviter des co-enseignants." }),
   }, async (req, reply) => {
     const teacher = teacherOf(req);
     const tripId = tripOf(req).id;
     const parsed = InviteCoTeacher.safeParse(req.body);
-    if (!parsed.success) return reply.code(400).send({ error: "bad_request", message: parsed.error.message });
+    if (!parsed.success) return reply.code(400).send({ error: "bad_request", message: invalidFields(parsed.error) });
     const email = parsed.data.email.trim().toLowerCase();
 
     // Already a member? (citext compare)
@@ -61,7 +62,7 @@ export async function tripInviteRoutes(app: FastifyInstance) {
         WHERE tt.trip_id = $1 AND t.email = $2`,
       [tripId, email],
     );
-    if (member.rowCount) return reply.code(409).send({ error: "already_member", message: "already a teacher on this trip" });
+    if (member.rowCount) return reply.code(409).send({ error: "already_member", message: "Déjà enseignant sur cette sortie." });
 
     const { rows: tripRows } = await pool.query<{ name: string }>(`SELECT name FROM trip WHERE id = $1`, [tripId]);
     const tripName = tripRows[0]?.name ?? "the trip";
@@ -96,7 +97,7 @@ export async function tripInviteRoutes(app: FastifyInstance) {
       role: "teacher",
       params: z.object({ id: z.string(), inviteId: z.string().uuid() }),
       trip: tripFrom.trip("params.id"),
-      owner: "only the trip owner can revoke invites",
+      owner: "Seul le responsable de la sortie peut révoquer les invitations.",
     }),
   }, async (req) => {
     const tripId = tripOf(req).id;
@@ -123,7 +124,7 @@ export async function inviteRoutes(app: FastifyInstance) {
         WHERE i.token_hash = $1 AND i.accepted_at IS NULL`,
       [sha256(token)],
     );
-    if (!rows[0]) return reply.code(404).send({ error: "not_found", message: "invite not found or already used" });
+    if (!rows[0]) return reply.code(404).send({ error: "not_found", message: "Invitation introuvable ou déjà utilisée." });
     return rows[0];
   });
 
@@ -131,7 +132,7 @@ export async function inviteRoutes(app: FastifyInstance) {
   app.post("/accept", { preHandler: guard({ role: "teacher" }) }, async (req, reply) => {
     const teacher = teacherOf(req);
     const parsed = AcceptInvite.safeParse(req.body);
-    if (!parsed.success) return reply.code(400).send({ error: "bad_request", message: "token" });
+    if (!parsed.success) return reply.code(400).send({ error: "bad_request", message: "Données invalides : token." });
 
     // Look up by token WITHOUT the accepted_at filter so a repeat accept is idempotent
     // rather than a confusing 404. The client auto-accepts on mount and React StrictMode
@@ -145,13 +146,13 @@ export async function inviteRoutes(app: FastifyInstance) {
     );
     const invite = rows[0];
     if (!invite || invite.expired) {
-      return reply.code(404).send({ error: "not_found", message: "invite invalid or expired" });
+      return reply.code(404).send({ error: "not_found", message: "Invitation non valide ou expirée." });
     }
 
     // Bind the invite to the intended recipient: the signed-in teacher's email must match.
     const { rows: me } = await pool.query<{ email: string }>(`SELECT email FROM teacher WHERE id = $1`, [teacher.teacherId]);
     if ((me[0]?.email ?? "").toLowerCase() !== invite.email.toLowerCase()) {
-      return reply.code(403).send({ error: "wrong_account", message: "this invite was sent to a different email address" });
+      return reply.code(403).send({ error: "wrong_account", message: "Cette invitation a été envoyée à une autre adresse e-mail." });
     }
 
     // Idempotent: ensure membership, mark accepted + audit only on the first accept.

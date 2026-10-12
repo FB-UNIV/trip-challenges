@@ -38,7 +38,7 @@ describe("behind the proxy (#67)", () => {
     const limited = await health({ "x-forwarded-for": "203.0.113.1" });
     expect(limited.statusCode).toBe(429);
     expect(limited.json()).toMatchObject({ error: "rate_limited" });
-    expect(limited.json().message).toMatch(/try again/i);
+    expect(limited.json().message).toMatch(/réessaie/i);
 
     // Another phone behind the same proxy is unaffected.
     expect((await health({ "x-forwarded-for": "203.0.113.2" })).statusCode).toBe(200);
@@ -67,7 +67,7 @@ describe("per-student limit", () => {
     for (let i = 0; i < config.RATE_LIMIT_STUDENT_MAX; i++) expect((await me(noisy.cookie, `198.18.0.${i + 1}`)).statusCode).toBe(200);
     const limited = await me(noisy.cookie, "198.18.1.1");
     expect(limited.statusCode).toBe(429);
-    expect(limited.json()).toMatchObject({ error: "rate_limited", message: expect.stringMatching(/try again/i), requestId: expect.any(String) });
+    expect(limited.json()).toMatchObject({ error: "rate_limited", message: expect.stringMatching(/réessaie/i), requestId: expect.any(String) });
     expect((await me(classmate.cookie, "198.18.1.1")).statusCode).toBe(200);
   });
 

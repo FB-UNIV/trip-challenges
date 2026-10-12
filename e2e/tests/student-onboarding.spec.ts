@@ -22,8 +22,8 @@ test("the teacher imports a roster and each student joins from their emailed lin
   await expect(admin.card("Liste d'élèves").getByText("2 codes envoyés sur 2", { exact: true })).toBeVisible();
 
   const mail = await waitForMail(emails[0]!, { subject: ACCESS_CODE_SUBJECT });
-  expect(mail.subject).toBe(`Your access code for ${name}`);
-  expect(mail.text).toContain("This link is personal");
+  expect(mail.subject).toBe(`Ton code d'accès pour ${name}`);
+  expect(mail.text).toContain("Ce lien est personnel");
 
   const kid = await joinByEmail(browser, emails[0]!);
   const home = new StudentHomePage(kid.page);
