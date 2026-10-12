@@ -224,7 +224,8 @@ Workflows live in [`.github/workflows/`](./.github/workflows):
 - **`release.yml`** — [release-please](https://github.com/googleapis/release-please) keeps a
   release PR open with the next [semver](https://semver.org) version and `CHANGELOG.md`.
   Merging it tags `vX.Y.Z`, creates the GitHub release, and pushes
-  `ghcr.io/<owner>/trip-api` and `trip-web` as `:X.Y.Z`, `:X.Y` and `:latest`.
+  public `ghcr.io/fb-univ/trip-api` and `trip-web` images as `:X.Y.Z`, `:X.Y` and `:latest`,
+  signed with cosign and shipped with an SBOM + provenance ([verify](./docs/deployment.md#7-cicd-github-actions)).
 
 Version bumps: `fix:` → patch, `feat:` → minor, `feat!:` / `BREAKING CHANGE:` → major
 (minor while < 1.0). Other types don't release.
