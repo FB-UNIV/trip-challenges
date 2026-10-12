@@ -7,7 +7,8 @@
 # them keyless with cosign (Sigstore, via this workflow's OIDC identity — no key to manage).
 # Verify command: docs/deployment.md §7.
 #
-# Optional secret RELEASE_PLEASE_TOKEN (fine-grained PAT: contents + pull-requests write).
+# Optional secret RELEASE_PLEASE_TOKEN (fine-grained PAT: contents + pull-requests write), stored
+# in the `release` environment (deployments from main only), not as a repository secret.
 # Without it, release PRs are opened by GITHUB_TOKEN and GitHub does not run CI on them,
 # so the required checks never report — see CLAUDE.md "Releases".
 name: release
@@ -28,6 +29,9 @@ permissions: {}
 jobs:
   release-please:
     runs-on: ubuntu-latest
+    # RELEASE_PLEASE_TOKEN lives in this environment (main only), not in the repo's secrets,
+    # so no other workflow or branch can read it.
+    environment: release
     permissions:
       contents: write
       pull-requests: write

@@ -20,8 +20,9 @@ linter configured. `scripts/e2e.mjs` is a live-stack smoke test — see its head
 
 ## Git workflow
 
-- Never commit or push to `main` — the `protect-main` ruleset rejects direct pushes and requires
-  `check`, `docker (api)`, `docker (web)` and `pr-title` to pass. Branch (`feat/…`, `fix/…`, `ci/…`, `docs/…`),
+- Never commit or push to `main` — the `protect-main` ruleset (no bypass, not even admins) rejects
+  direct pushes and requires `check`, `docker (api)`, `docker (web)`, `pr-title` and `e2e` to pass,
+  plus no new high CodeQL alert. `v*` tags can't be moved or deleted, and releases are immutable. Branch (`feat/…`, `fix/…`, `ci/…`, `docs/…`),
   push, open a PR with `gh pr create`.
 - PRs are squash-merged; the **PR title** is the commit and must be a Conventional Commit.
   It sets the semver bump: `fix:` patch, `feat:` minor, `feat!:` major. `docs/ci/chore/…` don't release.
