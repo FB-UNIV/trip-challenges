@@ -9,6 +9,7 @@ vi.mock("../src/email/mailer.js", () => import("./support/fake-mailer.js"));
 import argon2 from "argon2";
 import { studentAuthRoutes } from "../src/routes/student-auth.js";
 import { sent, mailer } from "./support/fake-mailer.js";
+import { config } from "./support/config.js";
 import {
   pool, resetAll, buildApp, makeTeacher, makeTrip, makeStudent, makeTeam, auditActions, count,
 } from "./support/harness.js";
@@ -253,8 +254,9 @@ describe("access-code rate limit", () => {
   it("caps attempts per client address too, whatever student each one claims", async () => {
     const limited = await limitedApp();
     const fresh = () => `${crypto.randomUUID()}.wrong-secret-value`;
-    // test config sets RATE_LIMIT_REDEEM_IP_MAX=5
-    for (let i = 0; i < 5; i++) expect((await attemptOn(limited, fresh())).statusCode).toBe(401);
+    for (let i = 0; i < config.RATE_LIMIT_REDEEM_IP_MAX; i++) {
+      expect((await attemptOn(limited, fresh())).statusCode).toBe(401);
+    }
     expect((await attemptOn(limited, fresh())).statusCode).toBe(429);
     // Another address (another school) still gets its own budget.
     expect((await attemptOn(limited, fresh(), "198.51.100.7")).statusCode).toBe(401);

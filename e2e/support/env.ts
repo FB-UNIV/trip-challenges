@@ -54,4 +54,5 @@ export const apiEnv: Record<string, string> = {
   // Every browser reaches the API through the Vite proxy, i.e. from one IP.
   RATE_LIMIT_MAX: "100000",
   RATE_LIMIT_AUTH_MAX: "10000",
+  RATE_LIMIT_REDEEM_IP_MAX: "10000",
 };

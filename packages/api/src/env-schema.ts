@@ -51,6 +51,9 @@ export const Env = z.object({
   RATE_LIMIT_MAX: z.coerce.number().int().positive().default(6000),
   RATE_LIMIT_STUDENT_MAX: z.coerce.number().int().positive().default(600),
   RATE_LIMIT_AUTH_MAX: z.coerce.number().int().positive().default(5),
+  // Access-code attempts per minute per client IP, whatever code each claims: each one runs
+  // an argon2 verify. Room for a class of ~35 joining from one school address, with typos.
+  RATE_LIMIT_REDEEM_IP_MAX: z.coerce.number().int().positive().default(100),
   RATE_LIMIT_REISSUE_MAX: z.coerce.number().int().positive().default(20),
 
   // Antivirus (ClamAV clamd). Off by default so dev needs no AV service; enable in prod.
