@@ -219,6 +219,26 @@ describe("POST /api/student/reissue (lost device)", () => {
     await logged.close();
   });
 
+  // The reply was neutral but the time to it wasn't: a roster match awaited argon2 and the
+  // mail before answering, a miss answered at once, which told a stranger the address is on
+  // the Roster (security audit 2026-10). The answer must not wait on any per-match work.
+  it("answers before doing any work for a match, however slow the mail is", async () => {
+    const s = await makeStudent(trip, { email: "kid@school.test" });
+    let release!: () => void;
+    mailer.hold = new Promise<void>((r) => (release = r));
+    try {
+      const outcome = await Promise.race([
+        reissue({ tripId: trip, email: s.email }).then((r) => r.json()),
+        new Promise((r) => setTimeout(() => r("still waiting"), 2000)),
+      ]);
+      expect(outcome).toEqual({ ok: true });
+      expect(sent).toHaveLength(0); // the mail is still on its way
+    } finally {
+      release();
+    }
+    await vi.waitFor(() => expect(sent).toHaveLength(1));
+  });
+
   it("still answers neutrally when the mail fails", async () => {
     const s = await makeStudent(trip);
     mailer.fail = true;
