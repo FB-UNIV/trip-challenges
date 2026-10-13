@@ -85,7 +85,9 @@ Modifiez `.env` — les variables les plus importantes :
 | `AV_SCAN_ENABLED` | `true` (les envois sont refusés si clamd est arrêté) |
 
 Déclarez le client OIDC dans PocketID avec l'URI de redirection
-`<PUBLIC_BASE_URL>/api/auth/teacher/callback`.
+`<PUBLIC_BASE_URL>/api/auth/teacher/callback`. La connexion n'est acceptée que si le jeton
+porte `email_verified: true` (c'est le cas de PocketID) : l'adresse sert à lier les invitations
+de co-enseignants. Avec un autre fournisseur OIDC, vérifiez qu'il envoie cette information.
 
 Démarrez avec les images publiées (voir § 7) ou en les construisant :
 
