@@ -52,7 +52,10 @@ describe("OIDC login flow", () => {
     for (const c of res.cookies) expect(c).toMatchObject({ httpOnly: true, path: "/api/auth/teacher" });
   });
 
-  it.each(["//evil.test/x", "https://evil.test", "evil"])("ignores an unsafe returnTo (%s)", async (rt) => {
+  // Browsers read "\" as "/" and drop tabs and newlines in a URL, so "/\evil.test" and
+  // "/<TAB>/evil.test" are "//evil.test" to them (security audit 2026-10).
+  it.each(["//evil.test/x", "https://evil.test", "evil", "/\\evil.test/x", "/\t/evil.test/x", "/\n/evil.test/x"])(
+    "ignores an unsafe returnTo (%j)", async (rt) => {
     const res = await app.inject({ method: "GET", url: `/api/auth/teacher/login?returnTo=${encodeURIComponent(rt)}` });
     expect(res.cookies.map((c) => c.name)).not.toContain("oidc_return");
   });
