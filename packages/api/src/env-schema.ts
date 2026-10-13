@@ -69,6 +69,12 @@ export const Env = z.object({
   SMTP_USER: z.string().optional(),
   SMTP_PASSWORD: z.string().optional(),
   SMTP_FROM: z.string().default("PixExplore <no-reply@example.org>"),
+  // Refuse to mail a domain that has no MX/A record (#104). Off for e2e: its reserved test
+  // domains (@e2e.test) have no DNS but are caught by a local SMTP sink.
+  MAIL_DOMAIN_CHECK: z
+    .string()
+    .default("true")
+    .transform((v) => v.toLowerCase() !== "false"),
 
   // Operations (#24). ALERT_EMAIL also receives "erasure failed" alerts (the Trip's
   // teachers always do). HEARTBEAT_URL is pinged after every healthy scheduler tick —

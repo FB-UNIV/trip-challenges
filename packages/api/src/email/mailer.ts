@@ -4,7 +4,12 @@ import { randomUUID } from "node:crypto";
 import nodemailer from "nodemailer";
 import { config } from "../config.js";
 
-export { mailDomainStatus } from "./mail-domain.js";
+import { mailDomainStatus as checkDomain, type MailDomainStatus } from "./mail-domain.js";
+
+/** "unknown" (send anyway) when MAIL_DOMAIN_CHECK is off. */
+export function mailDomainStatus(email: string): Promise<MailDomainStatus> {
+  return config.MAIL_DOMAIN_CHECK ? checkDomain(email) : Promise.resolve("unknown");
+}
 
 const transport = config.SMTP_HOST
   ? nodemailer.createTransport({
