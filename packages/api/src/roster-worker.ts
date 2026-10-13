@@ -56,10 +56,12 @@ export async function processRosterBatch(): Promise<void> {
         const { rows: items } = await client.query<{
           id: string; trip_id: string; email_enc: Buffer; attempts: number;
         }>(
-          `SELECT id, trip_id, email_enc, attempts
-             FROM roster_import_item
-            WHERE status = 'pending'
-            ORDER BY created_at
+          // Never for an erased trip: an item queued just before Erasure must not become a
+          // student after it (Erasure deletes the queue, but not work already in flight).
+          `SELECT i.id, i.trip_id, i.email_enc, i.attempts
+             FROM roster_import_item i JOIN trip t ON t.id = i.trip_id
+            WHERE i.status = 'pending' AND t.phase <> 'erased'
+            ORDER BY i.created_at
             LIMIT $1`,
           [BATCH],
         );
