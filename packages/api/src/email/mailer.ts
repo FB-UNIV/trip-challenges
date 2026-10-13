@@ -20,7 +20,8 @@ const transport = config.SMTP_HOST
     })
   : null;
 
-export async function sendMail(to: string, subject: string, text: string, messageId?: string): Promise<void> {
+/** Returns the relay's reply line ("250 … queued as <id>"), if any. */
+export async function sendMail(to: string, subject: string, text: string, messageId?: string): Promise<string | undefined> {
   if (!transport) {
     // The dev fallback prints the whole mail (access codes, emails). In production that
     // would put minors' PII and live credentials in the logs, so fail instead (#20).
@@ -28,23 +29,28 @@ export async function sendMail(to: string, subject: string, text: string, messag
       throw new Error("SMTP is not configured (SMTP_HOST unset); refusing to print mail in production");
     }
     console.log(`[mail:dev] to=${to} :: ${subject}\n${text}\n`);
-    return;
+    return undefined;
   }
-  await transport.sendMail({ from: config.SMTP_FROM, to, subject, text, ...(messageId ? { messageId } : {}) });
+  const info = await transport.sendMail({ from: config.SMTP_FROM, to, subject, text, ...(messageId ? { messageId } : {}) });
+  return (info as { response?: string } | undefined)?.response;
 }
 
-/** Sends a Student's join link. Returns the mail's Message-ID: a later bounce is matched by it (#104). */
+/**
+ * Sends a Student's join link. Returns the id a later bounce is matched by (#104): the relay's
+ * queue id when its reply names one — Scaleway TEM reports bounces by it, not by our
+ * Message-ID (seen on staging) — else our own opaque Message-ID.
+ */
 export async function sendAccessCode(to: string, tripName: string, joinUrl: string): Promise<string> {
   // Opaque and on our own domain: it must say nothing about the student.
   const messageId = `<${randomUUID()}@${senderDomain()}>`;
-  await sendMail(
+  const reply = await sendMail(
     to,
     `Ton code d'accès pour ${tripName}`,
     `Ouvre ce lien sur ton téléphone pour rejoindre « ${tripName} » :\n\n${joinUrl}\n\n` +
       `Ce lien est personnel — ne le partage avec personne.`,
     messageId,
   );
-  return messageId;
+  return /queued as ([\w-]+)/i.exec(reply ?? "")?.[1] ?? messageId;
 }
 
 // "PixExplore <no-reply@mail.example.org>" → "mail.example.org"
