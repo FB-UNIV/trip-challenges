@@ -1,5 +1,17 @@
 # Changelog
 
+## [0.16.0](https://github.com/FB-UNIV/trip-challenges/compare/v0.15.1...v0.16.0) (2026-10-13)
+
+
+### Features
+
+* bounced or undeliverable access codes show as Undelivered ([#104](https://github.com/FB-UNIV/trip-challenges/issues/104)) ([#175](https://github.com/FB-UNIV/trip-challenges/issues/175)) ([eba2ac4](https://github.com/FB-UNIV/trip-challenges/commit/eba2ac4ad0e10814cf8ef7c3f141383981a7017e))
+
+
+### Bug Fixes
+
+* **api:** trips take turns in the roster queue ([#189](https://github.com/FB-UNIV/trip-challenges/issues/189)) ([0516c64](https://github.com/FB-UNIV/trip-challenges/commit/0516c64981c521a6f90f06a89556619375e80e61))
+
 ## [0.15.1](https://github.com/FB-UNIV/trip-challenges/compare/v0.15.0...v0.15.1) (2026-10-13)
 
 
