@@ -74,6 +74,11 @@ describe("env schema", () => {
     expect(() => Env.parse({ ...base, SCW_TEM_SECRET_KEY: "k" })).toThrow(/SCW_TEM_PROJECT_ID/);
   });
 
+  it("checks recipient mail domains unless MAIL_DOMAIN_CHECK=false (e2e's test domains have no DNS)", () => {
+    expect(Env.parse(base).MAIL_DOMAIN_CHECK).toBe(true);
+    expect(Env.parse({ ...base, MAIL_DOMAIN_CHECK: "false" }).MAIL_DOMAIN_CHECK).toBe(false);
+  });
+
   it("accepts optional alert email and heartbeat URL, validating both", () => {
     expect(Env.parse(base).ALERT_EMAIL).toBeUndefined();
     const parsed = Env.parse({ ...base, ALERT_EMAIL: "ops@school.test", HEARTBEAT_URL: "https://hc.example/ping/abc" });

@@ -87,4 +87,13 @@ describe("mailer", () => {
     expect(mail.text).toContain("vault 503 sealed");
     expect(mail.text).toContain("relancé automatiquement");
   });
+
+  // e2e and local stacks use reserved test domains (@e2e.test) that have no DNS at all (#104).
+  it("skips the domain check when MAIL_DOMAIN_CHECK is off: no DNS lookup, the mail goes out", async () => {
+    const dns = await import("node:dns");
+    const lookup = vi.spyOn(dns.promises, "resolveMx");
+    const m = await loadMailer({ SMTP_HOST: "smtp.test", MAIL_DOMAIN_CHECK: false });
+    await expect(m.mailDomainStatus("kid@e2e.test")).resolves.toBe("unknown");
+    expect(lookup).not.toHaveBeenCalled();
+  });
 });
