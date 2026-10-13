@@ -75,6 +75,16 @@ export async function teacherAuthRoutes(app: FastifyInstance) {
     );
     const claims = tokenSet.claims();
 
+    // The email is what a co-teacher invite is bound to (and where erasure warnings go), so
+    // it must be one the IdP verified: an unverified address would let any account claim
+    // someone else's invite. PocketID marks its users' emails verified.
+    if (claims.email_verified !== true || !claims.email) {
+      return reply.code(403).send({
+        error: "email_unverified",
+        message: "Ton adresse e-mail n'est pas vérifiée auprès du service de connexion. Contacte l'administrateur.",
+      });
+    }
+
     // Upsert teacher by stable OIDC subject.
     const { rows } = await pool.query<{ id: string }>(
       `INSERT INTO teacher (oidc_subject, email, display_name)
