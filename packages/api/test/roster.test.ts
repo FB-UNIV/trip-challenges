@@ -47,6 +47,17 @@ describe("POST /api/trips/:id/roster", () => {
     await vi.waitFor(() => expect(sent.map((m) => m.to).sort()).toEqual(["kid1@school.test", "kid2@school.test"]), { timeout: 10_000 });
   });
 
+  // The trip row and its teachers survive Erasure, and the route had no phase gate: an
+  // import on an erased trip could write new student PII that no later sweep would erase
+  // (security audit 2026-10).
+  it("refuses an import on an erased trip, and queues nothing", async () => {
+    await pool.query(`UPDATE trip SET phase = 'erased' WHERE id = $1`, [trip]);
+    const res = await post(trip, { emails: ["kid@school.test"] });
+    expect(res.statusCode).toBe(409);
+    expect(res.json().error).toBe("erased");
+    expect(await items()).toEqual([]);
+  });
+
   it("rejects bad input, missing auth and non-members", async () => {
     expect((await post(trip, { emails: ["not-an-email"] })).statusCode).toBe(400);
     expect((await post(trip, { emails: [] })).statusCode).toBe(400);
@@ -79,6 +90,14 @@ describe("GET /api/trips/:id/roster/status", () => {
 });
 
 describe("roster worker", () => {
+  it("never turns an erased trip's leftover item into a student", async () => {
+    await enqueueRoster(trip, ["kid@school.test"]); // queued just before the trip was erased
+    await pool.query(`UPDATE trip SET phase = 'erased' WHERE id = $1`, [trip]);
+    await processRosterBatch();
+    expect(await count("student", "trip_id = $1", [trip])).toBe(0);
+    expect(sent).toEqual([]);
+  });
+
   it("skips blank lines when enqueuing", async () => {
     expect(await enqueueRoster(trip, ["a@school.test", "   "])).toBe(1);
   });
