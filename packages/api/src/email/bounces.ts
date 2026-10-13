@@ -47,15 +47,18 @@ export async function pollBounces(now = new Date()): Promise<number> {
 }
 
 async function markBounced(email: TemEmail): Promise<number> {
-  // We send it as <uuid@domain>; TEM may report it with or without the angle brackets.
-  const messageId = `<${email.message_id.replace(/^<|>$/g, "")}>`;
+  // We send it as <uuid@domain>; TEM reports only the uuid (seen on staging), so match on the
+  // local part, whatever brackets or domain the report carries. The uuid alone is unique.
+  const localPart = email.message_id.replace(/^<|>$/g, "").split("@")[0];
+  if (!localPart) return 0;
   // Only the student's latest mail counts (a resend mints a new id), and never a student who
   // has joined: the code reached them, whatever the relay says.
   const { rowCount } = await pool.query(
     `UPDATE student s SET access_code_sent_at = NULL, mail_error = $2
-      WHERE s.mail_message_id = $1 AND s.access_code_sent_at IS NOT NULL
+      WHERE s.mail_message_id IS NOT NULL AND split_part(btrim(s.mail_message_id, '<>'), '@', 1) = $1
+        AND s.access_code_sent_at IS NOT NULL
         AND NOT EXISTS (SELECT 1 FROM student_session ss WHERE ss.student_id = s.id)`,
-    [messageId, reasonOf(email.flags ?? [])],
+    [localPart, reasonOf(email.flags ?? [])],
   );
   return rowCount ?? 0;
 }

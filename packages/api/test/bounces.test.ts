@@ -88,6 +88,16 @@ describe("pollBounces", () => {
     expect(await state(tom)).toEqual({ sent: true, mail_error: null });
   });
 
+  // Seen on staging: TEM reports our Message-ID's local part only, a bare UUID — no brackets,
+  // no @domain — so a match on the whole header never found the student.
+  it("matches TEM's bare Message-ID (no brackets, no domain) to the student", async () => {
+    const lea = await mailed("<ddcf653b-510b-4301-9803-d14ac6674500@pixexplore.test>");
+    tem([{ message_id: "ddcf653b-510b-4301-9803-d14ac6674500", status: "failed", flags: ["mailbox_not_found", "hard_bounce"] }]);
+
+    expect(await pollBounces(T0)).toBe(1);
+    expect(await state(lea)).toEqual({ sent: false, mail_error: "MAILBOX_NOT_FOUND" });
+  });
+
   it("names the other reasons TEM gives", async () => {
     const full = await mailed("<full@x>");
     const block = await mailed("<block@x>");
