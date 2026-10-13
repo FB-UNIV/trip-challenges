@@ -65,7 +65,7 @@ export const Env = z.object({
   SMTP_PORT: z.coerce.number().default(587),
   SMTP_USER: z.string().optional(),
   SMTP_PASSWORD: z.string().optional(),
-  SMTP_FROM: z.string().default("Trip Challenges <no-reply@example.org>"),
+  SMTP_FROM: z.string().default("PixExplore <no-reply@example.org>"),
 
   // Operations (#24). ALERT_EMAIL also receives "erasure failed" alerts (the Trip's
   // teachers always do). HEARTBEAT_URL is pinged after every healthy scheduler tick —

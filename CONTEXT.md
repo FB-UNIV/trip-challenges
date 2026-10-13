@@ -1,4 +1,4 @@
-# Contexte — Trip Challenges
+# Contexte — PixExplore
 
 Glossaire de la PWA de défis pour sorties scolaires. Des termes uniquement, pas
 d'implémentation. Chaque terme indique entre parenthèses le nom anglais utilisé dans le

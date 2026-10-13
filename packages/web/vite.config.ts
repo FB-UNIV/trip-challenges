@@ -8,8 +8,8 @@ export default defineConfig({
     VitePWA({
       registerType: "autoUpdate",
       manifest: {
-        name: "Trip Challenges",
-        short_name: "Défis",
+        name: "PixExplore",
+        short_name: "PixExplore",
         lang: "fr",
         start_url: "/",
         display: "standalone",

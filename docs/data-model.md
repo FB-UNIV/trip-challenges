@@ -1,6 +1,6 @@
 # Modèle de données
 
-Conception du schéma de Trip Challenges, dérivée de `CONTEXT.md` et des ADR. Postgres
+Conception du schéma de PixExplore, dérivée de `CONTEXT.md` et des ADR. Postgres
 pour les données relationnelles, MinIO pour les fichiers photo, Vault (transit) pour les
 clés par sortie. Ce ne sont pas les migrations : c'est le contrat que le code met en
 œuvre. Les noms de tables, de colonnes et de valeurs restent ceux du code (en anglais).

@@ -1,6 +1,6 @@
 # Guide de déploiement (production)
 
-Comment mettre en service Trip Challenges pour un usage réel. Ce guide sert à « faire
+Comment mettre en service PixExplore pour un usage réel. Ce guide sert à « faire
 tourner » ; une fois que c'est le cas, suivez
 [`production-hardening.md`](./production-hardening.md) avant d'y mettre les données de
 vrais mineurs : il couvre Vault, les sauvegardes et la garantie d'effacement.
@@ -456,7 +456,7 @@ invalide.
 | `SMTP_PORT` | — | `587` |  |
 | `SMTP_USER` | non |  |  |
 | `SMTP_PASSWORD` | non |  |  |
-| `SMTP_FROM` | — | `Trip Challenges <no-reply@example.org>` | Expéditeur des e-mails. |
+| `SMTP_FROM` | — | `PixExplore <no-reply@example.org>` | Expéditeur des e-mails. |
 | `ALERT_EMAIL` | non |  | Reçoit aussi les alertes d'échec d'effacement. |
 | `HEARTBEAT_URL` | non |  | Appelée après chaque cycle sain du planificateur (« dead man's switch »). |
 <!-- END AUTO-GENERATED -->

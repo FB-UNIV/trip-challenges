@@ -1,6 +1,6 @@
 # Politique de sécurité
 
-Trip Challenges stocke **des photos et des données personnelles de mineurs**. Les
+PixExplore stocke **des photos et des données personnelles de mineurs**. Les
 signalements de sécurité sont pris au sérieux et traités en priorité.
 
 ## Signaler une vulnérabilité

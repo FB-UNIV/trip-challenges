@@ -5,7 +5,7 @@
 > logiciel ; les choix juridiques (base légale, nécessité d'une AIPD, contrats) relèvent de
 > l'établissement, responsable de traitement. Ce n'est pas un avis juridique.
 
-Ce guide aide un établissement à documenter l'usage de Trip Challenges : qui est
+Ce guide aide un établissement à documenter l'usage de PixExplore : qui est
 responsable de quoi, quelles données sont traitées et combien de temps, et comment en
 informer les familles. Le détail technique est dans le [glossaire](./glossaire.md),
 [`data-model.md`](./data-model.md) et les ADR
@@ -83,7 +83,7 @@ l'établissement, responsable de traitement. Les moyens disponibles dans l'appli
 Madame, Monsieur,
 
 Pendant la sortie [nom de la sortie] du [dates], la classe de votre enfant participera à des
-défis photo à l'aide de l'application Trip Challenges, hébergée par [nom de l'exploitant].
+défis photo à l'aide de l'application PixExplore, hébergée par [nom de l'exploitant].
 
 **Ce qui est utilisé.** L'adresse e-mail de votre enfant [adresse de l'ENT / adresse
 personnelle], pour lui envoyer un code d'accès ; les photos prises par son équipe ; le nom
