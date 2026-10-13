@@ -1,5 +1,19 @@
 # Changelog
 
+## [0.15.1](https://github.com/FB-UNIV/trip-challenges/compare/v0.15.0...v0.15.1) (2026-10-13)
+
+
+### Bug Fixes
+
+* a join link can't silently switch a signed-in phone to another student ([#184](https://github.com/FB-UNIV/trip-challenges/issues/184)) ([acbf4b7](https://github.com/FB-UNIV/trip-challenges/commit/acbf4b73bded59e0ef663494c81cd4a5acb33b31))
+* **api:** a requested erasure stays due until it succeeds, whatever is edited ([#183](https://github.com/FB-UNIV/trip-challenges/issues/183)) ([dbddfa8](https://github.com/FB-UNIV/trip-challenges/commit/dbddfa826c4b48746c3530cc9aee5e73de8c3755))
+* **api:** bound access-code redeem attempts per client address ([#179](https://github.com/FB-UNIV/trip-challenges/issues/179)) ([29ef323](https://github.com/FB-UNIV/trip-challenges/commit/29ef323540a09f4ca7276a95d9be13901455a65a))
+* **api:** don't count a duel whose entry was withdrawn after the pair was served ([#181](https://github.com/FB-UNIV/trip-challenges/issues/181)) ([49dc052](https://github.com/FB-UNIV/trip-challenges/commit/49dc052b8edfcb227c33846fed2630a2158485f7))
+* **api:** keep the post-login redirect on our own origin ([#180](https://github.com/FB-UNIV/trip-challenges/issues/180)) ([94a2171](https://github.com/FB-UNIV/trip-challenges/commit/94a21712484b5baf238b4ce00bd82856cecc0039))
+* **api:** only accept a teacher login whose email the IdP verified ([#186](https://github.com/FB-UNIV/trip-challenges/issues/186)) ([d45c7d8](https://github.com/FB-UNIV/trip-challenges/commit/d45c7d8fe19d9881acdb30affe67db236b6ae67b))
+* **api:** refuse writes on an erased trip, and never import into one ([#185](https://github.com/FB-UNIV/trip-challenges/issues/185)) ([2ae4f23](https://github.com/FB-UNIV/trip-challenges/commit/2ae4f238bc5004f98704c60e1b8ea386c72dddab))
+* **api:** reissue answers before any per-match work, so its timing reveals nothing ([#182](https://github.com/FB-UNIV/trip-challenges/issues/182)) ([f1f7ec2](https://github.com/FB-UNIV/trip-challenges/commit/f1f7ec294a395d0886186a810fefe19679552079))
+
 ## [0.15.0](https://github.com/FB-UNIV/trip-challenges/compare/v0.14.0...v0.15.0) (2026-10-13)
 
 
