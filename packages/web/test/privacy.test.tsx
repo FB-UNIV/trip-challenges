@@ -30,6 +30,8 @@ describe("privacy page", () => {
     );
     const { user, location } = renderAt("/");
     await screen.findByText("Saisis ton code d'accès");
+    expect(screen.getByRole("link", { name: /PixExplore/ })).toHaveAttribute("href", "/"); // #165: the app's name
+    expect(screen.getByRole("link", { name: /PixExplore/ }).querySelector("img")).toHaveAttribute("src", "/icon.svg"); // and its icon
     await user.click(screen.getByRole("link", { name: "Tes données et ta vie privée" }));
     expect(location()).toBe("/confidentialite");
   });

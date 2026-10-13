@@ -1,4 +1,4 @@
-# Trip Challenges
+# PixExplore
 
 PWA for photo-challenge school trips. Handles **minors' data under strict erasure** — read
 `CONTEXT.md` (domain glossary) and `docs/adr/` before changing auth, storage, crypto or erasure.

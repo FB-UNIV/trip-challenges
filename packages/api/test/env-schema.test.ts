@@ -34,6 +34,11 @@ describe("env schema", () => {
     expect(parsed.S3_ENDPOINT).toBeUndefined();
   });
 
+  // #165: emails come from the app's name unless the operator sets their own sender.
+  it("defaults the email sender to PixExplore", () => {
+    expect(Env.parse(base).SMTP_FROM).toBe("PixExplore <no-reply@example.org>");
+  });
+
   it("rejects a too-short SESSION_SECRET", () => {
     expect(Env.safeParse({ ...base, SESSION_SECRET: "short" }).success).toBe(false);
   });

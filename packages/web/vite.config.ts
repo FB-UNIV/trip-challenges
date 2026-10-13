@@ -8,16 +8,18 @@ export default defineConfig({
     VitePWA({
       registerType: "autoUpdate",
       manifest: {
-        name: "Trip Challenges",
-        short_name: "Défis",
+        name: "PixExplore",
+        short_name: "PixExplore",
         lang: "fr",
         start_url: "/",
         display: "standalone",
-        background_color: "#111827",
-        theme_color: "#111827",
+        background_color: "#faf5f9",
+        theme_color: "#faf5f9",
+        // Generated from public/icon.svg (#165); the maskable one is full-bleed for Android's masks.
         icons: [
           { src: "/icon-192.png", sizes: "192x192", type: "image/png" },
           { src: "/icon-512.png", sizes: "512x512", type: "image/png" },
+          { src: "/icon-maskable-512.png", sizes: "512x512", type: "image/png", purpose: "maskable" },
         ],
       },
       workbox: {

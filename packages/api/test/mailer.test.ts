@@ -41,7 +41,7 @@ describe("mailer", () => {
     expect(transport.opts).toEqual({ host: "smtp.test", port: 465, secure: true, auth: { user: "u", pass: "p" } });
     await m.sendMail("a@school.test", "Hi", "body");
     expect(transport.sendMail).toHaveBeenCalledWith({
-      from: "Trip Challenges <no-reply@example.org>", to: "a@school.test", subject: "Hi", text: "body",
+      from: "PixExplore <no-reply@example.org>", to: "a@school.test", subject: "Hi", text: "body",
     });
   });
 

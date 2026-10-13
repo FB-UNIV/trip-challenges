@@ -1,4 +1,8 @@
-# Trip Challenges
+# PixExplore
+
+> Anciennement **Trip Challenges** : le dépôt (`FB-UNIV/trip-challenges`), les images Docker
+> (`ghcr.io/fb-univ/trip-api`, `trip-web`) et les paquets `@trip/*` gardent ce nom, rien ne
+> change pour les installations existantes.
 
 > *A French-language PWA for photo-challenge school trips, with provable erasure of
 > minors' data. Self-hosted, AGPL-3.0. Documentation is in French.*
