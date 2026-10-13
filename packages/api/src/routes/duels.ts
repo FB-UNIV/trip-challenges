@@ -105,6 +105,18 @@ export async function duelRoutes(app: FastifyInstance) {
         const phase = await challengePhase(c, pair.challengeId, ctx.tripId, "FOR SHARE OF t");
         if (!phase) throw Object.assign(new Error("Défi introuvable."), { httpStatus: 404, error: "not_found" });
         if (phase !== "voting") throw Object.assign(new Error("Le vote est fermé."), { httpStatus: 409, error: "closed" });
+        // The token only proves the pair was eligible when /next served it. A teacher may
+        // have rejected or withdrawn one side since: such a duel must not count.
+        const { rowCount: live } = await c.query(
+          `SELECT 1 FROM nomination
+            WHERE id = ANY($1::uuid[]) AND challenge_id = $2 AND trip_id = $3
+              AND active AND state = 'approved' AND team_id IS DISTINCT FROM $4::uuid
+            ORDER BY id FOR SHARE`,
+          [[pair.lo, pair.hi], pair.challengeId, ctx.tripId, ctx.teamId],
+        );
+        if (live !== 2) {
+          throw Object.assign(new Error("Ce duel n'est plus disponible."), { httpStatus: 409, error: "stale" });
+        }
 
         await c.query(
           `INSERT INTO duel (trip_id, challenge_id, voter_student_id,
