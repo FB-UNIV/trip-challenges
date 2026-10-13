@@ -76,6 +76,7 @@ simultanées).
 | max_retention_days | int | 30 par défaut |
 | grace_started_at | timestamptz null | publication des résultats (passage `reveal → grace`) ; le délai de grâce part de là (0004) |
 | hard_erase_at | timestamptz | = trip_end_date + max_retention_days ; effacement forcé quelle que soit la phase |
+| erasure_requested_at | timestamptz null | « Effacer maintenant » demandé ; garde la sortie à effacer jusqu'à la réussite, et fige ses dates (0007) |
 | vault_key_name | text | `trip-<id>` ; simple référence, la clé vit dans Vault |
 | created_at | timestamptz | |
 
@@ -334,7 +335,7 @@ limites sont des verrous de sécurité (🔒), pas de confort — voir la colonn
 | `trip.name` | toutes (`≠ erased`) | cosmétique |
 | `trip.points_table`, `challenge.multiplier` | `< reveal` | n'alimentent que `computeResults` ; figés une fois les résultats calculés |
 | `challenge.title`, `challenge.instructions` | `< reveal` | texte uniquement ; `qr_slug` ne change jamais |
-| `trip.challenge_opens_at` / `voting_opens_at` / `voting_closes_at`, `grace_days`, `trip_end_date`, `max_retention_days` | `≠ erased` | `hard_erase_at` recalculé à l'écriture |
+| `trip.challenge_opens_at` / `voting_opens_at` / `voting_closes_at`, `grace_days`, `trip_end_date`, `max_retention_days` | `≠ erased` | `hard_erase_at` recalculé à l'écriture ; `grace_days`, `trip_end_date` et `max_retention_days` refusés (`409 erasure_pending`) une fois l'effacement demandé |
 | **`trip.max_team_size`** 🔒 | **`draft` uniquement** | les équipes se figent au début des défis ; réduire la taille ensuite laisserait des membres orphelins |
 | **ajout de défi** | `< voting` | rien n'empêche d'ajouter des défis en cours de sortie |
 | **suppression de défi** 🔒 | **`draft` uniquement** | le QR est imprimé/distribué dès que le défi existe — le supprimer laisserait un QR mort dans la nature |

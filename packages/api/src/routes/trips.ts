@@ -164,7 +164,12 @@ export async function tripRoutes(app: FastifyInstance) {
   app.post("/:id/erase", { preHandler: member }, async (req, reply) => {
     const id = tripOf(req).id;
     await tx(async (c) => {
-      await c.query(`UPDATE trip SET hard_erase_at = LEAST(hard_erase_at, now()) WHERE id = $1`, [id]);
+      await c.query(
+        `UPDATE trip SET hard_erase_at = LEAST(hard_erase_at, now()),
+                         erasure_requested_at = COALESCE(erasure_requested_at, now())
+          WHERE id = $1`,
+        [id],
+      );
       await c.query(
         `INSERT INTO audit_log (trip_id, teacher_id, action) VALUES ($1, $2, 'erasure_requested')`,
         [id, teacherOf(req).teacherId],
@@ -281,11 +286,22 @@ export async function tripRoutes(app: FastifyInstance) {
     const patch = parsed.data;
 
     const { phase } = tripOf(req);
-    const { rows: cur } = await pool.query<{ trip_end_date: string; max_retention_days: number; hard_erase_at: Date }>(
-      `SELECT trip_end_date, max_retention_days, hard_erase_at FROM trip WHERE id = $1`,
+    const { rows: cur } = await pool.query<{
+      trip_end_date: string; max_retention_days: number; hard_erase_at: Date; erasure_requested_at: Date | null;
+    }>(
+      `SELECT trip_end_date, max_retention_days, hard_erase_at, erasure_requested_at FROM trip WHERE id = $1`,
       [id],
     );
     const trip = cur[0]!;
+
+    // An "Erase now" that hasn't finished yet is irreversible: no date edit may push it back.
+    const movesErasure = patch.tripEndDate !== undefined || patch.maxRetentionDays !== undefined || patch.graceDays !== undefined;
+    if (trip.erasure_requested_at && movesErasure) {
+      return reply.code(409).send({
+        error: "erasure_pending",
+        message: "L'effacement de cette sortie a été demandé et sera relancé automatiquement : ses dates ne sont plus modifiables.",
+      });
+    }
 
     const beforeReveal = rank(phase) < rank("reveal");
     const draftOnly = phase === "draft";
