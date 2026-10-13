@@ -75,6 +75,22 @@ export const Env = z.object({
   // point it at a dead-man's-switch monitor (e.g. healthchecks.io) so silence alerts.
   ALERT_EMAIL: z.string().email().optional(),
   HEARTBEAT_URL: z.string().url().optional(),
+
+  // Bounces (#104). A relay accepts mail for a mailbox that doesn't exist and only fails it
+  // later; with these set, the API asks Scaleway TEM for failed emails every 5 minutes and
+  // puts those students back to Undelivered. Same values as SMTP_USER / SMTP_PASSWORD with
+  // TEM (the key also needs read access to TEM). Unset: no bounce polling.
+  SCW_TEM_PROJECT_ID: z.string().min(1).optional(),
+  SCW_TEM_SECRET_KEY: z.string().min(1).optional(),
+  SCW_TEM_REGION: z.string().default("fr-par"),
+}).superRefine((env, ctx) => {
+  // Half a pair would silently never poll: fail fast instead.
+  if (env.SCW_TEM_PROJECT_ID && !env.SCW_TEM_SECRET_KEY) {
+    ctx.addIssue({ code: z.ZodIssueCode.custom, path: ["SCW_TEM_SECRET_KEY"], message: "SCW_TEM_SECRET_KEY is required with SCW_TEM_PROJECT_ID" });
+  }
+  if (env.SCW_TEM_SECRET_KEY && !env.SCW_TEM_PROJECT_ID) {
+    ctx.addIssue({ code: z.ZodIssueCode.custom, path: ["SCW_TEM_PROJECT_ID"], message: "SCW_TEM_PROJECT_ID is required with SCW_TEM_SECRET_KEY" });
+  }
 });
 
 export type Config = z.infer<typeof Env>;
