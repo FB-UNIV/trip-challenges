@@ -65,6 +65,19 @@ describe("mailer", () => {
     expect(warn!.text).toContain("mercredi 2 janvier 2030 à 04:04 (heure de Paris)");
   });
 
+  // #104: a bounce reported later is matched to the student by this id, never by address.
+  it("gives each access-code mail its own opaque Message-ID on the sender's domain, and returns it", async () => {
+    const m = await loadMailer({ SMTP_HOST: "smtp.test", SMTP_FROM: "PixExplore <no-reply@mail.pix.test>" });
+    const first = await m.sendAccessCode("kid@school.test", "Rome", "http://app.test/join?code=x");
+    const second = await m.sendAccessCode("kid@school.test", "Rome", "http://app.test/join?code=y");
+
+    expect(first).toMatch(/^<[0-9a-f-]{36}@mail\.pix\.test>$/);
+    expect(second).not.toBe(first);
+    expect(first).not.toContain("kid");
+    const mail = transport.sendMail.mock.calls[0]![0] as { messageId?: string };
+    expect(mail.messageId).toBe(first);
+  });
+
   it("formats the erasure-failure alert", async () => {
     const m = await loadMailer({ SMTP_HOST: "smtp.test" });
     await m.sendErasureFailedAlert("ops@school.test", "Rome", "trip-uuid", "vault 503 sealed");

@@ -64,6 +64,16 @@ describe("env schema", () => {
   it("rejects a non-positive rate limit", () => {
     expect(Env.safeParse({ ...base, RATE_LIMIT_AUTH_MAX: "0" }).success).toBe(false);
   });
+  // #104: bounce polling is optional, but a half-configured one would silently never run.
+  it("takes the Scaleway TEM bounce poll as a project + key pair, region fr-par by default", () => {
+    const off = Env.parse(base);
+    expect(off.SCW_TEM_PROJECT_ID).toBeUndefined();
+    const on = Env.parse({ ...base, SCW_TEM_PROJECT_ID: "p", SCW_TEM_SECRET_KEY: "k" });
+    expect(on).toMatchObject({ SCW_TEM_PROJECT_ID: "p", SCW_TEM_SECRET_KEY: "k", SCW_TEM_REGION: "fr-par" });
+    expect(() => Env.parse({ ...base, SCW_TEM_PROJECT_ID: "p" })).toThrow(/SCW_TEM_SECRET_KEY/);
+    expect(() => Env.parse({ ...base, SCW_TEM_SECRET_KEY: "k" })).toThrow(/SCW_TEM_PROJECT_ID/);
+  });
+
   it("accepts optional alert email and heartbeat URL, validating both", () => {
     expect(Env.parse(base).ALERT_EMAIL).toBeUndefined();
     const parsed = Env.parse({ ...base, ALERT_EMAIL: "ops@school.test", HEARTBEAT_URL: "https://hc.example/ping/abc" });
