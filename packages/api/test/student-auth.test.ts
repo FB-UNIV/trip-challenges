@@ -147,6 +147,41 @@ describe("POST /api/student/redeem", () => {
     expect((await redeem(s.code!)).statusCode).toBe(401);
   });
 
+  // A join link redeems on open, so a classmate's link (their own fresh code) silently swapped
+  // a signed-in phone to the classmate's account: photos and votes then went to them
+  // (security audit 2026-10). Switching account now takes an explicit confirmation.
+  describe("on a device already signed in as another student", () => {
+    const redeemOn = (cookie: string, payload: object) =>
+      app.inject({ method: "POST", url: "/api/student/redeem", headers: { cookie }, payload });
+
+    it("refuses to switch without confirmation, and spends nothing", async () => {
+      const victim = await makeStudent(trip);
+      const other = await makeStudent(await makeTrip(await makeTeacher()), { unredeemedCode: true });
+      const res = await redeemOn(victim.cookie, { code: other.code });
+      expect(res.statusCode).toBe(409);
+      expect(res.json().error).toBe("already_signed_in");
+      expect(res.cookies.find((c) => c.name === "student_session")).toBeUndefined();
+      expect(await count("student", "id = $1 AND access_code_state = 'unredeemed'", [other.id])).toBe(1);
+      expect((await me(victim.cookie)).json().studentId).toBe(victim.id);
+    });
+
+    it("switches when the request confirms it", async () => {
+      const victim = await makeStudent(trip);
+      const other = await makeStudent(trip, { unredeemedCode: true });
+      const res = await redeemOn(victim.cookie, { code: other.code, replace: true });
+      expect(res.statusCode).toBe(200);
+      expect((await me(sessionCookie(res))).json().studentId).toBe(other.id);
+    });
+
+    it("needs no confirmation for the same student's fresh code, or a stale cookie", async () => {
+      const s = await makeStudent(trip, { unredeemedCode: true });
+      expect((await redeemOn(s.cookie, { code: s.code })).statusCode).toBe(200); // lost-code link on the same phone
+
+      const t = await makeStudent(trip, { unredeemedCode: true });
+      expect((await redeemOn("student_session=00000000-0000-0000-0000-000000000000.nope", { code: t.code })).statusCode).toBe(200);
+    });
+  });
+
   // Found by e2e: React StrictMode (or a double tap / link prefetch) fires two redeems at
   // once. Both passed the "unredeemed" check before either marked the code spent, so the
   // single-use code minted two sessions and the browser kept a cookie for a revoked one.

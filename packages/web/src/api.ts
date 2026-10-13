@@ -88,8 +88,8 @@ export type ResultRow = {
 
 export const api = {
   // ---- student ----
-  redeemCode: (code: string) =>
-    req<{ ok: true }>("/api/student/redeem", { method: "POST", body: JSON.stringify({ code }) }),
+  redeemCode: (code: string, opts: { replace?: boolean } = {}) =>
+    req<{ ok: true }>("/api/student/redeem", { method: "POST", body: JSON.stringify(opts.replace ? { code, replace: true } : { code }) }),
   requestReissue: (tripId: string, email: string) =>
     req<{ ok: true }>("/api/student/reissue", { method: "POST", body: JSON.stringify({ tripId, email }) }),
   me: () => req<Me>("/api/student/me"),

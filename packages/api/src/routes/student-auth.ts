@@ -9,6 +9,7 @@ import { RedeemAccessCode, ReissueAccessCode } from "@trip/shared";
 import { config } from "../config.js";
 import { pool, tx } from "../db.js";
 import { guard, studentOf, tripOf } from "../auth/guard.js";
+import { requireStudent } from "../auth/student.js";
 import { hmac } from "../crypto/vault.js";
 import { sendAccessCode } from "../email/mailer.js";
 
@@ -93,6 +94,16 @@ export async function studentAuthRoutes(app: FastifyInstance) {
       // is refused — the lost-device path is /reissue, which mints a fresh 'unredeemed' one.
       if (!student || !ok || student.access_code_state !== "unredeemed") {
         return reply.code(401).send({ error: "unauthorized", message: "Code non valide ou déjà utilisé." });
+      }
+
+      // A join link redeems as soon as it opens, so someone else's link must not silently
+      // switch a device already signed in as another student: that takes a confirmation.
+      const current = await requireStudent(req);
+      if (current && current.studentId !== student.id && !parsed.data.replace) {
+        return reply.code(409).send({
+          error: "already_signed_in",
+          message: "Ce téléphone est déjà connecté avec un autre compte élève.",
+        });
       }
 
       // Issue a device-bound session; mark the code spent.
