@@ -10,9 +10,12 @@ import { readTeacher, teacherSessionValue, TEACHER_SESSION_TTL_MS } from "../aut
 const TEN_MIN = 600;
 
 // Guard against open redirects: only same-origin absolute paths. "//host" is
-// protocol-relative (external) so it must be rejected.
+// protocol-relative (external) so it must be rejected — and so are "/\host" and
+// "/<TAB>/host", which browsers read as "//host" ("\" is "/", tabs and newlines are dropped).
 function isSafeReturnTo(v: unknown): v is string {
-  return typeof v === "string" && v.startsWith("/") && !v.startsWith("//");
+  if (typeof v !== "string" || !v.startsWith("/") || /[\\\u0000-\u001f\u007f]/.test(v)) return false;
+  const base = new URL(config.PUBLIC_BASE_URL);
+  return new URL(v, base).origin === base.origin;
 }
 
 // Cookies are Secure in production (HTTPS at the edge); relaxed in dev over http.
