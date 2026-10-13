@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.15.0](https://github.com/FB-UNIV/trip-challenges/compare/v0.14.0...v0.15.0) (2026-10-13)
+
+
+### Features
+
+* the app is now called PixExplore, with its own icon ([#173](https://github.com/FB-UNIV/trip-challenges/issues/173)) ([fabd9cd](https://github.com/FB-UNIV/trip-challenges/commit/fabd9cdf84c0ed285012224e5b23a98457ff4022))
+
 ## [0.14.0](https://github.com/FB-UNIV/trip-challenges/compare/v0.13.0...v0.14.0) (2026-10-13)
 
 
