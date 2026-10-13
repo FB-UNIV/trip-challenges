@@ -8,7 +8,7 @@ vi.mock("../src/email/mailer.js", () => import("./support/fake-mailer.js"));
 
 // Fake PocketID client: records the checks it's handed and returns fixed claims.
 const oidc = vi.hoisted(() => ({
-  claims: {} as Record<string, string | undefined>,
+  claims: {} as Record<string, unknown>,
   callbackChecks: null as Record<string, string> | null,
 }));
 vi.mock("../src/auth/oidc.js", async () => {
@@ -35,7 +35,7 @@ const app = await buildApp([teacherAuthRoutes, "/api/auth/teacher"], [tripRoutes
 
 beforeEach(async () => {
   await resetAll();
-  oidc.claims = { sub: "pocket|42", email: "ana@school.test", name: "Ana" };
+  oidc.claims = { sub: "pocket|42", email: "ana@school.test", email_verified: true, name: "Ana" };
   oidc.callbackChecks = null;
 });
 
@@ -71,10 +71,26 @@ describe("OIDC login flow", () => {
     expect(me.json()).toMatchObject({ email: "ana@school.test", display_name: "Ana" });
 
     // Same subject again → same teacher row, refreshed profile.
-    oidc.claims = { sub: "pocket|42", email: "ana.new@school.test", name: undefined };
+    oidc.claims = { sub: "pocket|42", email: "ana.new@school.test", email_verified: true, name: undefined };
     await app.inject({ method: "GET", url: "/api/auth/teacher/callback?code=abc", headers: { cookie: jar(login) } });
     const { rows } = await pool.query(`SELECT email, display_name FROM teacher`);
     expect(rows).toEqual([{ email: "ana.new@school.test", display_name: "" }]);
+  });
+
+  // The stored email is what a co-teacher invite is bound to (and where erasure warnings go):
+  // an unverified one would let any IdP account claim someone else's invite (security audit
+  // 2026-10). PocketID marks its users' emails verified, so only an odd account is refused.
+  it.each([
+    ["unverified", { sub: "pocket|7", email: "co@school.test", email_verified: false, name: "X" }],
+    ["without the claim", { sub: "pocket|7", email: "co@school.test", name: "X" }],
+  ])("refuses a login whose email is %s, and records nothing", async (_, claims) => {
+    oidc.claims = claims;
+    const login = await app.inject({ method: "GET", url: "/api/auth/teacher/login" });
+    const res = await app.inject({ method: "GET", url: "/api/auth/teacher/callback?code=abc", headers: { cookie: jar(login) } });
+    expect(res.statusCode).toBe(403);
+    expect(res.json().error).toBe("email_unverified");
+    expect(res.cookies.find((c) => c.name === "teacher_session")).toBeUndefined();
+    expect((await pool.query(`SELECT count(*)::int AS n FROM teacher`)).rows[0]).toEqual({ n: 0 });
   });
 
   it("defaults to / and rejects a callback without valid signed checks", async () => {
