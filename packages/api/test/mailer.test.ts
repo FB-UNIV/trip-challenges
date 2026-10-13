@@ -78,6 +78,15 @@ describe("mailer", () => {
     expect(mail.messageId).toBe(first);
   });
 
+  // Seen on staging: Scaleway TEM reports a bounce by its own id, not our Message-ID — the id
+  // its SMTP reply gives ("queued as <id>"). That's the id a bounce can be matched by.
+  it("returns the relay's queue id when its reply names one (Scaleway TEM)", async () => {
+    const m = await loadMailer({ SMTP_HOST: "smtp.test" });
+    transport.sendMail.mockResolvedValueOnce({ response: "250 2.0.0 OK: queued as 321e6363-9b82-425d-925f-e22996f7893e" });
+    expect(await m.sendAccessCode("kid@school.test", "Rome", "http://app.test/join?code=x"))
+      .toBe("321e6363-9b82-425d-925f-e22996f7893e");
+  });
+
   it("formats the erasure-failure alert", async () => {
     const m = await loadMailer({ SMTP_HOST: "smtp.test" });
     await m.sendErasureFailedAlert("ops@school.test", "Rome", "trip-uuid", "vault 503 sealed");
