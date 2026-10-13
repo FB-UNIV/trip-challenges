@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.16.2](https://github.com/FB-UNIV/trip-challenges/compare/v0.16.1...v0.16.2) (2026-10-13)
+
+
+### Bug Fixes
+
+* **api:** match bounces by Scaleway TEM's own email id ([#197](https://github.com/FB-UNIV/trip-challenges/issues/197)) ([16f4b6f](https://github.com/FB-UNIV/trip-challenges/commit/16f4b6f27597f8d6422709d2f80a442d52bc5b35))
+
 ## [0.16.1](https://github.com/FB-UNIV/trip-challenges/compare/v0.16.0...v0.16.1) (2026-10-13)
 
 
