@@ -113,7 +113,7 @@ h1, h2, h3, h4 { letter-spacing: -0.02em; text-wrap: balance; margin: 0; }
   border-bottom: 1px solid var(--line);
 }
 .brand { display: inline-flex; align-items: center; gap: 8px; font-weight: 850; font-size: 17px; letter-spacing: -.02em; color: var(--ink); text-decoration: none; }
-.brand .medal { width: 26px; height: 26px; border-radius: 8px; display: grid; place-items: center; background: linear-gradient(140deg, var(--gold-bright), var(--gold)); color: #3a2a05; font-size: 15px; box-shadow: var(--shadow-1); }
+.brand .brand-icon { width: 28px; height: 28px; display: block; border-radius: 8px; box-shadow: var(--shadow-1); }
 nav.tabs { display: flex; gap: 4px; }
 .navlink { padding: 6px 12px; border-radius: 999px; font-size: 14px; font-weight: 700; color: var(--muted); text-decoration: none; }
 .navlink:hover { text-decoration: none; color: var(--ink); }

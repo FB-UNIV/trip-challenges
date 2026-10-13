@@ -17,7 +17,7 @@ export function App() {
   return (
     <div className={["shell", wide && "shell-wide", tabs && "has-tabbar"].filter(Boolean).join(" ")}>
       <header className="appbar">
-        <Link to="/" className="brand"><span className="medal">🏆</span> PixExplore</Link>
+        <Link to="/" className="brand"><img src="/icon.svg" alt="" className="brand-icon" /> PixExplore</Link>
         {!tabs && (
           <nav className="tabs">
             <Link to="/teacher" className={pathname.startsWith("/teacher") ? "navlink active" : "navlink"}>Enseignant</Link>
