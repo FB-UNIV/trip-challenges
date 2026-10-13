@@ -53,7 +53,7 @@ describe("join link (/join?code=…)", () => {
     );
     const { user, location } = renderAt("/join?code=s2.secret");
     expect(await screen.findByText(/déjà connecté avec un compte élève/)).toBeInTheDocument();
-    expect(location()).toBe("/join"); // nothing switched yet
+    expect(location()).toBe("/join?code=s2.secret"); // nothing switched yet
 
     await user.click(screen.getByRole("button", { name: "Garder mon compte" }));
     expect(await screen.findByText("Rome 2030")).toBeInTheDocument();

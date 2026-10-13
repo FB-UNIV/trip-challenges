@@ -96,6 +96,8 @@ export type RosterImport = z.infer<typeof RosterImport>;
 
 export const RedeemAccessCode = z.object({
   code: z.string().min(10).max(200),
+  // The student confirmed switching this device away from the account it is signed in to.
+  replace: z.boolean().optional(),
 });
 export type RedeemAccessCode = z.infer<typeof RedeemAccessCode>;
 
