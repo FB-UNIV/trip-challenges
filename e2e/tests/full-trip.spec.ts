@@ -92,9 +92,15 @@ test("a full trip: roster → teams → photos → moderation → duels → cere
       admin.card("Résultats et cérémonie").getByRole("button", { name: /Lancer la cérémonie/ }).click(),
     ]);
     await expect(ceremony.getByRole("heading", { name: "Et les gagnants sont…" })).toBeVisible();
-    await ceremony.getByRole("button", { name: "Dévoiler →" }).click();
-    await expect(ceremony.getByRole("heading", { name: "Best gelato" })).toBeVisible();
-    await expect(ceremony.getByText("Foxes")).toBeVisible();
+    // One full-screen slide per team, 3rd → 1st, each with its winning photo (#166, #170).
+    for (const [team, place] of [["Bears", "🥉 3e place"], ["Owls", "🥈 2e place"], ["Foxes", "🥇 1re place"]] as const) {
+      await ceremony.getByRole("button", { name: "Dévoiler →" }).click();
+      await expect(ceremony.getByRole("heading", { name: "Best gelato" })).toBeVisible();
+      await expect(ceremony.getByTestId("place")).toHaveText(place);
+      await expect(ceremony.getByRole("img", { name: `Photo de ${team}` }))
+        .toHaveAttribute("src", `/api/submissions/${kids[team].submissionId}/photo`);
+      await expect(ceremony.getByTestId("team")).toContainText(team);
+    }
     await ceremony.getByRole("button", { name: "Dévoiler →" }).click();
     await expect(ceremony.getByText("Grand champion")).toBeVisible();
     await expect(ceremony.getByRole("heading", { name: /Foxes/ })).toBeVisible();
