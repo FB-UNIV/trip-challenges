@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.14.0](https://github.com/FB-UNIV/trip-challenges/compare/v0.13.0...v0.14.0) (2026-10-13)
+
+
+### Features
+
+* **web:** the ceremony reveals each podium as a full-screen photo carousel ([#171](https://github.com/FB-UNIV/trip-challenges/issues/171)) ([d3895b7](https://github.com/FB-UNIV/trip-challenges/commit/d3895b783c65be578578e859dc7b28591868f11b))
+
 ## [0.13.0](https://github.com/FB-UNIV/trip-challenges/compare/v0.12.1...v0.13.0) (2026-10-12)
 
 
