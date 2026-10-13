@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.16.1](https://github.com/FB-UNIV/trip-challenges/compare/v0.16.0...v0.16.1) (2026-10-13)
+
+
+### Bug Fixes
+
+* **api:** bounces from Scaleway TEM now find their student ([#195](https://github.com/FB-UNIV/trip-challenges/issues/195)) ([8acc72f](https://github.com/FB-UNIV/trip-challenges/commit/8acc72fabfa2ab31b054b43c688245238597f9fd))
+
 ## [0.16.0](https://github.com/FB-UNIV/trip-challenges/compare/v0.15.1...v0.16.0) (2026-10-13)
 
 
