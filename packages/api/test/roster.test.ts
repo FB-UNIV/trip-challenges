@@ -102,6 +102,22 @@ describe("roster worker", () => {
     expect(await enqueueRoster(trip, ["a@school.test", "   "])).toBe(1);
   });
 
+  // One queue for every trip, oldest first: a big import (or one whose domains take the full
+  // DNS timeout each) held every other trip's codes back until it was drained (security
+  // audit 2026-10). Trips now take turns.
+  it("takes trips in turn, so one big import doesn't hold another trip's codes back", async () => {
+    const big = Array.from({ length: 30 }, (_, i) => `kid${i}@big.test`);
+    await enqueueRoster(trip, big);
+    const other = await makeTrip(owner, { name: "Paris" });
+    await enqueueRoster(other, ["solo@other.test"]);
+
+    await processRosterBatch();
+
+    const order = sent.map((m) => m.to);
+    expect(order).toHaveLength(31);
+    expect(order.indexOf("solo@other.test")).toBeLessThan(2);
+  });
+
   it("creates one student per address, mails a join link, and dedupes repeats", async () => {
     await enqueueRoster(trip, ["kid@school.test", "kid@school.test"]);
     await processRosterBatch();

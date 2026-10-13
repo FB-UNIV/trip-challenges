@@ -58,10 +58,15 @@ export async function processRosterBatch(): Promise<void> {
         }>(
           // Never for an erased trip: an item queued just before Erasure must not become a
           // student after it (Erasure deletes the queue, but not work already in flight).
-          `SELECT i.id, i.trip_id, i.email_enc, i.attempts
-             FROM roster_import_item i JOIN trip t ON t.id = i.trip_id
-            WHERE i.status = 'pending' AND t.phase <> 'erased'
-            ORDER BY i.created_at
+          // Trips take turns (each one's oldest item, then each one's next…), so a big import,
+          // or one whose domains each wait out the DNS timeout, can't hold the others back.
+          `SELECT id, trip_id, email_enc, attempts FROM (
+             SELECT i.id, i.trip_id, i.email_enc, i.attempts, i.created_at,
+                    row_number() OVER (PARTITION BY i.trip_id ORDER BY i.created_at) AS turn
+               FROM roster_import_item i JOIN trip t ON t.id = i.trip_id
+              WHERE i.status = 'pending' AND t.phase <> 'erased'
+           ) q
+            ORDER BY turn, created_at
             LIMIT $1`,
           [BATCH],
         );
