@@ -76,7 +76,8 @@ export async function findTripsDueForErasure(now = new Date()): Promise<string[]
     `SELECT id FROM trip
       WHERE phase <> 'erased'
         AND (
-          hard_erase_at <= $1
+          erasure_requested_at IS NOT NULL -- a teacher's "Erase now" stays due until it succeeds
+          OR hard_erase_at <= $1
           OR (phase = 'grace'
               AND grace_started_at + (grace_days || ' days')::interval <= $1)
         )`,

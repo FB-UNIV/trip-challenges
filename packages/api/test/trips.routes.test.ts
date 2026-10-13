@@ -202,6 +202,33 @@ describe("POST /api/trips/:id/erase", () => {
     expect(await auditActions(id)).toEqual(["erasure_requested"]);
   });
 
+  // The pending request lived only in hard_erase_at, which a later date or retention edit
+  // recomputed: the retry stopped and the minors' data (or the key) outlived the request
+  // (security audit 2026-10).
+  it.each([
+    { maxRetentionDays: 365 },
+    { tripEndDate: daysFromNow(400) },
+    { graceDays: 30 },
+  ])("keeps a failed erasure due: the dates can't be edited while it is pending (%j)", async (patch) => {
+    const id = await makeTrip(owner, { phase: "voting" });
+    s3faults.deleteFailures = 1;
+    expect((await app.inject({ method: "POST", url: `/api/trips/${id}/erase`, headers: asOwner })).statusCode).toBe(503);
+
+    const res = await app.inject({ method: "PATCH", url: `/api/trips/${id}`, headers: asOwner, payload: patch });
+    expect(res.statusCode).toBe(409);
+    expect(res.json().error).toBe("erasure_pending");
+    expect(await findTripsDueForErasure()).toContain(id);
+  });
+
+  it("still lets a pending erasure's trip be renamed", async () => {
+    const id = await makeTrip(owner, { phase: "voting" });
+    s3faults.deleteFailures = 1;
+    await app.inject({ method: "POST", url: `/api/trips/${id}/erase`, headers: asOwner });
+    const res = await app.inject({ method: "PATCH", url: `/api/trips/${id}`, headers: asOwner, payload: { name: "Rome 2" } });
+    expect(res.statusCode).toBe(200);
+    expect(await findTripsDueForErasure()).toContain(id);
+  });
+
   it("404s for a non-member and leaves the trip alone", async () => {
     const id = await makeTrip(await makeTeacher());
     const res = await app.inject({ method: "POST", url: `/api/trips/${id}/erase`, headers: asOwner });
