@@ -462,6 +462,10 @@ invalide.
 | `SMTP_FROM` | — | `PixExplore <no-reply@example.org>` | Expéditeur des e-mails. |
 | `ALERT_EMAIL` | non |  | Reçoit aussi les alertes d'échec d'effacement. |
 | `HEARTBEAT_URL` | non |  | Appelée après chaque cycle sain du planificateur (« dead man's switch »). |
+| `MAIL_DOMAIN_CHECK` | non | `true` | Avant d'envoyer un code, vérifie que le domaine de l'adresse reçoit des e-mails (MX ou A) ; sinon l'élève passe directement en « Non distribué ». `false` seulement pour un environnement de test dont les domaines n'existent pas. |
+| `SCW_TEM_PROJECT_ID` | non |  | Avec Scaleway TEM : l'ID du projet (comme `SMTP_USER`). Active la détection des rebonds : toutes les 5 min, les e-mails en échec passent l'élève en « Non distribué ». Va de pair avec la clé. |
+| `SCW_TEM_SECRET_KEY` | non |  | La clé secrète de l'API Scaleway (comme `SMTP_PASSWORD`) ; il lui faut aussi la lecture de TEM. |
+| `SCW_TEM_REGION` | — | `fr-par` | Région Scaleway de TEM. |
 <!-- END AUTO-GENERATED -->
 
 ### Lues par `docker-compose.yml`

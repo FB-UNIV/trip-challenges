@@ -86,6 +86,15 @@ describe("GET /api/trips/:id/students", () => {
     expect(counts).toEqual({ all: 5, notJoined: 4, undelivered: 2, noTeam: 2, sending: 1 });
   });
 
+  // #104: a bounce reported by the relay after the fact shows like a refused send.
+  it("shows a later bounce as undelivered, with its reason", async () => {
+    const trip = await makeTrip(owner);
+    const lea = await student(trip, "lea@gmail.test", "undelivered");
+    await pool.query(`UPDATE student SET mail_error = 'MAILBOX_NOT_FOUND' WHERE id = $1`, [lea]);
+    const { students } = await list(trip);
+    expect(students[0]).toMatchObject({ id: lea, status: "undelivered", lastError: "MAILBOX_NOT_FOUND" });
+  });
+
   it("doesn't count a student still being sent their code as undelivered", async () => {
     const trip = await makeTrip(owner);
     await student(trip, "zoe@school.test", "undelivered");
@@ -117,6 +126,18 @@ describe("POST /api/trips/:id/students/:studentId/resend", () => {
     expect(await auditActions(trip)).toContain("access_code_resent");
     const audit = await pool.query(`SELECT * FROM audit_log WHERE trip_id = $1`, [trip]);
     expect(JSON.stringify(audit.rows)).not.toContain("lea@");
+  });
+
+  it("forgets the old bounce and remembers the new mail's Message-ID", async () => {
+    const trip = await makeTrip(owner);
+    const lea = await student(trip, "lea@gmail.test", "undelivered");
+    await pool.query(`UPDATE student SET mail_error = 'MAILBOX_FULL', mail_message_id = '<old@x>' WHERE id = $1`, [lea]);
+
+    expect((await resend(trip, lea)).statusCode).toBe(200);
+
+    const { rows } = await pool.query(`SELECT mail_error, mail_message_id FROM student WHERE id = $1`, [lea]);
+    expect(rows[0]).toEqual({ mail_error: null, mail_message_id: sent[0]!.messageId });
+    expect((await list(trip)).students[0]).toMatchObject({ status: "invited", lastError: null });
   });
 
   it("refuses a student who has joined (the lost-code link covers them)", async () => {
@@ -161,6 +182,18 @@ describe("PATCH /api/trips/:id/students/:studentId — fix an address", () => {
     expect(sent).toEqual([expect.objectContaining({ to: "lea@school.test" })]);
     expect(await count("roster_import_item", "trip_id = $1", [trip])).toBe(0);
     expect(await auditActions(trip)).toContain("roster_address_fixed");
+  });
+
+  it("refuses an address whose domain can't receive mail, keeping the old one", async () => {
+    const trip = await makeTrip(owner);
+    const lea = await student(trip, "lea@shcool.test", "undelivered");
+    mailer.deadDomains.add("scool.test");
+    const res = await fix(trip, lea, "lea@scool.test");
+    expect(res.statusCode).toBe(422);
+    expect(res.json()).toMatchObject({ error: "no_mail_domain" });
+    expect(res.json().message).toMatch(/scool\.test/);
+    expect(await emailOf(trip, lea)).toBe("lea@shcool.test");
+    expect(sent).toEqual([]);
   });
 
   it("refuses joined students, addresses already on the roster, and non-emails", async () => {

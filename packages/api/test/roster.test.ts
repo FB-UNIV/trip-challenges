@@ -163,6 +163,38 @@ describe("roster worker", () => {
     expect(await count("student", "trip_id = $1", [trip])).toBe(1);
   });
 
+  // #104: a domain with no mail server is Undelivered at once — no student, no mail, no 5 retries.
+  it("fails an address whose domain can't receive mail at once, without sending", async () => {
+    mailer.deadDomains.add("shcool.test");
+    await enqueueRoster(trip, ["lea@shcool.test", "tom@school.test"]);
+    await processRosterBatch();
+
+    expect((await items()).map((i) => [i.status, i.attempts, i.last_error])).toEqual([
+      ["failed", 1, "ENODOMAIN"],
+      ["done", 0, null],
+    ]);
+    expect(sent.map((m) => m.to)).toEqual(["tom@school.test"]);
+    expect(await count("student", "trip_id = $1", [trip])).toBe(1);
+  });
+
+  it("still sends when DNS can't tell (a lookup failure is not a verdict)", async () => {
+    mailer.unknownDomains.add("school.test");
+    await enqueueRoster(trip, ["lea@school.test"]);
+    await processRosterBatch();
+    expect(sent).toHaveLength(1);
+  });
+
+  // #104: the Message-ID is how a later bounce finds the student, so it's stored per send.
+  it("stores the Message-ID of the student's access-code mail", async () => {
+    await enqueueRoster(trip, ["lea@school.test"]);
+    await processRosterBatch();
+    const { rows } = await pool.query<{ mail_message_id: string | null; mail_error: string | null }>(
+      `SELECT mail_message_id, mail_error FROM student WHERE trip_id = $1`, [trip],
+    );
+    expect(rows[0]!.mail_message_id).toBe(sent[0]!.messageId);
+    expect(rows[0]!.mail_error).toBeNull();
+  });
+
   it("never re-mails a student whose code was already sent", async () => {
     await enqueueRoster(trip, ["kid@school.test"]);
     await processRosterBatch();

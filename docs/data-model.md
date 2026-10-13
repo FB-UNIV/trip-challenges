@@ -112,7 +112,9 @@ plus rien ne change.
 | email_lookup | text | HMAC(email) sous une clé MAC propre à la sortie, pour dédoublonner/retrouver sans déchiffrer |
 | access_code_hash | text | argon2id du code à usage unique de 128 bits ; jamais stocké en clair |
 | access_code_state | text enum | `unredeemed \| redeemed \| reissued` |
-| access_code_sent_at | timestamptz null | le code courant a bien été envoyé par e-mail (0002) |
+| access_code_sent_at | timestamptz null | le code courant a bien été envoyé par e-mail (0002) ; remis à null si l'e-mail rebondit plus tard (#104) |
+| mail_message_id | text null | Message-ID opaque (`<uuid@domaine d'envoi>`) du dernier e-mail de code : le rebond est retrouvé par lui, jamais par l'adresse (0006) |
+| mail_error | text null | raison du rebond, en code (`MAILBOX_NOT_FOUND`…), jamais le texte du serveur qui peut contenir l'adresse (0006) |
 | created_at | timestamptz | |
 
 Même e-mail dans deux sorties = deux lignes dans deux sorties, avec des `email_lookup`

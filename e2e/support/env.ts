@@ -51,6 +51,7 @@ export const apiEnv: Record<string, string> = {
   SMTP_PORT: e.E2E_SMTP_PORT ?? "1025",
   SMTP_FROM: "PixExplore E2E <e2e@trip.test>",
   AV_SCAN_ENABLED: "false",
+  MAIL_DOMAIN_CHECK: "false", // @e2e.test has no DNS; Mailpit catches everything
   // Every browser reaches the API through the Vite proxy, i.e. from one IP.
   RATE_LIMIT_MAX: "100000",
   RATE_LIMIT_AUTH_MAX: "10000",
