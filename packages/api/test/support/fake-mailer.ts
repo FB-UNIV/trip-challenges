@@ -3,13 +3,15 @@
 export type Mail = { kind: string; to: string; args: unknown[] };
 
 export const sent: Mail[] = [];
-// fail: every send throws; failTimes: the next N sends throw (transient outage).
-export const mailer = { fail: false, failTimes: 0 };
+// fail: every send throws; failTimes: the next N sends throw (transient outage);
+// hold: access-code sends wait on it (a slow SMTP relay).
+export const mailer = { fail: false, failTimes: 0, hold: null as Promise<void> | null };
 
 export function resetMailer() {
   sent.length = 0;
   mailer.fail = false;
   mailer.failTimes = 0;
+  mailer.hold = null;
 }
 
 function record(kind: string, to: string, args: unknown[]) {
@@ -22,6 +24,7 @@ export async function sendMail(to: string, subject: string, text: string) {
   record("raw", to, [subject, text]);
 }
 export async function sendAccessCode(to: string, tripName: string, joinUrl: string) {
+  if (mailer.hold) await mailer.hold;
   record("access_code", to, [tripName, joinUrl]);
 }
 export async function sendCoTeacherInvite(to: string, tripName: string, acceptUrl: string) {

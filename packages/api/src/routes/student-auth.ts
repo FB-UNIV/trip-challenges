@@ -164,33 +164,38 @@ export async function studentAuthRoutes(app: FastifyInstance) {
         [tripId, lookup],
       );
       const student = rows[0];
-      if (!student) return reply.send(neutral); // no match — reveal nothing
-
-      // Mint a fresh single-use code; overwrite the old hash (old code now dead) and set
-      // state back to 'unredeemed' so the new one redeems. Sessions are NOT revoked here.
-      const secret = randomBytes(16).toString("base64url"); // 128-bit
-      const hash = await argon2.hash(secret);
-      await pool.query(
-        `UPDATE student SET access_code_hash = $2, access_code_state = 'unredeemed' WHERE id = $1`,
-        [student.id, hash],
-      );
-      await pool.query(
-        `INSERT INTO audit_log (trip_id, action, target_opaque_id)
-         VALUES ($1, 'access_code_reissued', $2)`,
-        [tripId, student.id],
-      );
-
-      const joinUrl = `${config.PUBLIC_BASE_URL}/join?code=${encodeURIComponent(`${student.id}.${secret}`)}`;
-      try {
-        await sendAccessCode(email, trip.name ?? "the trip", joinUrl);
-      } catch (e) {
-        // Code/name only: SMTP errors echo the recipient, i.e. the minor's address (#20).
-        const err = e as { code?: string; name?: string };
-        req.log.error({ smtpError: err?.code ?? err?.name ?? "error" }, "reissue mail failed"); // never surface via the response
+      // Same reply at the same moment for a match and a miss: what a match costs (argon2,
+      // two writes, the mail) happens after it, or the response time would confirm the
+      // address is on the Roster.
+      reply.send(neutral);
+      if (student) {
+        void reissueCode(tripId, trip.name, student.id, email).catch((e) => {
+          // Code/name only: SMTP errors echo the recipient, i.e. the minor's address (#20).
+          const err = e as { code?: string; name?: string };
+          req.log.error({ smtpError: err?.code ?? err?.name ?? "error" }, "reissue mail failed");
+        });
       }
-      return reply.send(neutral);
+      return reply;
     },
   );
+}
+
+/** Mint a fresh single-use code; overwrite the old hash (old code now dead) and set state
+ *  back to 'unredeemed' so the new one redeems, then mail it. Sessions are NOT revoked here. */
+async function reissueCode(tripId: string, tripName: string, studentId: string, email: string) {
+  const secret = randomBytes(16).toString("base64url"); // 128-bit
+  const hash = await argon2.hash(secret);
+  await pool.query(
+    `UPDATE student SET access_code_hash = $2, access_code_state = 'unredeemed' WHERE id = $1`,
+    [studentId, hash],
+  );
+  await pool.query(
+    `INSERT INTO audit_log (trip_id, action, target_opaque_id)
+     VALUES ($1, 'access_code_reissued', $2)`,
+    [tripId, studentId],
+  );
+  const joinUrl = `${config.PUBLIC_BASE_URL}/join?code=${encodeURIComponent(`${studentId}.${secret}`)}`;
+  await sendAccessCode(email, tripName ?? "the trip", joinUrl);
 }
 
 // Precomputed argon2 hash of a random string, to equalise timing on unknown ids.
