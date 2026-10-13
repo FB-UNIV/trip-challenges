@@ -47,8 +47,8 @@ export async function pollBounces(now = new Date()): Promise<number> {
 }
 
 async function markBounced(email: TemEmail): Promise<number> {
-  // We send it as <uuid@domain>; TEM reports only the uuid (seen on staging), so match on the
-  // local part, whatever brackets or domain the report carries. The uuid alone is unique.
+  // We store TEM's own id from its SMTP reply (a bare uuid), or our <uuid@domain> Message-ID
+  // on other relays; match on the part before any @, whatever brackets the report carries.
   const localPart = email.message_id.replace(/^<|>$/g, "").split("@")[0];
   if (!localPart) return 0;
   // Only the student's latest mail counts (a resend mints a new id), and never a student who
