@@ -10,7 +10,7 @@ import { z } from "zod";
 import { InviteCoTeacher, AcceptInvite } from "@trip/shared";
 import { config } from "../config.js";
 import { pool } from "../db.js";
-import { guard, tripFrom, teacherOf, tripOf } from "../auth/guard.js";
+import { guard, liveOnly, tripFrom, teacherOf, tripOf } from "../auth/guard.js";
 import { sendCoTeacherInvite } from "../email/mailer.js";
 
 const INVITE_TTL_DAYS = 7;
@@ -48,7 +48,7 @@ export async function tripInviteRoutes(app: FastifyInstance) {
 
   // Invite a co-teacher by email (owner only).
   app.post("/:id/invites", {
-    preHandler: guard({ role: "teacher", trip: tripFrom.trip("params.id"), owner: "Seul le responsable de la sortie peut inviter des co-enseignants." }),
+    preHandler: guard({ role: "teacher", trip: tripFrom.trip("params.id"), owner: "Seul le responsable de la sortie peut inviter des co-enseignants.", ...liveOnly }),
   }, async (req, reply) => {
     const teacher = teacherOf(req);
     const tripId = tripOf(req).id;

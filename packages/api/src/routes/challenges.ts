@@ -8,7 +8,7 @@ import { z } from "zod";
 import { ChallengeInput, ChallengePatch, type EntryState, type StudentChallengeList, type VoteProgress } from "@trip/shared";
 import { config } from "../config.js";
 import { pool } from "../db.js";
-import { guard, tripFrom, studentOf, tripOf, type Phase } from "../auth/guard.js";
+import { guard, liveOnly, tripFrom, studentOf, tripOf, type Phase } from "../auth/guard.js";
 
 const CreateChallenge = ChallengeInput.extend({ tripId: z.string().uuid() });
 
@@ -22,7 +22,7 @@ export async function challengeRoutes(app: FastifyInstance) {
 
   // Create (teacher, must own/co the Trip).
   app.post("/", {
-    preHandler: guard({ role: "teacher", body: CreateChallenge, trip: tripFrom.trip("body.tripId") }),
+    preHandler: guard({ role: "teacher", body: CreateChallenge, trip: tripFrom.trip("body.tripId"), ...liveOnly }),
   }, async (req, reply) => {
     const tripId = tripOf(req).id;
     const { title, instructions, multiplier } = req.body as z.infer<typeof CreateChallenge>;

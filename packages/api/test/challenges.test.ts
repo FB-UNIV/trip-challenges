@@ -36,6 +36,13 @@ describe("POST /api/challenges", () => {
     expect(rows[0]).toEqual({ title: "Gelato", instructions: "", multiplier: "1" });
   });
 
+  it("refuses a new challenge on an erased trip", async () => {
+    await setPhase("erased");
+    const res = await app.inject({ method: "POST", url: "/api/challenges", headers: asOwner, payload: { tripId: trip, title: "Gelato" } });
+    expect(res.statusCode).toBe(409);
+    expect(res.json().error).toBe("erased");
+  });
+
   it("enforces auth, body and trip membership", async () => {
     expect((await app.inject({ method: "POST", url: "/api/challenges", payload: {} })).statusCode).toBe(401);
     expect((await app.inject({ method: "POST", url: "/api/challenges", headers: asOwner, payload: { tripId: trip } })).statusCode).toBe(400);
