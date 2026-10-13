@@ -29,11 +29,27 @@ export async function studentAuthRoutes(app: FastifyInstance) {
     };
   });
 
-  // Tighter rate limit on redemption — anti brute-force, counted per Access Code (its
-  // student id), not per IP: a whole class joins from one school Wi-Fi address (#67).
+  // Every attempt costs an argon2 verify, so it is bounded twice: per client address, sized
+  // for a whole class joining from one school Wi-Fi address (#67), and per Access Code (its
+  // student id) against brute force. A route's own rateLimit config replaces the global
+  // per-IP one, and two plugin limiters don't stack on one route, so the address budget is
+  // checked here, before the body is even read.
+  const perAddress = app.hasDecorator("createRateLimit")
+    ? app.createRateLimit({
+        max: config.RATE_LIMIT_REDEEM_IP_MAX,
+        timeWindow: "1 minute",
+        keyGenerator: (req) => `redeem-ip:${req.ip}`,
+      })
+    : null;
   app.post(
     "/redeem",
     {
+      onRequest: async (req, reply) => {
+        const limit = perAddress && (await perAddress(req));
+        if (limit && !limit.isAllowed && limit.isExceeded) {
+          return reply.code(429).send({ error: "rate_limited", message: "Trop de requêtes — réessaie dans une minute." });
+        }
+      },
       preHandler: guard({ role: "public" }),
       config: {
         rateLimit: {
@@ -51,8 +67,10 @@ export async function studentAuthRoutes(app: FastifyInstance) {
       }
       const { code } = parsed.data;
 
-      // Code format: "<studentId>.<secret>" — look up by id, verify secret hash.
-      const [studentId, secret] = code.split(".", 2);
+      // Code format: "<studentId>.<secret>" — look up by id, verify secret hash. An id that
+      // isn't a plain uuid can't be a student: refuse it before any lookup or hashing.
+      const [claimed, secret] = code.split(".", 2);
+      const studentId = canonicalId(claimed);
       if (!studentId || !secret) {
         return reply.code(401).send({ error: "unauthorized", message: "Code non valide ou déjà utilisé." });
       }
@@ -182,10 +200,17 @@ const DUMMY_HASH =
 // silence unused import until /reissue uses it
 void timingSafeEqual;
 
+const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
+
+/** A student id in its one canonical spelling, or undefined: Postgres would also accept
+ *  upper case, braces or no hyphens, and each spelling must not get its own budget. */
+function canonicalId(id: string | undefined): string | undefined {
+  const lower = id?.toLowerCase();
+  return lower && UUID.test(lower) ? lower : undefined;
+}
+
 /** The student id an access code claims ("<studentId>.<secret>"), for per-code limits. */
 function codeOwner(body: unknown): string | undefined {
   const code = (body as { code?: unknown } | undefined)?.code;
-  if (typeof code !== "string") return undefined;
-  const id = code.split(".", 1)[0];
-  return id ? id.slice(0, 64) : undefined;
+  return typeof code === "string" ? canonicalId(code.split(".", 1)[0]) : undefined;
 }

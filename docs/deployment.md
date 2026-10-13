@@ -448,6 +448,7 @@ invalide.
 | `RATE_LIMIT_MAX` | — | `6000` | Requêtes par minute et par IP, toutes routes. |
 | `RATE_LIMIT_STUDENT_MAX` | — | `600` | Requêtes par minute et par élève connecté. |
 | `RATE_LIMIT_AUTH_MAX` | — | `5` | Essais par minute et par code d'accès. |
+| `RATE_LIMIT_REDEEM_IP_MAX` | — | `100` | Essais de code d'accès par minute et par IP, quel que soit le code essayé. Prévoir une classe entière derrière une même IP. |
 | `RATE_LIMIT_REISSUE_MAX` | — | `20` | Demandes de nouveau code par minute et par IP. |
 | `AV_SCAN_ENABLED` | — | `false` | **`true` en production** (valeur de `.env.example`) : envois refusés si clamd est injoignable. |
 | `CLAMAV_HOST` | — | `clamav` |  |

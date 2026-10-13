@@ -9,6 +9,7 @@ vi.mock("../src/email/mailer.js", () => import("./support/fake-mailer.js"));
 import argon2 from "argon2";
 import { studentAuthRoutes } from "../src/routes/student-auth.js";
 import { sent, mailer } from "./support/fake-mailer.js";
+import { config } from "./support/config.js";
 import {
   pool, resetAll, buildApp, makeTeacher, makeTrip, makeStudent, makeTeam, auditActions, count,
 } from "./support/harness.js";
@@ -228,18 +229,61 @@ describe("POST /api/student/reissue (lost device)", () => {
 });
 
 describe("access-code rate limit", () => {
-  it("allows RATE_LIMIT_AUTH_MAX attempts per window, then answers 429", async () => {
+  async function limitedApp() {
     const Fastify = (await import("fastify")).default;
     const limited = Fastify();
     await limited.register((await import("@fastify/cookie")).default, { secret: "x".repeat(32) });
     await limited.register((await import("@fastify/rate-limit")).default, { max: 1000, timeWindow: "1 minute" });
     await limited.register(studentAuthRoutes, { prefix: "/api/student" });
+    return limited;
+  }
+  const attemptOn = (limited: Awaited<ReturnType<typeof limitedApp>>, code: string, ip = "203.0.113.1") =>
+    limited.inject({ method: "POST", url: "/api/student/redeem", payload: { code }, remoteAddress: ip });
 
-    const attempt = () =>
-      limited.inject({ method: "POST", url: "/api/student/redeem", payload: { code: "not-a-real-code" } });
-    // test config sets RATE_LIMIT_AUTH_MAX=3
-    for (let i = 0; i < 3; i++) expect((await attempt()).statusCode).toBe(401);
-    expect((await attempt()).statusCode).toBe(429);
+  it("allows RATE_LIMIT_AUTH_MAX attempts per window, then answers 429", async () => {
+    const limited = await limitedApp();
+    const s = await makeStudent(trip, { unredeemedCode: true });
+    // test config sets RATE_LIMIT_AUTH_MAX=3, counted per access code
+    for (let i = 0; i < 3; i++) expect((await attemptOn(limited, `${s.id}.wrong-secret-value`)).statusCode).toBe(401);
+    expect((await attemptOn(limited, `${s.id}.wrong-secret-value`)).statusCode).toBe(429);
     await limited.close();
+  });
+
+  // Each attempt claimed a fresh student id, so each got its own per-code budget and one
+  // client could make the API run argon2 without limit (security audit 2026-10).
+  it("caps attempts per client address too, whatever student each one claims", async () => {
+    const limited = await limitedApp();
+    const fresh = () => `${crypto.randomUUID()}.wrong-secret-value`;
+    for (let i = 0; i < config.RATE_LIMIT_REDEEM_IP_MAX; i++) {
+      expect((await attemptOn(limited, fresh())).statusCode).toBe(401);
+    }
+    expect((await attemptOn(limited, fresh())).statusCode).toBe(429);
+    // Another address (another school) still gets its own budget.
+    expect((await attemptOn(limited, fresh(), "198.51.100.7")).statusCode).toBe(401);
+    await limited.close();
+  });
+
+  it("counts every spelling of one student id against the same access-code budget", async () => {
+    const limited = await limitedApp();
+    const s = await makeStudent(trip, { unredeemedCode: true });
+    const spellings = [s.id, s.id.toUpperCase(), s.id.replace(/^./, (c) => c.toUpperCase())];
+    for (const [i, id] of spellings.entries()) {
+      expect((await attemptOn(limited, `${id}.wrong-secret-value`, `198.51.100.${i + 1}`)).statusCode).toBe(401);
+    }
+    expect((await attemptOn(limited, `${s.id.toUpperCase()}.wrong-secret-value`, "198.51.100.9")).statusCode).toBe(429);
+    await limited.close();
+  });
+
+  it("refuses a code whose student id isn't a plain uuid without hashing anything", async () => {
+    const s = await makeStudent(trip, { unredeemedCode: true });
+    const verify = vi.spyOn(argon2, "verify");
+    try {
+      for (const id of ["not-a-uuid", `{${s.id}}`, s.id.replaceAll("-", "")]) {
+        expect((await redeem(`${id}.wrong-secret-value`)).statusCode).toBe(401);
+      }
+      expect(verify).not.toHaveBeenCalled();
+    } finally {
+      verify.mockRestore();
+    }
   });
 });
