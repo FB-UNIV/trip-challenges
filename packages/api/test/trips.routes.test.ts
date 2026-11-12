@@ -10,8 +10,10 @@ import { tripRoutes } from "../src/routes/trips.js";
 import { hasKey, keyCount } from "./support/fake-vault.js";
 import { s3faults } from "./support/fake-s3.js";
 import { findTripsDueForErasure } from "../src/erasure.js";
+import { advanceTrip } from "../src/lifecycle.js";
 import {
   pool, resetAll, buildApp, teacherCookie, makeTeacher, makeTrip, auditActions, count,
+  makeStudent, makeTeam, makeChallenge, makeSubmission, makeNomination, setStats,
 } from "./support/harness.js";
 
 const app = await buildApp([tripRoutes, "/api/trips"]);
@@ -24,6 +26,15 @@ beforeEach(async () => {
   owner = await makeTeacher();
   asOwner = { cookie: teacherCookie(app, owner) };
 });
+
+/** A calendar date `n` days from today (UTC), as the date picker sends it. */
+const daysFromNow = (n: number) => {
+  const d = new Date();
+  d.setUTCDate(d.getUTCDate() + n);
+  return d.toISOString().slice(0, 10);
+};
+const eraseAt = async (id: string) =>
+  (await pool.query<{ hard_erase_at: Date }>(`SELECT hard_erase_at FROM trip WHERE id = $1`, [id])).rows[0]!.hard_erase_at;
 
 const phaseOf = async (id: string) =>
   (await pool.query<{ phase: string }>(`SELECT phase FROM trip WHERE id = $1`, [id])).rows[0]?.phase;
@@ -64,6 +75,34 @@ describe("POST /api/trips", () => {
     expect(rows[0]!.hard_erase_at.toISOString().slice(0, 10)).toBe("2030-06-11");
     expect(await count("trip_teacher", "trip_id = $1 AND teacher_id = $2 AND role = 'owner'", [id, owner])).toBe(1);
     expect(await auditActions(id)).toContain("trip_created");
+  });
+
+  // A past end date put hard_erase_at in the past too: the next sweep erased the new trip at once.
+  it("refuses an end date in the past, which would have the trip erased at once", async () => {
+    const res = await app.inject({
+      method: "POST", url: "/api/trips", headers: asOwner,
+      payload: { name: "Rome", tripEndDate: daysFromNow(-60) },
+    });
+    expect(res.statusCode).toBe(400);
+    expect(res.json()).toMatchObject({ error: "end_date_past", message: "La date de fin de la sortie ne peut pas être passée." });
+    expect(await count("trip")).toBe(0);
+    expect(keyCount()).toBe(0);
+    expect(await findTripsDueForErasure()).toEqual([]);
+  });
+
+  it("refuses an end date two days ago", async () => {
+    const res = await app.inject({
+      method: "POST", url: "/api/trips", headers: asOwner, payload: { name: "Rome", tripEndDate: daysFromNow(-2) },
+    });
+    expect(res.statusCode).toBe(400);
+  });
+
+  it("accepts today, and yesterday (a teacher ahead of UTC late in the evening)", async () => {
+    for (const day of [daysFromNow(0), daysFromNow(-1)]) {
+      const res = await app.inject({ method: "POST", url: "/api/trips", headers: asOwner, payload: { name: "Rome", tripEndDate: day } });
+      expect(res.statusCode).toBe(201);
+    }
+    expect(await findTripsDueForErasure()).toEqual([]);
   });
 
   it("destroys the freshly created key when the DB write fails (no orphaned key)", async () => {
@@ -163,6 +202,33 @@ describe("POST /api/trips/:id/erase", () => {
     expect(await auditActions(id)).toEqual(["erasure_requested"]);
   });
 
+  // The pending request lived only in hard_erase_at, which a later date or retention edit
+  // recomputed: the retry stopped and the minors' data (or the key) outlived the request
+  // (security audit 2026-10).
+  it.each([
+    { maxRetentionDays: 365 },
+    { tripEndDate: daysFromNow(400) },
+    { graceDays: 30 },
+  ])("keeps a failed erasure due: the dates can't be edited while it is pending (%j)", async (patch) => {
+    const id = await makeTrip(owner, { phase: "voting" });
+    s3faults.deleteFailures = 1;
+    expect((await app.inject({ method: "POST", url: `/api/trips/${id}/erase`, headers: asOwner })).statusCode).toBe(503);
+
+    const res = await app.inject({ method: "PATCH", url: `/api/trips/${id}`, headers: asOwner, payload: patch });
+    expect(res.statusCode).toBe(409);
+    expect(res.json().error).toBe("erasure_pending");
+    expect(await findTripsDueForErasure()).toContain(id);
+  });
+
+  it("still lets a pending erasure's trip be renamed", async () => {
+    const id = await makeTrip(owner, { phase: "voting" });
+    s3faults.deleteFailures = 1;
+    await app.inject({ method: "POST", url: `/api/trips/${id}/erase`, headers: asOwner });
+    const res = await app.inject({ method: "PATCH", url: `/api/trips/${id}`, headers: asOwner, payload: { name: "Rome 2" } });
+    expect(res.statusCode).toBe(200);
+    expect(await findTripsDueForErasure()).toContain(id);
+  });
+
   it("404s for a non-member and leaves the trip alone", async () => {
     const id = await makeTrip(await makeTeacher());
     const res = await app.inject({ method: "POST", url: `/api/trips/${id}/erase`, headers: asOwner });
@@ -197,6 +263,61 @@ describe("GET /api/trips/:id/results (reveal gating)", () => {
     await seedResult(id);
     const res = await app.inject({ method: "GET", url: `/api/trips/${id}/results` });
     expect(res.json().results[0].team_name_vetted).toBe("Foxes");
+  });
+});
+
+// #166: the ceremony shows each podium's photo, on the projector only (owner decision): the
+// trip's teachers get the link, nobody else, and it never survives Erasure.
+describe("GET /api/trips/:id/results: podium photos (#166)", () => {
+  /** A voted trip at the reveal: Foxes 1st, Owls 2nd on "Boss"; Foxes is Grand Champion. */
+  async function revealed() {
+    const trip = await makeTrip(owner, { phase: "voting" });
+    const boss = await makeChallenge(trip, { title: "Boss" });
+    const entry = async (team: string, wilson: number) => {
+      const s = await makeStudent(trip);
+      const teamId = await makeTeam(trip, team, [s.id]);
+      const sub = await makeSubmission(trip, boss, teamId, s.id);
+      await setStats(trip, await makeNomination(trip, boss, teamId, sub), wilson);
+      return sub;
+    };
+    const foxes = await entry("Foxes", 0.8);
+    const owls = await entry("Owls", 0.5);
+    await advanceTrip(trip, "reveal");
+    return { trip, foxes, owls };
+  }
+  const read = async (trip: string, headers?: { cookie: string }) =>
+    (await app.inject({ method: "GET", url: `/api/trips/${trip}/results`, headers })).json().results as
+      { team_name_vetted: string; is_grand_champion: boolean; photo_id: string | null }[];
+  const photos = (rows: Awaited<ReturnType<typeof read>>) =>
+    rows.map((r) => [r.is_grand_champion ? "champion" : r.team_name_vetted, r.photo_id]);
+
+  it("gives the trip's teachers each podium photo, and the grand champion their best-placed one", async () => {
+    const { trip, foxes, owls } = await revealed();
+    expect(photos(await read(trip, asOwner))).toEqual([["champion", foxes], ["Foxes", foxes], ["Owls", owls]]);
+  });
+
+  it("gives no photo to anyone else: the public (students included), another school's teacher", async () => {
+    const { trip } = await revealed();
+    await advanceTrip(trip, "grace"); // results published
+    const stranger = { cookie: teacherCookie(app, await makeTeacher()) };
+    for (const rows of [await read(trip), await read(trip, stranger)]) {
+      expect(rows).toHaveLength(3);
+      expect(rows.every((r) => r.photo_id === null)).toBe(true);
+    }
+  });
+
+  it("never shows a photo a teacher removed", async () => {
+    const { trip, owls } = await revealed();
+    await pool.query(`UPDATE submission SET removed_by_teacher_id = $2 WHERE id = $1`, [owls, owner]);
+    expect(photos(await read(trip, asOwner))).toContainEqual(["Owls", null]);
+  });
+
+  it("keeps no link to the photos after Erasure", async () => {
+    const { trip } = await revealed();
+    await app.inject({ method: "POST", url: `/api/trips/${trip}/erase`, headers: asOwner });
+    expect(await count("result", "trip_id = $1", [trip])).toBe(3);
+    expect(await count("result", "trip_id = $1 AND submission_id IS NOT NULL", [trip])).toBe(0);
+    expect((await read(trip, asOwner)).every((r) => r.photo_id === null)).toBe(true);
   });
 });
 
@@ -283,6 +404,53 @@ describe("PATCH /api/trips/:id (phase-gated config edits)", () => {
     const erase = new Date(at("2030-02-01"));
     erase.setDate(erase.getDate() + t.max_retention_days);
     expect(t.hard_erase_at.toISOString().slice(0, 10)).toBe(erase.toISOString().slice(0, 10));
+  });
+
+  // Editing the end date (or the retention) could pull hard_erase_at into the past: an
+  // immediate erasure of a trip full of photos, without the "Effacer maintenant" confirmation.
+  describe("never brings the erasure within 24 hours", () => {
+    const soon = { error: "erasure_too_soon" };
+
+    it("refuses an end date that puts the erasure in the past, and changes nothing", async () => {
+      const id = await makeTrip(owner, { phase: "challenge" });
+      const res = await patch(id, { tripEndDate: daysFromNow(-60), name: "Renamed" });
+      expect(res.statusCode).toBe(400);
+      expect(res.json()).toMatchObject(soon);
+      expect(res.json().message).toContain("Effacer maintenant");
+      expect((await eraseAt(id)).toISOString()).toBe("2030-02-01T00:00:00.000Z");
+      expect(await findTripsDueForErasure()).toEqual([]);
+      expect(await auditActions(id)).not.toContain("trip_config_edited");
+    });
+
+    it("refuses a shorter retention that makes the erasure due", async () => {
+      const id = await makeTrip(owner, { phase: "voting" });
+      await pool.query(`UPDATE trip SET trip_end_date = $2, hard_erase_at = $3 WHERE id = $1`, [id, daysFromNow(-10), daysFromNow(20)]);
+      const res = await patch(id, { maxRetentionDays: 5 });
+      expect(res.statusCode).toBe(400);
+      expect(res.json()).toMatchObject(soon);
+    });
+
+    it("refuses an erasure less than a day away", async () => {
+      const id = await makeTrip(owner);
+      await pool.query(`UPDATE trip SET trip_end_date = $2 WHERE id = $1`, [id, daysFromNow(-5)]);
+      expect((await patch(id, { maxRetentionDays: 5 })).statusCode).toBe(400); // erasure today, at midnight
+    });
+
+    it("allows an earlier erasure more than a day away", async () => {
+      const id = await makeTrip(owner);
+      expect((await patch(id, { tripEndDate: daysFromNow(3), maxRetentionDays: 1 })).statusCode).toBe(200);
+      expect((await eraseAt(id)).toISOString().slice(0, 10)).toBe(daysFromNow(4));
+    });
+
+    it("always allows putting a close erasure further off, and edits that don't move it", async () => {
+      const id = await makeTrip(owner, { phase: "grace" });
+      const inTwelveHours = new Date(Date.now() + 12 * 3600_000);
+      await pool.query(`UPDATE trip SET trip_end_date = $2, max_retention_days = 30, hard_erase_at = $3 WHERE id = $1`,
+        [id, daysFromNow(-30), inTwelveHours]);
+      expect((await patch(id, { name: "Still here" })).statusCode).toBe(200);
+      expect((await patch(id, { maxRetentionDays: 60 })).statusCode).toBe(200);
+      expect((await eraseAt(id)).toISOString().slice(0, 10)).toBe(daysFromNow(30));
+    });
   });
 
   it("locks maxTeamSize after draft and points after voting", async () => {

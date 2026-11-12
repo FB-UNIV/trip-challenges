@@ -97,6 +97,15 @@ describe("access-code redemption limits (#67)", () => {
     expect(statuses.every((s) => s === 200)).toBe(true);
   });
 
+  it("caps one address's attempts even when each claims a different student", async () => {
+    const statuses = [];
+    for (let i = 0; i <= config.RATE_LIMIT_REDEEM_IP_MAX; i++) {
+      statuses.push((await redeem(`${crypto.randomUUID()}.wrong-guess`, "203.0.113.50")).statusCode);
+    }
+    expect(statuses.slice(0, -1).every((s) => s === 401)).toBe(true);
+    expect(statuses.at(-1)).toBe(429);
+  });
+
   it("still throttles repeated guesses at one access code, from any IP", async () => {
     const owner = await makeTeacher();
     const trip = await makeTrip(owner);

@@ -1,7 +1,15 @@
 // SMTP mailer for Access Codes + Erasure warnings, in French (the app is for French schools). In dev (no SMTP configured),
 // messages are logged instead of sent. NEVER log the code in production.
+import { randomUUID } from "node:crypto";
 import nodemailer from "nodemailer";
 import { config } from "../config.js";
+
+import { mailDomainStatus as checkDomain, type MailDomainStatus } from "./mail-domain.js";
+
+/** "unknown" (send anyway) when MAIL_DOMAIN_CHECK is off. */
+export function mailDomainStatus(email: string): Promise<MailDomainStatus> {
+  return config.MAIL_DOMAIN_CHECK ? checkDomain(email) : Promise.resolve("unknown");
+}
 
 const transport = config.SMTP_HOST
   ? nodemailer.createTransport({
@@ -12,7 +20,8 @@ const transport = config.SMTP_HOST
     })
   : null;
 
-export async function sendMail(to: string, subject: string, text: string): Promise<void> {
+/** Returns the relay's reply line ("250 … queued as <id>"), if any. */
+export async function sendMail(to: string, subject: string, text: string, messageId?: string): Promise<string | undefined> {
   if (!transport) {
     // The dev fallback prints the whole mail (access codes, emails). In production that
     // would put minors' PII and live credentials in the logs, so fail instead (#20).
@@ -20,19 +29,32 @@ export async function sendMail(to: string, subject: string, text: string): Promi
       throw new Error("SMTP is not configured (SMTP_HOST unset); refusing to print mail in production");
     }
     console.log(`[mail:dev] to=${to} :: ${subject}\n${text}\n`);
-    return;
+    return undefined;
   }
-  await transport.sendMail({ from: config.SMTP_FROM, to, subject, text });
+  const info = await transport.sendMail({ from: config.SMTP_FROM, to, subject, text, ...(messageId ? { messageId } : {}) });
+  return (info as { response?: string } | undefined)?.response;
 }
 
-export async function sendAccessCode(to: string, tripName: string, joinUrl: string): Promise<void> {
-  await sendMail(
+/**
+ * Sends a Student's join link. Returns the id a later bounce is matched by (#104): the relay's
+ * queue id when its reply names one — Scaleway TEM reports bounces by it, not by our
+ * Message-ID (seen on staging) — else our own opaque Message-ID.
+ */
+export async function sendAccessCode(to: string, tripName: string, joinUrl: string): Promise<string> {
+  // Opaque and on our own domain: it must say nothing about the student.
+  const messageId = `<${randomUUID()}@${senderDomain()}>`;
+  const reply = await sendMail(
     to,
     `Ton code d'accès pour ${tripName}`,
     `Ouvre ce lien sur ton téléphone pour rejoindre « ${tripName} » :\n\n${joinUrl}\n\n` +
       `Ce lien est personnel — ne le partage avec personne.`,
+    messageId,
   );
+  return /queued as ([\w-]+)/i.exec(reply ?? "")?.[1] ?? messageId;
 }
+
+// "PixExplore <no-reply@mail.example.org>" → "mail.example.org"
+const senderDomain = () => /@([^>\s]+)/.exec(config.SMTP_FROM)?.[1] ?? "localhost";
 
 export async function sendCoTeacherInvite(to: string, tripName: string, acceptUrl: string): Promise<void> {
   await sendMail(

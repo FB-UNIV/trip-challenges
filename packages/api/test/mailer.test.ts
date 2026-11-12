@@ -41,7 +41,7 @@ describe("mailer", () => {
     expect(transport.opts).toEqual({ host: "smtp.test", port: 465, secure: true, auth: { user: "u", pass: "p" } });
     await m.sendMail("a@school.test", "Hi", "body");
     expect(transport.sendMail).toHaveBeenCalledWith({
-      from: "Trip Challenges <no-reply@example.org>", to: "a@school.test", subject: "Hi", text: "body",
+      from: "PixExplore <no-reply@example.org>", to: "a@school.test", subject: "Hi", text: "body",
     });
   });
 
@@ -65,6 +65,28 @@ describe("mailer", () => {
     expect(warn!.text).toContain("mercredi 2 janvier 2030 à 04:04 (heure de Paris)");
   });
 
+  // #104: a bounce reported later is matched to the student by this id, never by address.
+  it("gives each access-code mail its own opaque Message-ID on the sender's domain, and returns it", async () => {
+    const m = await loadMailer({ SMTP_HOST: "smtp.test", SMTP_FROM: "PixExplore <no-reply@mail.pix.test>" });
+    const first = await m.sendAccessCode("kid@school.test", "Rome", "http://app.test/join?code=x");
+    const second = await m.sendAccessCode("kid@school.test", "Rome", "http://app.test/join?code=y");
+
+    expect(first).toMatch(/^<[0-9a-f-]{36}@mail\.pix\.test>$/);
+    expect(second).not.toBe(first);
+    expect(first).not.toContain("kid");
+    const mail = transport.sendMail.mock.calls[0]![0] as { messageId?: string };
+    expect(mail.messageId).toBe(first);
+  });
+
+  // Seen on staging: Scaleway TEM reports a bounce by its own id, not our Message-ID — the id
+  // its SMTP reply gives ("queued as <id>"). That's the id a bounce can be matched by.
+  it("returns the relay's queue id when its reply names one (Scaleway TEM)", async () => {
+    const m = await loadMailer({ SMTP_HOST: "smtp.test" });
+    transport.sendMail.mockResolvedValueOnce({ response: "250 2.0.0 OK: queued as 321e6363-9b82-425d-925f-e22996f7893e" });
+    expect(await m.sendAccessCode("kid@school.test", "Rome", "http://app.test/join?code=x"))
+      .toBe("321e6363-9b82-425d-925f-e22996f7893e");
+  });
+
   it("formats the erasure-failure alert", async () => {
     const m = await loadMailer({ SMTP_HOST: "smtp.test" });
     await m.sendErasureFailedAlert("ops@school.test", "Rome", "trip-uuid", "vault 503 sealed");
@@ -73,5 +95,14 @@ describe("mailer", () => {
     expect(mail.text).toContain("trip-uuid");
     expect(mail.text).toContain("vault 503 sealed");
     expect(mail.text).toContain("relancé automatiquement");
+  });
+
+  // e2e and local stacks use reserved test domains (@e2e.test) that have no DNS at all (#104).
+  it("skips the domain check when MAIL_DOMAIN_CHECK is off: no DNS lookup, the mail goes out", async () => {
+    const dns = await import("node:dns");
+    const lookup = vi.spyOn(dns.promises, "resolveMx");
+    const m = await loadMailer({ SMTP_HOST: "smtp.test", MAIL_DOMAIN_CHECK: false });
+    await expect(m.mailDomainStatus("kid@e2e.test")).resolves.toBe("unknown");
+    expect(lookup).not.toHaveBeenCalled();
   });
 });

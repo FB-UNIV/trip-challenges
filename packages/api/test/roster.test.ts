@@ -47,6 +47,17 @@ describe("POST /api/trips/:id/roster", () => {
     await vi.waitFor(() => expect(sent.map((m) => m.to).sort()).toEqual(["kid1@school.test", "kid2@school.test"]), { timeout: 10_000 });
   });
 
+  // The trip row and its teachers survive Erasure, and the route had no phase gate: an
+  // import on an erased trip could write new student PII that no later sweep would erase
+  // (security audit 2026-10).
+  it("refuses an import on an erased trip, and queues nothing", async () => {
+    await pool.query(`UPDATE trip SET phase = 'erased' WHERE id = $1`, [trip]);
+    const res = await post(trip, { emails: ["kid@school.test"] });
+    expect(res.statusCode).toBe(409);
+    expect(res.json().error).toBe("erased");
+    expect(await items()).toEqual([]);
+  });
+
   it("rejects bad input, missing auth and non-members", async () => {
     expect((await post(trip, { emails: ["not-an-email"] })).statusCode).toBe(400);
     expect((await post(trip, { emails: [] })).statusCode).toBe(400);
@@ -79,8 +90,32 @@ describe("GET /api/trips/:id/roster/status", () => {
 });
 
 describe("roster worker", () => {
+  it("never turns an erased trip's leftover item into a student", async () => {
+    await enqueueRoster(trip, ["kid@school.test"]); // queued just before the trip was erased
+    await pool.query(`UPDATE trip SET phase = 'erased' WHERE id = $1`, [trip]);
+    await processRosterBatch();
+    expect(await count("student", "trip_id = $1", [trip])).toBe(0);
+    expect(sent).toEqual([]);
+  });
+
   it("skips blank lines when enqueuing", async () => {
     expect(await enqueueRoster(trip, ["a@school.test", "   "])).toBe(1);
+  });
+
+  // One queue for every trip, oldest first: a big import (or one whose domains take the full
+  // DNS timeout each) held every other trip's codes back until it was drained (security
+  // audit 2026-10). Trips now take turns.
+  it("takes trips in turn, so one big import doesn't hold another trip's codes back", async () => {
+    const big = Array.from({ length: 30 }, (_, i) => `kid${i}@big.test`);
+    await enqueueRoster(trip, big);
+    const other = await makeTrip(owner, { name: "Paris" });
+    await enqueueRoster(other, ["solo@other.test"]);
+
+    await processRosterBatch();
+
+    const order = sent.map((m) => m.to);
+    expect(order).toHaveLength(31);
+    expect(order.indexOf("solo@other.test")).toBeLessThan(2);
   });
 
   it("creates one student per address, mails a join link, and dedupes repeats", async () => {
@@ -142,6 +177,38 @@ describe("roster worker", () => {
     await processRosterBatch();
     expect(sent).toHaveLength(1);
     expect(await count("student", "trip_id = $1", [trip])).toBe(1);
+  });
+
+  // #104: a domain with no mail server is Undelivered at once — no student, no mail, no 5 retries.
+  it("fails an address whose domain can't receive mail at once, without sending", async () => {
+    mailer.deadDomains.add("shcool.test");
+    await enqueueRoster(trip, ["lea@shcool.test", "tom@school.test"]);
+    await processRosterBatch();
+
+    expect((await items()).map((i) => [i.status, i.attempts, i.last_error])).toEqual([
+      ["failed", 1, "ENODOMAIN"],
+      ["done", 0, null],
+    ]);
+    expect(sent.map((m) => m.to)).toEqual(["tom@school.test"]);
+    expect(await count("student", "trip_id = $1", [trip])).toBe(1);
+  });
+
+  it("still sends when DNS can't tell (a lookup failure is not a verdict)", async () => {
+    mailer.unknownDomains.add("school.test");
+    await enqueueRoster(trip, ["lea@school.test"]);
+    await processRosterBatch();
+    expect(sent).toHaveLength(1);
+  });
+
+  // #104: the Message-ID is how a later bounce finds the student, so it's stored per send.
+  it("stores the Message-ID of the student's access-code mail", async () => {
+    await enqueueRoster(trip, ["lea@school.test"]);
+    await processRosterBatch();
+    const { rows } = await pool.query<{ mail_message_id: string | null; mail_error: string | null }>(
+      `SELECT mail_message_id, mail_error FROM student WHERE trip_id = $1`, [trip],
+    );
+    expect(rows[0]!.mail_message_id).toBe(sent[0]!.messageId);
+    expect(rows[0]!.mail_error).toBeNull();
   });
 
   it("never re-mails a student whose code was already sent", async () => {

@@ -5,7 +5,7 @@
 > logiciel ; les choix juridiques (base légale, nécessité d'une AIPD, contrats) relèvent de
 > l'établissement, responsable de traitement. Ce n'est pas un avis juridique.
 
-Ce guide aide un établissement à documenter l'usage de Trip Challenges : qui est
+Ce guide aide un établissement à documenter l'usage de PixExplore : qui est
 responsable de quoi, quelles données sont traitées et combien de temps, et comment en
 informer les familles. Le détail technique est dans le [glossaire](./glossaire.md),
 [`data-model.md`](./data-model.md) et les ADR
@@ -32,7 +32,7 @@ Les élèves disposent dans l'application d'une page « Tes données et ta vie p
 | **Finalité** | Organiser des défis photo pendant une sortie scolaire : équipes, envoi de photos, vote entre élèves, cérémonie des résultats. |
 | **Base légale** | **À déterminer par l'établissement.** Pistes usuelles : mission d'intérêt public (art. 6-1-e) pour une activité pédagogique ; consentement des représentants légaux si l'activité est facultative. Les photos où un élève est reconnaissable relèvent en outre du droit à l'image : recueillez l'autorisation des familles comme pour toute captation. |
 | **Personnes concernées** | Élèves (mineurs) participant à la sortie ; enseignants organisateurs. |
-| **Données des élèves** | Adresse e-mail (chiffrée) ; photos (chiffrées, métadonnées et position GPS supprimées à l'envoi) ; appartenance à une équipe et nom d'équipe choisi par les élèves (chiffré) ; votes (duels) ; jeton de session de l'appareil (haché). Aucun nom, prénom, date de naissance ni classe n'est demandé. |
+| **Données des élèves** | Adresse e-mail (chiffrée) ; photos (chiffrées, métadonnées et position GPS supprimées sur le téléphone avant l'envoi quand c'est possible, et dans tous les cas par le serveur) ; appartenance à une équipe et nom d'équipe choisi par les élèves (chiffré) ; votes (duels) ; jeton de session de l'appareil (haché). Sur le téléphone : le cookie de session, et la liste des décisions de modération déjà annoncées à l'élève (identifiants de défi, sans donnée personnelle). Aucun nom, prénom, date de naissance ni classe n'est demandé. |
 | **Données des enseignants** | Identité issue du fournisseur OIDC de l'établissement (identifiant, e-mail, nom affiché) ; journal d'audit de leurs actions. |
 | **Destinataires** | Enseignants de la sortie (toutes les photos, e-mails des élèves, statut, équipes ; nombre de votants, jamais le détail des votes). Autres élèves de la sortie : uniquement les photos sélectionnées et validées, pendant le vote, sans nom. Aucun destinataire extérieur. |
 | **Durée de conservation** | Effacement automatique après la cérémonie et un délai de grâce réglé par l'enseignant (7 jours par défaut), et **au plus tard** à la date de fin de sortie + la durée de conservation maximale (30 jours par défaut), quelle que soit la phase. Un enseignant peut effacer plus tôt. |
@@ -83,7 +83,7 @@ l'établissement, responsable de traitement. Les moyens disponibles dans l'appli
 Madame, Monsieur,
 
 Pendant la sortie [nom de la sortie] du [dates], la classe de votre enfant participera à des
-défis photo à l'aide de l'application Trip Challenges, hébergée par [nom de l'exploitant].
+défis photo à l'aide de l'application PixExplore, hébergée par [nom de l'exploitant].
 
 **Ce qui est utilisé.** L'adresse e-mail de votre enfant [adresse de l'ENT / adresse
 personnelle], pour lui envoyer un code d'accès ; les photos prises par son équipe ; le nom

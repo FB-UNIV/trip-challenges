@@ -1,5 +1,5 @@
 # Multi-stage: build workspace, ship a slim non-root runtime.
-FROM node:22-alpine AS build
+FROM node:26-alpine AS build
 WORKDIR /app
 COPY package.json package-lock.json* ./
 COPY packages/shared/package.json packages/shared/
@@ -12,7 +12,7 @@ COPY packages/api packages/api
 RUN npm run build --workspace @trip/shared
 RUN npm run build --workspace @trip/api
 
-FROM node:22-alpine AS runtime
+FROM node:26-alpine AS runtime
 ENV NODE_ENV=production
 WORKDIR /app
 # argon2 needs to be present as a native dep; copy resolved node_modules.

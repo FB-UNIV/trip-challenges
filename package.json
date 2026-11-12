@@ -2,7 +2,7 @@
   "name": "trip-challenges",
   "private": true,
   "license": "AGPL-3.0-or-later",
-  "version": "0.11.0",
+  "version": "0.16.2",
   "description": "PWA for photo-challenge school trips. Strict data erasure for minors' data.",
   "workspaces": [
     "packages/shared",
@@ -23,7 +23,7 @@
     "docs:preview": "vitepress preview docs"
   },
   "engines": {
-    "node": ">=20"
+    "node": ">=24"
   },
   "devDependencies": {
     "mermaid": "^11.12.0",

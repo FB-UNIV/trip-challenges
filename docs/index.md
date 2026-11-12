@@ -2,7 +2,7 @@
 layout: home
 
 hero:
-  name: Trip Challenges
+  name: PixExplore
   text: Des défis photo pour les sorties scolaires
   tagline: Les élèves relèvent des défis, votent pour les meilleures photos, et tout est effacé à la fin de la sortie — de façon vérifiable.
   actions:
@@ -59,6 +59,6 @@ flowchart LR
   G --> X["Effacée<br/>clé de la sortie détruite"]
 ```
 
-Trip Challenges est un logiciel libre (AGPL-3.0), **auto-hébergé** : l'établissement ou son
+PixExplore est un logiciel libre (AGPL-3.0), **auto-hébergé** : l'établissement ou son
 prestataire l'installe sur ses propres serveurs. Les auteurs du logiciel n'ont accès à
 aucune donnée.

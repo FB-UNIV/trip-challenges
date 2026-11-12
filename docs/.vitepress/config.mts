@@ -12,7 +12,7 @@ const slugify = (s: string) =>
 // Diagrams are ```mermaid blocks: rendered here by the plugin, and natively on github.com.
 export default withMermaid(defineConfig({
   lang: "fr-FR",
-  title: "Trip Challenges",
+  title: "PixExplore",
   description: "Défis photo pour les sorties scolaires, avec effacement vérifiable des données des élèves.",
   base: "/trip-challenges/",
   cleanUrls: true,
