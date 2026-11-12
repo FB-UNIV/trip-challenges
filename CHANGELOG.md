@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.16.3](https://github.com/FB-UNIV/trip-challenges/compare/v0.16.2...v0.16.3) (2026-11-12)
+
+
+### Bug Fixes
+
+* **deps:** ship the Node 26 runtime and the latest dependency patches ([#210](https://github.com/FB-UNIV/trip-challenges/issues/210)) ([ecaf31c](https://github.com/FB-UNIV/trip-challenges/commit/ecaf31c24e1e309b595e90e0565a91831aab46d9))
+
 ## [0.16.2](https://github.com/FB-UNIV/trip-challenges/compare/v0.16.1...v0.16.2) (2026-10-13)
 
 
