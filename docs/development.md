@@ -1,6 +1,6 @@
 # Guide de développement
 
-Monter un environnement local pour faire tourner et modifier Trip Challenges. Le
+Monter un environnement local pour faire tourner et modifier PixExplore. Le
 **parcours élève fonctionne sans aucun service externe** ; la **connexion enseignant**
 nécessite soit un fournisseur OIDC, soit le raccourci de connexion de dev intégré
 (ci-dessous).

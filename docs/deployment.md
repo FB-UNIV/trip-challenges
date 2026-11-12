@@ -1,6 +1,6 @@
 # Guide de déploiement (production)
 
-Comment mettre en service Trip Challenges pour un usage réel. Ce guide sert à « faire
+Comment mettre en service PixExplore pour un usage réel. Ce guide sert à « faire
 tourner » ; une fois que c'est le cas, suivez
 [`production-hardening.md`](./production-hardening.md) avant d'y mettre les données de
 vrais mineurs : il couvre Vault, les sauvegardes et la garantie d'effacement.
@@ -85,7 +85,9 @@ Modifiez `.env` — les variables les plus importantes :
 | `AV_SCAN_ENABLED` | `true` (les envois sont refusés si clamd est arrêté) |
 
 Déclarez le client OIDC dans PocketID avec l'URI de redirection
-`<PUBLIC_BASE_URL>/api/auth/teacher/callback`.
+`<PUBLIC_BASE_URL>/api/auth/teacher/callback`. La connexion n'est acceptée que si le jeton
+porte `email_verified: true` (c'est le cas de PocketID) : l'adresse sert à lier les invitations
+de co-enseignants. Avec un autre fournisseur OIDC, vérifiez qu'il envoie cette information.
 
 Démarrez avec les images publiées (voir § 7) ou en les construisant :
 
@@ -388,8 +390,9 @@ Mesuré sur un portable 12 cœurs, avec le même scénario pour chaque version :
 
 ## 7. CI/CD (GitHub Actions)
 
-Workflows dans [`.github/workflows/`](https://github.com/FB-UNIV/trip-challenges/tree/main/.github/workflows) : `ci.yml` lance typecheck →
-tests → build (et une construction Docker) sur chaque PR et chaque push ; `release.yml`
+Workflows dans [`.github/workflows/`](https://github.com/FB-UNIV/trip-challenges/tree/main/.github/workflows) : `ci.yml` lance l'analyse des
+workflows (zizmor) → typecheck → tests → build (et une construction Docker) sur chaque PR et
+chaque push ; `release.yml`
 utilise release-please pour publier des versions semver et pousse les images `trip-api` +
 `trip-web` sur GHCR. Mettez ensuite les tags publiés dans `IMAGE_API`/`IMAGE_WEB` de
 `.env` (par ex. `ghcr.io/fb-univ/trip-api:<version>`) puis `docker compose up -d` pour
@@ -408,7 +411,8 @@ cosign verify ghcr.io/fb-univ/trip-api:<version> \
 
 Une signature prouve que l'image a été construite par le workflow de release de ce dépôt
 sur `main`. Les images antérieures à l'ajout de la signature (≤ 0.9.2) ne sont pas
-signées.
+signées. Les tags `v*` du dépôt sont protégés et les releases GitHub sont immuables (à partir
+de 0.12.0) : une version publiée ne peut plus être modifiée.
 
 ## 8. Référence des variables d'environnement
 
@@ -446,6 +450,7 @@ invalide.
 | `RATE_LIMIT_MAX` | — | `6000` | Requêtes par minute et par IP, toutes routes. |
 | `RATE_LIMIT_STUDENT_MAX` | — | `600` | Requêtes par minute et par élève connecté. |
 | `RATE_LIMIT_AUTH_MAX` | — | `5` | Essais par minute et par code d'accès. |
+| `RATE_LIMIT_REDEEM_IP_MAX` | — | `100` | Essais de code d'accès par minute et par IP, quel que soit le code essayé. Prévoir une classe entière derrière une même IP. |
 | `RATE_LIMIT_REISSUE_MAX` | — | `20` | Demandes de nouveau code par minute et par IP. |
 | `AV_SCAN_ENABLED` | — | `false` | **`true` en production** (valeur de `.env.example`) : envois refusés si clamd est injoignable. |
 | `CLAMAV_HOST` | — | `clamav` |  |
@@ -454,9 +459,13 @@ invalide.
 | `SMTP_PORT` | — | `587` |  |
 | `SMTP_USER` | non |  |  |
 | `SMTP_PASSWORD` | non |  |  |
-| `SMTP_FROM` | — | `Trip Challenges <no-reply@example.org>` | Expéditeur des e-mails. |
+| `SMTP_FROM` | — | `PixExplore <no-reply@example.org>` | Expéditeur des e-mails. |
 | `ALERT_EMAIL` | non |  | Reçoit aussi les alertes d'échec d'effacement. |
 | `HEARTBEAT_URL` | non |  | Appelée après chaque cycle sain du planificateur (« dead man's switch »). |
+| `MAIL_DOMAIN_CHECK` | non | `true` | Avant d'envoyer un code, vérifie que le domaine de l'adresse reçoit des e-mails (MX ou A) ; sinon l'élève passe directement en « Non distribué ». `false` seulement pour un environnement de test dont les domaines n'existent pas. |
+| `SCW_TEM_PROJECT_ID` | non |  | Avec Scaleway TEM : l'ID du projet (comme `SMTP_USER`). Active la détection des rebonds : toutes les 5 min, les e-mails en échec passent l'élève en « Non distribué ». Va de pair avec la clé. |
+| `SCW_TEM_SECRET_KEY` | non |  | La clé secrète de l'API Scaleway (comme `SMTP_PASSWORD`) ; il lui faut aussi la lecture de TEM. |
+| `SCW_TEM_REGION` | — | `fr-par` | Région Scaleway de TEM. |
 <!-- END AUTO-GENERATED -->
 
 ### Lues par `docker-compose.yml`

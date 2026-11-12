@@ -23,6 +23,11 @@ export async function tripRoutes(app: FastifyInstance) {
       return reply.code(400).send({ error: "bad_request", message: invalidFields(parsed.error) });
     }
     const cfg = parsed.data;
+    // A past end date puts hard_erase_at in the past too: the next sweep would erase the new
+    // trip at once. A day of slack for a teacher ahead of UTC picking "today" late at night.
+    if (cfg.tripEndDate < startOfYesterdayUtc()) {
+      return reply.code(400).send({ error: "end_date_past", message: "La date de fin de la sortie ne peut pas être passée." });
+    }
 
     const id = randomUUID();
     const hardEraseAt = new Date(cfg.tripEndDate);
@@ -159,7 +164,12 @@ export async function tripRoutes(app: FastifyInstance) {
   app.post("/:id/erase", { preHandler: member }, async (req, reply) => {
     const id = tripOf(req).id;
     await tx(async (c) => {
-      await c.query(`UPDATE trip SET hard_erase_at = LEAST(hard_erase_at, now()) WHERE id = $1`, [id]);
+      await c.query(
+        `UPDATE trip SET hard_erase_at = LEAST(hard_erase_at, now()),
+                         erasure_requested_at = COALESCE(erasure_requested_at, now())
+          WHERE id = $1`,
+        [id],
+      );
       await c.query(
         `INSERT INTO audit_log (trip_id, teacher_id, action) VALUES ($1, $2, 'erasure_requested')`,
         [id, teacherOf(req).teacherId],
@@ -194,18 +204,30 @@ export async function tripRoutes(app: FastifyInstance) {
     if (!phase) return { results: [] };
 
     const published = phase === "grace" || phase === "erased";
-    if (!published) {
-      const teacher = readTeacher(req, reply);
-      if (!teacher || !(await assertTripAccess(teacher.teacherId, id))) {
-        return { results: [] }; // not yet published; not a Trip teacher
-      }
-    }
+    const teacher = readTeacher(req, reply);
+    const tripTeacher = !!teacher && (await assertTripAccess(teacher.teacherId, id));
+    if (!published && !tripTeacher) return { results: [] }; // not yet published; not a Trip teacher
 
+    // photo_id (#166): each podium's photo for the ceremony, which runs on the projector from
+    // a teacher's session. Only the Trip's teachers get it (owner decision: no photos in the
+    // students' results), never for a removed photo, and Erasure clears the link. A Grand
+    // Champion row shows that team's best-placed photo.
     const { rows } = await pool.query(
-      `SELECT id, challenge_title, placement, team_name_vetted, points, is_grand_champion
-         FROM result WHERE trip_id = $1
-        ORDER BY is_grand_champion DESC, challenge_title, placement`,
-      [id],
+      `SELECT r.id, r.challenge_title, r.placement, r.team_name_vetted, r.points, r.is_grand_champion,
+              CASE WHEN $2::boolean THEN COALESCE(own.id, best.id) END AS photo_id
+         FROM result r
+         LEFT JOIN submission own ON own.id = r.submission_id AND own.removed_by_teacher_id IS NULL
+         LEFT JOIN LATERAL (
+              SELECT s.id
+                FROM result o
+                JOIN submission s ON s.id = o.submission_id AND s.removed_by_teacher_id IS NULL
+               WHERE r.is_grand_champion AND o.trip_id = r.trip_id AND NOT o.is_grand_champion
+                 AND o.team_label = r.team_label
+               ORDER BY o.placement, o.points DESC, o.challenge_title
+               LIMIT 1) best ON true
+        WHERE r.trip_id = $1
+        ORDER BY r.is_grand_champion DESC, r.challenge_title, r.placement, r.team_name_vetted`,
+      [id, tripTeacher],
     );
     return { results: rows };
   });
@@ -264,11 +286,22 @@ export async function tripRoutes(app: FastifyInstance) {
     const patch = parsed.data;
 
     const { phase } = tripOf(req);
-    const { rows: cur } = await pool.query<{ trip_end_date: string; max_retention_days: number }>(
-      `SELECT trip_end_date, max_retention_days FROM trip WHERE id = $1`,
+    const { rows: cur } = await pool.query<{
+      trip_end_date: string; max_retention_days: number; hard_erase_at: Date; erasure_requested_at: Date | null;
+    }>(
+      `SELECT trip_end_date, max_retention_days, hard_erase_at, erasure_requested_at FROM trip WHERE id = $1`,
       [id],
     );
     const trip = cur[0]!;
+
+    // An "Erase now" that hasn't finished yet is irreversible: no date edit may push it back.
+    const movesErasure = patch.tripEndDate !== undefined || patch.maxRetentionDays !== undefined || patch.graceDays !== undefined;
+    if (trip.erasure_requested_at && movesErasure) {
+      return reply.code(409).send({
+        error: "erasure_pending",
+        message: "L'effacement de cette sortie a été demandé et sera relancé automatiquement : ses dates ne sont plus modifiables.",
+      });
+    }
 
     const beforeReveal = rank(phase) < rank("reveal");
     const draftOnly = phase === "draft";
@@ -303,6 +336,16 @@ export async function tripRoutes(app: FastifyInstance) {
       const retention = patch.maxRetentionDays ?? trip.max_retention_days;
       const hardErase = new Date(endDate);
       hardErase.setDate(hardErase.getDate() + retention);
+      // Never a backdoor to an immediate erasure: an edit may bring the deadline earlier only to
+      // more than a day from now, so the 1-day and 1-hour warnings still go out. Erasing sooner
+      // is "Effacer maintenant" (typed confirmation). Putting it further off is always fine.
+      if (hardErase.getTime() < Date.now() + DAY_MS && hardErase < new Date(trip.hard_erase_at)) {
+        return reply.code(400).send({
+          error: "erasure_too_soon",
+          message: "Avec ces dates, les données de la sortie seraient effacées dans moins de 24 h. "
+            + "Pour les effacer maintenant, utilise « Effacer maintenant ».",
+        });
+      }
       sets.push(`hard_erase_at = $${vals.length + 1}`); vals.push(hardErase);
     }
 
@@ -321,3 +364,13 @@ export async function tripRoutes(app: FastifyInstance) {
 const PHASES: Phase[] = ["draft", "challenge", "voting", "reveal", "grace", "erased"];
 const LIVE = PHASES.filter((p) => p !== "erased");
 const rank = (p: string) => PHASES.indexOf(p as Phase);
+
+const DAY_MS = 24 * 3600_000;
+
+/** 00:00 UTC yesterday: the earliest end date a new trip may have. */
+function startOfYesterdayUtc(): Date {
+  const d = new Date();
+  d.setUTCHours(0, 0, 0, 0);
+  d.setUTCDate(d.getUTCDate() - 1);
+  return d;
+}

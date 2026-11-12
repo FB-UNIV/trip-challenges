@@ -57,6 +57,14 @@ describe("trip-scoped invite management", () => {
     expect(pending.json().invites.map((i: any) => i.email)).toEqual(["co@school.test"]);
   });
 
+  it("refuses inviting anyone onto an erased trip", async () => {
+    await pool.query(`UPDATE trip SET phase = 'erased' WHERE id = $1`, [trip]);
+    const res = await invite("co@school.test");
+    expect(res.statusCode).toBe(409);
+    expect(res.json().error).toBe("erased");
+    expect(sent).toEqual([]);
+  });
+
   it("re-inviting supersedes the previous pending invite", async () => {
     const first = await invitedToken("co@school.test");
     await invite("co@school.test");

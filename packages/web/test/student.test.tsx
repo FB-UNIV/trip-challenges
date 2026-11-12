@@ -37,6 +37,47 @@ describe("join link (/join?code=…)", () => {
     expect(screen.queryByText(/pas valide/)).not.toBeInTheDocument();
   });
 
+  // Opening someone else's join link used to swap this phone's account silently (security
+  // audit 2026-10): the server now refuses, and the page asks before switching.
+  it("asks before switching a phone that's already signed in, and keeps it as is on refusal", async () => {
+    const bodies: unknown[] = [];
+    server.use(
+      http.post("/api/student/redeem", async ({ request }) => {
+        const body = (await request.json()) as { replace?: boolean };
+        bodies.push(body);
+        return body.replace
+          ? HttpResponse.json({ ok: true })
+          : HttpResponse.json({ error: "already_signed_in", message: "Déjà connecté." }, { status: 409 });
+      }),
+      meIs(ME), teams(),
+    );
+    const { user, location } = renderAt("/join?code=s2.secret");
+    expect(await screen.findByText(/déjà connecté avec un compte élève/)).toBeInTheDocument();
+    expect(location()).toBe("/join?code=s2.secret"); // nothing switched yet
+
+    await user.click(screen.getByRole("button", { name: "Garder mon compte" }));
+    expect(await screen.findByText("Rome 2030")).toBeInTheDocument();
+    expect(bodies).toEqual([{ code: "s2.secret" }]);
+  });
+
+  it("switches account only once the student confirms", async () => {
+    const bodies: unknown[] = [];
+    server.use(
+      http.post("/api/student/redeem", async ({ request }) => {
+        const body = (await request.json()) as { replace?: boolean };
+        bodies.push(body);
+        return body.replace
+          ? HttpResponse.json({ ok: true })
+          : HttpResponse.json({ error: "already_signed_in", message: "Déjà connecté." }, { status: 409 });
+      }),
+      meIs(ME), teams(),
+    );
+    const { user, location } = renderAt("/join?code=s2.secret");
+    await user.click(await screen.findByRole("button", { name: "Utiliser ce lien" }));
+    await waitFor(() => expect(location()).toBe("/"));
+    expect(bodies).toEqual([{ code: "s2.secret" }, { code: "s2.secret", replace: true }]);
+  });
+
   it("says so when the link has no code", () => {
     renderAt("/join");
     expect(screen.getByText("Code manquant.")).toBeInTheDocument();

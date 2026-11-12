@@ -88,6 +88,21 @@ function Students({
   );
 }
 
+// The mail error code, in the teacher's words (#104). Unknown codes stay generic.
+const REASONS: Record<string, string> = {
+  MAILBOX_NOT_FOUND: "adresse inexistante",
+  ENODOMAIN: "domaine introuvable",
+  MAILBOX_FULL: "boîte pleine",
+  BLOCKLISTED: "adresse bloquée après des échecs",
+  SPAM: "refusé comme spam",
+  EENVELOPE: "adresse refusée",
+  EAUTH: "serveur d'e-mail mal configuré",
+  ECONNECTION: "serveur d'e-mail injoignable",
+  ETIMEDOUT: "serveur d'e-mail injoignable",
+  ESOCKET: "serveur d'e-mail injoignable",
+};
+const undeliveredReason = (code: string) => REASONS[code] ?? "échec d'envoi";
+
 function StudentRow({ tripId, s, team, onChange }: { tripId: string; s: RosterEntry; team: string | null; onChange: () => void }) {
   const [fixing, setFixing] = useState(false);
   const [email, setEmail] = useState(s.email);
@@ -115,6 +130,7 @@ function StudentRow({ tripId, s, team, onChange }: { tripId: string; s: RosterEn
           <span className="d">
             {s.kind === "student" ? (team ?? "sans équipe") : "pas encore dans la sortie"}
             {s.newCodeRequested && " · nouveau code demandé"}
+            {s.status === "undelivered" && s.lastError && ` · ${undeliveredReason(s.lastError)}`}
           </span>
         </span>
         <span className="roster-acts">

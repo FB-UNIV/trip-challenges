@@ -1,6 +1,6 @@
 # Guide du chef d'établissement
 
-Quand vos enseignants utilisent Trip Challenges, **l'établissement est responsable de
+Quand vos enseignants utilisent PixExplore, **l'établissement est responsable de
 traitement** des données des élèves (RGPD). Ce guide liste ce que vous décidez, ce que vous
 devez organiser, et ce que le logiciel garantit — ou non.
 

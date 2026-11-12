@@ -23,12 +23,26 @@ informations personnelles. Un nom non vérifié deviendra « Équipe 1 », « É
 
 ### 3. Relever les défis
 
-Scanne le **QR code** d'un défi, ou ouvre-le depuis **Défis**. Prends une photo (ou
-choisis-en une dans ta galerie) : tous les membres de l'équipe peuvent en ajouter. Ensuite,
-**sélectionne** la meilleure : c'est elle qui participera au vote.
+Scanne le **QR code** d'un défi, ou ouvre-le depuis **Défis**. Tous les membres de l'équipe
+peuvent ajouter des photos :
 
-Ton enseignant la **valide** ✅ ou la **refuse** ❌ — dans ce cas, choisis-en une autre tant
-que les défis sont ouverts.
+- **📸 Prendre une photo** ouvre l'appareil photo. La photo s'affiche en grand : **Envoyer**,
+  ou **Reprendre** pour la refaire.
+- **🖼️ Galerie** : choisis une photo déjà prise, ou **plusieurs d'un coup** (elles partent
+  alors directement, l'une après l'autre).
+
+Chaque photo apparaît tout de suite dans **Les photos de ton équipe**, avec une barre de
+progression. Si l'envoi échoue (pas de réseau…), elle reste à l'écran : **Réessayer** ou
+**Retirer**. Le téléphone réduit la photo avant de l'envoyer : c'est plus rapide en 4G.
+Touche une photo pour l'**agrandir**.
+
+Ensuite, **sélectionne** la meilleure : c'est elle qui participera au vote. Tant que ton
+équipe n'a pas de photo en lice pour ce défi, l'application te propose de sélectionner celle
+que tu viens d'envoyer.
+
+Ton enseignant la **valide** ✅ ou la **refuse** ❌. Une notification s'affiche en haut de
+l'écran dès que l'application l'apprend (ou à ta prochaine visite) ; **Voir** t'emmène au
+défi. Si elle est refusée, choisis-en une autre tant que les défis sont ouverts.
 
 ### 4. Voter
 
@@ -61,11 +75,11 @@ accès à aucune donnée.
 
 | Question | Réponse |
 |---|---|
-| **Quelles données ?** | L'adresse e-mail de votre enfant (fournie par l'établissement), les photos de son équipe, le nom de l'équipe, ses votes. Aucun nom, aucune date de naissance, aucune géolocalisation. |
+| **Quelles données ?** | L'adresse e-mail de votre enfant (fournie par l'établissement), les photos de son équipe, le nom de l'équipe, ses votes. Aucun nom, aucune date de naissance, aucune géolocalisation : la position GPS est retirée des photos, sur le téléphone quand c'est possible et dans tous les cas par le serveur. |
 | **Qui les voit ?** | Les enseignants organisateurs. Les autres élèves ne voient que la photo choisie par chaque équipe et validée par un enseignant, pendant le vote, sans nom. |
 | **Combien de temps ?** | Jusqu'à la fin du délai de grâce après la cérémonie (7 jours par défaut), et **au plus tard** 30 jours après la fin de la sortie (par défaut). |
 | **Et après ?** | Tout est effacé, y compris dans les sauvegardes (la clé de chiffrement de la sortie est détruite). Ne restent que les résultats : défi, place, points et nom d'équipe vérifié — sans photo ni nom d'élève. |
-| **Pistage, publicité ?** | Aucun. Un seul cookie, celui qui garde votre enfant connecté. |
+| **Pistage, publicité ?** | Aucun. Un seul cookie, celui qui garde votre enfant connecté. Le téléphone retient aussi quelles décisions des enseignants (photo validée ou refusée) il a déjà annoncées, sans aucune donnée personnelle. |
 | **Mes droits ?** | Accès, rectification, effacement : adressez-vous à l'enseignant, à l'établissement ou à son délégué à la protection des données (DPO). Réclamation possible auprès de la [CNIL](https://www.cnil.fr). |
 
 Pour aller plus loin : la [fiche RGPD](../rgpd.md) et le [modèle de menaces](../securite/menaces.md).

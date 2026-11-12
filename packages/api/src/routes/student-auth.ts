@@ -9,6 +9,7 @@ import { RedeemAccessCode, ReissueAccessCode } from "@trip/shared";
 import { config } from "../config.js";
 import { pool, tx } from "../db.js";
 import { guard, studentOf, tripOf } from "../auth/guard.js";
+import { requireStudent } from "../auth/student.js";
 import { hmac } from "../crypto/vault.js";
 import { sendAccessCode } from "../email/mailer.js";
 
@@ -29,11 +30,27 @@ export async function studentAuthRoutes(app: FastifyInstance) {
     };
   });
 
-  // Tighter rate limit on redemption — anti brute-force, counted per Access Code (its
-  // student id), not per IP: a whole class joins from one school Wi-Fi address (#67).
+  // Every attempt costs an argon2 verify, so it is bounded twice: per client address, sized
+  // for a whole class joining from one school Wi-Fi address (#67), and per Access Code (its
+  // student id) against brute force. A route's own rateLimit config replaces the global
+  // per-IP one, and two plugin limiters don't stack on one route, so the address budget is
+  // checked here, before the body is even read.
+  const perAddress = app.hasDecorator("createRateLimit")
+    ? app.createRateLimit({
+        max: config.RATE_LIMIT_REDEEM_IP_MAX,
+        timeWindow: "1 minute",
+        keyGenerator: (req) => `redeem-ip:${req.ip}`,
+      })
+    : null;
   app.post(
     "/redeem",
     {
+      onRequest: async (req, reply) => {
+        const limit = perAddress && (await perAddress(req));
+        if (limit && !limit.isAllowed && limit.isExceeded) {
+          return reply.code(429).send({ error: "rate_limited", message: "Trop de requêtes — réessaie dans une minute." });
+        }
+      },
       preHandler: guard({ role: "public" }),
       config: {
         rateLimit: {
@@ -51,8 +68,10 @@ export async function studentAuthRoutes(app: FastifyInstance) {
       }
       const { code } = parsed.data;
 
-      // Code format: "<studentId>.<secret>" — look up by id, verify secret hash.
-      const [studentId, secret] = code.split(".", 2);
+      // Code format: "<studentId>.<secret>" — look up by id, verify secret hash. An id that
+      // isn't a plain uuid can't be a student: refuse it before any lookup or hashing.
+      const [claimed, secret] = code.split(".", 2);
+      const studentId = canonicalId(claimed);
       if (!studentId || !secret) {
         return reply.code(401).send({ error: "unauthorized", message: "Code non valide ou déjà utilisé." });
       }
@@ -75,6 +94,16 @@ export async function studentAuthRoutes(app: FastifyInstance) {
       // is refused — the lost-device path is /reissue, which mints a fresh 'unredeemed' one.
       if (!student || !ok || student.access_code_state !== "unredeemed") {
         return reply.code(401).send({ error: "unauthorized", message: "Code non valide ou déjà utilisé." });
+      }
+
+      // A join link redeems as soon as it opens, so someone else's link must not silently
+      // switch a device already signed in as another student: that takes a confirmation.
+      const current = await requireStudent(req);
+      if (current && current.studentId !== student.id && !parsed.data.replace) {
+        return reply.code(409).send({
+          error: "already_signed_in",
+          message: "Ce téléphone est déjà connecté avec un autre compte élève.",
+        });
       }
 
       // Issue a device-bound session; mark the code spent.
@@ -146,33 +175,38 @@ export async function studentAuthRoutes(app: FastifyInstance) {
         [tripId, lookup],
       );
       const student = rows[0];
-      if (!student) return reply.send(neutral); // no match — reveal nothing
-
-      // Mint a fresh single-use code; overwrite the old hash (old code now dead) and set
-      // state back to 'unredeemed' so the new one redeems. Sessions are NOT revoked here.
-      const secret = randomBytes(16).toString("base64url"); // 128-bit
-      const hash = await argon2.hash(secret);
-      await pool.query(
-        `UPDATE student SET access_code_hash = $2, access_code_state = 'unredeemed' WHERE id = $1`,
-        [student.id, hash],
-      );
-      await pool.query(
-        `INSERT INTO audit_log (trip_id, action, target_opaque_id)
-         VALUES ($1, 'access_code_reissued', $2)`,
-        [tripId, student.id],
-      );
-
-      const joinUrl = `${config.PUBLIC_BASE_URL}/join?code=${encodeURIComponent(`${student.id}.${secret}`)}`;
-      try {
-        await sendAccessCode(email, trip.name ?? "the trip", joinUrl);
-      } catch (e) {
-        // Code/name only: SMTP errors echo the recipient, i.e. the minor's address (#20).
-        const err = e as { code?: string; name?: string };
-        req.log.error({ smtpError: err?.code ?? err?.name ?? "error" }, "reissue mail failed"); // never surface via the response
+      // Same reply at the same moment for a match and a miss: what a match costs (argon2,
+      // two writes, the mail) happens after it, or the response time would confirm the
+      // address is on the Roster.
+      reply.send(neutral);
+      if (student) {
+        void reissueCode(tripId, trip.name, student.id, email).catch((e) => {
+          // Code/name only: SMTP errors echo the recipient, i.e. the minor's address (#20).
+          const err = e as { code?: string; name?: string };
+          req.log.error({ smtpError: err?.code ?? err?.name ?? "error" }, "reissue mail failed");
+        });
       }
-      return reply.send(neutral);
+      return reply;
     },
   );
+}
+
+/** Mint a fresh single-use code; overwrite the old hash (old code now dead) and set state
+ *  back to 'unredeemed' so the new one redeems, then mail it. Sessions are NOT revoked here. */
+async function reissueCode(tripId: string, tripName: string, studentId: string, email: string) {
+  const secret = randomBytes(16).toString("base64url"); // 128-bit
+  const hash = await argon2.hash(secret);
+  await pool.query(
+    `UPDATE student SET access_code_hash = $2, access_code_state = 'unredeemed' WHERE id = $1`,
+    [studentId, hash],
+  );
+  await pool.query(
+    `INSERT INTO audit_log (trip_id, action, target_opaque_id)
+     VALUES ($1, 'access_code_reissued', $2)`,
+    [tripId, studentId],
+  );
+  const joinUrl = `${config.PUBLIC_BASE_URL}/join?code=${encodeURIComponent(`${studentId}.${secret}`)}`;
+  await sendAccessCode(email, tripName ?? "the trip", joinUrl);
 }
 
 // Precomputed argon2 hash of a random string, to equalise timing on unknown ids.
@@ -182,10 +216,17 @@ const DUMMY_HASH =
 // silence unused import until /reissue uses it
 void timingSafeEqual;
 
+const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
+
+/** A student id in its one canonical spelling, or undefined: Postgres would also accept
+ *  upper case, braces or no hyphens, and each spelling must not get its own budget. */
+function canonicalId(id: string | undefined): string | undefined {
+  const lower = id?.toLowerCase();
+  return lower && UUID.test(lower) ? lower : undefined;
+}
+
 /** The student id an access code claims ("<studentId>.<secret>"), for per-code limits. */
 function codeOwner(body: unknown): string | undefined {
   const code = (body as { code?: unknown } | undefined)?.code;
-  if (typeof code !== "string") return undefined;
-  const id = code.split(".", 1)[0];
-  return id ? id.slice(0, 64) : undefined;
+  return typeof code === "string" ? canonicalId(code.split(".", 1)[0]) : undefined;
 }

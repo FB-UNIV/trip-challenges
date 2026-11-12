@@ -10,9 +10,12 @@ import { readTeacher, teacherSessionValue, TEACHER_SESSION_TTL_MS } from "../aut
 const TEN_MIN = 600;
 
 // Guard against open redirects: only same-origin absolute paths. "//host" is
-// protocol-relative (external) so it must be rejected.
+// protocol-relative (external) so it must be rejected — and so are "/\host" and
+// "/<TAB>/host", which browsers read as "//host" ("\" is "/", tabs and newlines are dropped).
 function isSafeReturnTo(v: unknown): v is string {
-  return typeof v === "string" && v.startsWith("/") && !v.startsWith("//");
+  if (typeof v !== "string" || !v.startsWith("/") || /[\\\u0000-\u001f\u007f]/.test(v)) return false;
+  const base = new URL(config.PUBLIC_BASE_URL);
+  return new URL(v, base).origin === base.origin;
 }
 
 // Cookies are Secure in production (HTTPS at the edge); relaxed in dev over http.
@@ -74,6 +77,16 @@ export async function teacherAuthRoutes(app: FastifyInstance) {
       { state: state.value!, nonce: nonce.value!, code_verifier: cv.value! },
     );
     const claims = tokenSet.claims();
+
+    // The email is what a co-teacher invite is bound to (and where erasure warnings go), so
+    // it must be one the IdP verified: an unverified address would let any account claim
+    // someone else's invite. PocketID marks its users' emails verified.
+    if (claims.email_verified !== true || !claims.email) {
+      return reply.code(403).send({
+        error: "email_unverified",
+        message: "Ton adresse e-mail n'est pas vérifiée auprès du service de connexion. Contacte l'administrateur.",
+      });
+    }
 
     // Upsert teacher by stable OIDC subject.
     const { rows } = await pool.query<{ id: string }>(

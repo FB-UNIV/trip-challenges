@@ -1,4 +1,4 @@
-# Trip Challenges
+# PixExplore
 
 PWA for photo-challenge school trips. Handles **minors' data under strict erasure** — read
 `CONTEXT.md` (domain glossary) and `docs/adr/` before changing auth, storage, crypto or erasure.
@@ -16,12 +16,15 @@ docker compose -f docker-compose.dev.yml up -d   # Postgres, MinIO, Vault for lo
 ```
 
 CI (`.github/workflows/ci.yml`) runs a workflow lint (zizmor) → typecheck → test → build + Docker builds. There is no
-linter configured. `scripts/e2e.mjs` is a live-stack smoke test — see its header for usage.
+code linter/formatter (ESLint, Prettier). `e2e.yml` runs the Playwright suite in `e2e/` against the full stack:
+it drives the UI through the page objects in `e2e/pages/`, so a UI change (label, button, step) must update
+them too — `e2e` is a required check. `scripts/e2e.mjs` is a separate live-stack HTTP smoke test (see its header).
 
 ## Git workflow
 
-- Never commit or push to `main` — the `protect-main` ruleset rejects direct pushes and requires
-  `check`, `docker (api)`, `docker (web)` and `pr-title` to pass. Branch (`feat/…`, `fix/…`, `ci/…`, `docs/…`),
+- Never commit or push to `main` — the `protect-main` ruleset (no bypass, not even admins) rejects
+  direct pushes and requires `check`, `docker (api)`, `docker (web)`, `pr-title` and `e2e` to pass,
+  plus no new high CodeQL alert. `v*` tags can't be moved or deleted, and releases are immutable. Branch (`feat/…`, `fix/…`, `ci/…`, `docs/…`),
   push, open a PR with `gh pr create`.
 - PRs are squash-merged; the **PR title** is the commit and must be a Conventional Commit.
   It sets the semver bump: `fix:` patch, `feat:` minor, `feat!:` major. `docs/ci/chore/…` don't release.
@@ -40,6 +43,9 @@ linter configured. `scripts/e2e.mjs` is a live-stack smoke test — see its head
 - API route/domain tests run the real migrations in PGlite (in-process WASM Postgres) and
   swap Vault, S3 and SMTP for in-memory fakes — see `packages/api/test/support/`. New test files
   copy the `vi.mock(...)` block from an existing one, then use `harness.ts` fixtures.
+- Web test setup (`packages/web/test/setup.ts`) bridges jsdom's `FormData`/`File` to MSW for both `fetch`
+  and `XMLHttpRequest` (photo uploads use XHR for progress), provides object URLs, and restores jsdom's
+  `localStorage` (Node 25's own global shadows it) — cleared after each test.
 - A known, unfixed bug is recorded as `it.fails(...)` with a `// BUG:` comment. When you fix it,
   the test starts "unexpectedly passing" — flip it to `it(...)`.
 - Coverage thresholds live in `packages/{api,web}/vitest.config.ts`; raise them, don't lower them.

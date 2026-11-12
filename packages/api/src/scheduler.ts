@@ -4,6 +4,7 @@ import { pool } from "./db.js";
 import { config } from "./config.js";
 import { findTripsDueForErasure, eraseTrip, warnUpcomingErasures, alertErasureFailure } from "./erasure.js";
 import { processRosterBatch } from "./roster-worker.js";
+import { pollBounces } from "./email/bounces.js";
 import { autoAdvanceDue } from "./lifecycle.js";
 
 const LOCK_KEY = 918273645; // arbitrary, stable across replicas
@@ -60,6 +61,13 @@ export function startErasureScheduler(intervalMs = 60_000) {
       await processRosterBatch();
     } catch (e) {
       console.error("[roster] drain failed", e);
+    }
+
+    // Late bounces (#104): throttled inside to every 5 minutes; idempotent, so every replica may run it.
+    try {
+      await pollBounces();
+    } catch (e) {
+      console.error("[bounces] poll failed", (e as Error).message);
     }
   };
 

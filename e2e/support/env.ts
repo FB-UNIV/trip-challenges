@@ -49,9 +49,11 @@ export const apiEnv: Record<string, string> = {
   SESSION_SECRET: "e2e-session-secret-not-for-production-use-0123456789",
   SMTP_HOST: e.E2E_SMTP_HOST ?? "localhost",
   SMTP_PORT: e.E2E_SMTP_PORT ?? "1025",
-  SMTP_FROM: "Trip Challenges E2E <e2e@trip.test>",
+  SMTP_FROM: "PixExplore E2E <e2e@trip.test>",
   AV_SCAN_ENABLED: "false",
+  MAIL_DOMAIN_CHECK: "false", // @e2e.test has no DNS; Mailpit catches everything
   // Every browser reaches the API through the Vite proxy, i.e. from one IP.
   RATE_LIMIT_MAX: "100000",
   RATE_LIMIT_AUTH_MAX: "10000",
+  RATE_LIMIT_REDEEM_IP_MAX: "10000",
 };

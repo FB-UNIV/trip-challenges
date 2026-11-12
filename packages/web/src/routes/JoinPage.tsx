@@ -2,7 +2,7 @@
 //  - /join?code=<studentId.secret>  — the emailed join link: redeem, then home.
 //  - /join?trip=<tripId>            — the recovery link: request a fresh code by email
 //    (lost/changed device). Anti-enumeration: the confirmation is shown unconditionally.
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router";
 import { api, errorText, HttpError, isBadCode } from "../api.js";
 import { Button, Card, Field, Notice } from "../ui.js";
@@ -14,17 +14,40 @@ export function JoinPage() {
   const trip = params.get("trip");
 
   const [status, setStatus] = useState(code ? "Connexion…" : "");
-  useEffect(() => {
-    if (!code) return;
-    api.redeemCode(code).then(
+  // The phone is signed in as another student: switching takes the student's say-so, or
+  // anyone's link could quietly take over this phone (the server refuses without it).
+  const [confirmSwitch, setConfirmSwitch] = useState(false);
+  const redeem = useCallback((c: string, replace = false) => {
+    setConfirmSwitch(false);
+    setStatus("Connexion…");
+    api.redeemCode(c, { replace }).then(
       () => navigate("/", { replace: true }),
-      (e) =>
+      (e) => {
+        if (e instanceof HttpError && e.code === "already_signed_in") return setConfirmSwitch(true);
         setStatus(isBadCode(e)
           ? "Ce lien n'est pas valide ou a déjà été utilisé. Si tu as perdu ton appareil, demande à ton enseignant le lien de récupération pour recevoir un nouveau code."
-          : errorText(e)),
+          : errorText(e));
+      },
     );
-  }, [code, navigate]);
+  }, [navigate]);
+  useEffect(() => {
+    if (code) redeem(code);
+  }, [code, redeem]);
 
+  if (code && confirmSwitch) {
+    return (
+      <Card hero>
+        <h2>Changer de compte ?</h2>
+        <p className="muted" style={{ margin: "6px 0 8px" }}>
+          Ce téléphone est déjà connecté avec un compte élève. Ce lien est celui d'un autre compte :
+          si tu l'utilises, tes prochaines photos et tes votes iront à ce compte. Si quelqu'un t'a envoyé
+          ce lien, garde ton compte.
+        </p>
+        <Button onClick={() => navigate("/", { replace: true })}>Garder mon compte</Button>
+        <Button variant="ghost" onClick={() => redeem(code, true)}>Utiliser ce lien</Button>
+      </Card>
+    );
+  }
   if (code) return <Card><p style={{ margin: 0 }}>{status}</p></Card>;
   if (trip) return <ReissueForm tripId={trip} />;
   return <Card><p style={{ margin: 0 }}>Code manquant.</p></Card>;

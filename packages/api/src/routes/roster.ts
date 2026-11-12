@@ -8,14 +8,14 @@ import { invalidFields } from "../lib/errors.js";
 import type { FastifyInstance } from "fastify";
 import { RosterImport } from "@trip/shared";
 import { pool } from "../db.js";
-import { guard, tripFrom, teacherOf, tripOf } from "../auth/guard.js";
+import { guard, liveOnly, tripFrom, teacherOf, tripOf } from "../auth/guard.js";
 import { enqueueRoster, processRosterBatch } from "../roster-worker.js";
 
 export async function rosterRoutes(app: FastifyInstance) {
   const member = guard({ role: "teacher", trip: tripFrom.trip("params.id") });
 
   // POST /api/trips/:id/roster — enqueue emails; returns 202 with how many were queued.
-  app.post("/:id/roster", { preHandler: member }, async (req, reply) => {
+  app.post("/:id/roster", { preHandler: guard({ role: "teacher", trip: tripFrom.trip("params.id"), ...liveOnly }) }, async (req, reply) => {
     const teacher = teacherOf(req);
     const tripId = tripOf(req).id;
     const parsed = RosterImport.safeParse(req.body);
