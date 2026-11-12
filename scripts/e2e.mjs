@@ -127,7 +127,7 @@ async function tripMainFlow() {
 
   const created = await T.post("/api/trips", {
     json: {
-      name: "Rome A", tripEndDate: "2026-12-31", maxTeamSize: 4,
+      name: "Rome A", tripEndDate: "2030-12-31", maxTeamSize: 4,
       pointsTable: [{ placement: 1, points: 5 }, { placement: 2, points: 3 }, { placement: 3, points: 1 }],
       graceDays: 7, maxRetentionDays: 30,
     },
@@ -227,7 +227,7 @@ async function tripTieFlow() {
   const T = new Client();
   await T.post("/api/auth/teacher/dev-login", { json: { email: `teachB-${uniq()}@example.org` } });
   const tripId = (await T.post("/api/trips", {
-    json: { name: "Tie Town", tripEndDate: "2026-12-31", maxTeamSize: 2,
+    json: { name: "Tie Town", tripEndDate: "2030-12-31", maxTeamSize: 2,
       pointsTable: [{ placement: 1, points: 5 }, { placement: 2, points: 3 }], graceDays: 7, maxRetentionDays: 30 },
   })).data?.id;
   const ch = (await T.post("/api/challenges", { json: { tripId, title: "Solo", instructions: "", multiplier: 1 } })).data?.id;
@@ -273,7 +273,7 @@ async function coTeacherFlow() {
   console.log("\n\x1b[1mCo-teacher invite — idempotent accept (StrictMode-safe)\x1b[0m");
   const O = new Client();
   await O.post("/api/auth/teacher/dev-login", { json: { email: `own-${uniq()}@example.org` } });
-  const tripId = (await O.post("/api/trips", { json: { name: "Co Trip", tripEndDate: "2026-12-31" } })).data?.id;
+  const tripId = (await O.post("/api/trips", { json: { name: "Co Trip", tripEndDate: "2030-12-31" } })).data?.id;
   const coEmail = `co-${uniq()}@example.org`;
   ok((await O.post(`/api/trips/${tripId}/invites`, { json: { email: coEmail } })).status === 201, "owner invites a co-teacher");
   await sleep(200);

@@ -131,6 +131,21 @@ describe("POST /api/duels/cast — trip and phase checks (#16, #17)", () => {
     expect((await pool.query(`SELECT count(*)::int AS n FROM duel`)).rows[0]).toEqual({ n: 0 });
   });
 
+  // A pair token doesn't expire, so one minted before a teacher withdrew an entry used to
+  // count a vote against it — and move its opponent's score (security audit 2026-10).
+  it.each([
+    ["rejected", `UPDATE nomination SET state = 'rejected', active = false WHERE id = $1`],
+    ["withdrawn with its photo", `UPDATE nomination SET active = false WHERE id = $1`],
+  ])("refuses a vote on a pair whose entry was %s after the pair was served", async (_, withdraw) => {
+    const { pair } = (await next(voter.cookie)).json();
+    await pool.query(withdraw, [pair.aNominationId]);
+    const res = await cast(voter.cookie, pair.pairToken, pair.bNominationId);
+    expect(res.statusCode).toBe(409);
+    expect(res.json().error).toBe("stale");
+    expect((await pool.query(`SELECT count(*)::int AS n FROM duel`)).rows[0]).toEqual({ n: 0 });
+    expect(await stats(pair.bNominationId)).toBeUndefined();
+  });
+
   it("refuses a validly signed token for another trip's challenge", async () => {
     // Defence in depth: even a correctly signed pair can't move votes across trips.
     const { signPair } = await import("../src/lib/pairToken.js");

@@ -1,5 +1,86 @@
 # Changelog
 
+## [0.16.2](https://github.com/FB-UNIV/trip-challenges/compare/v0.16.1...v0.16.2) (2026-10-13)
+
+
+### Bug Fixes
+
+* **api:** match bounces by Scaleway TEM's own email id ([#197](https://github.com/FB-UNIV/trip-challenges/issues/197)) ([16f4b6f](https://github.com/FB-UNIV/trip-challenges/commit/16f4b6f27597f8d6422709d2f80a442d52bc5b35))
+
+## [0.16.1](https://github.com/FB-UNIV/trip-challenges/compare/v0.16.0...v0.16.1) (2026-10-13)
+
+
+### Bug Fixes
+
+* **api:** bounces from Scaleway TEM now find their student ([#195](https://github.com/FB-UNIV/trip-challenges/issues/195)) ([8acc72f](https://github.com/FB-UNIV/trip-challenges/commit/8acc72fabfa2ab31b054b43c688245238597f9fd))
+
+## [0.16.0](https://github.com/FB-UNIV/trip-challenges/compare/v0.15.1...v0.16.0) (2026-10-13)
+
+
+### Features
+
+* bounced or undeliverable access codes show as Undelivered ([#104](https://github.com/FB-UNIV/trip-challenges/issues/104)) ([#175](https://github.com/FB-UNIV/trip-challenges/issues/175)) ([eba2ac4](https://github.com/FB-UNIV/trip-challenges/commit/eba2ac4ad0e10814cf8ef7c3f141383981a7017e))
+
+
+### Bug Fixes
+
+* **api:** trips take turns in the roster queue ([#189](https://github.com/FB-UNIV/trip-challenges/issues/189)) ([0516c64](https://github.com/FB-UNIV/trip-challenges/commit/0516c64981c521a6f90f06a89556619375e80e61))
+
+## [0.15.1](https://github.com/FB-UNIV/trip-challenges/compare/v0.15.0...v0.15.1) (2026-10-13)
+
+
+### Bug Fixes
+
+* a join link can't silently switch a signed-in phone to another student ([#184](https://github.com/FB-UNIV/trip-challenges/issues/184)) ([acbf4b7](https://github.com/FB-UNIV/trip-challenges/commit/acbf4b73bded59e0ef663494c81cd4a5acb33b31))
+* **api:** a requested erasure stays due until it succeeds, whatever is edited ([#183](https://github.com/FB-UNIV/trip-challenges/issues/183)) ([dbddfa8](https://github.com/FB-UNIV/trip-challenges/commit/dbddfa826c4b48746c3530cc9aee5e73de8c3755))
+* **api:** bound access-code redeem attempts per client address ([#179](https://github.com/FB-UNIV/trip-challenges/issues/179)) ([29ef323](https://github.com/FB-UNIV/trip-challenges/commit/29ef323540a09f4ca7276a95d9be13901455a65a))
+* **api:** don't count a duel whose entry was withdrawn after the pair was served ([#181](https://github.com/FB-UNIV/trip-challenges/issues/181)) ([49dc052](https://github.com/FB-UNIV/trip-challenges/commit/49dc052b8edfcb227c33846fed2630a2158485f7))
+* **api:** keep the post-login redirect on our own origin ([#180](https://github.com/FB-UNIV/trip-challenges/issues/180)) ([94a2171](https://github.com/FB-UNIV/trip-challenges/commit/94a21712484b5baf238b4ce00bd82856cecc0039))
+* **api:** only accept a teacher login whose email the IdP verified ([#186](https://github.com/FB-UNIV/trip-challenges/issues/186)) ([d45c7d8](https://github.com/FB-UNIV/trip-challenges/commit/d45c7d8fe19d9881acdb30affe67db236b6ae67b))
+* **api:** refuse writes on an erased trip, and never import into one ([#185](https://github.com/FB-UNIV/trip-challenges/issues/185)) ([2ae4f23](https://github.com/FB-UNIV/trip-challenges/commit/2ae4f238bc5004f98704c60e1b8ea386c72dddab))
+* **api:** reissue answers before any per-match work, so its timing reveals nothing ([#182](https://github.com/FB-UNIV/trip-challenges/issues/182)) ([f1f7ec2](https://github.com/FB-UNIV/trip-challenges/commit/f1f7ec294a395d0886186a810fefe19679552079))
+
+## [0.15.0](https://github.com/FB-UNIV/trip-challenges/compare/v0.14.0...v0.15.0) (2026-10-13)
+
+
+### Features
+
+* the app is now called PixExplore, with its own icon ([#173](https://github.com/FB-UNIV/trip-challenges/issues/173)) ([fabd9cd](https://github.com/FB-UNIV/trip-challenges/commit/fabd9cdf84c0ed285012224e5b23a98457ff4022))
+
+## [0.14.0](https://github.com/FB-UNIV/trip-challenges/compare/v0.13.0...v0.14.0) (2026-10-13)
+
+
+### Features
+
+* **web:** the ceremony reveals each podium as a full-screen photo carousel ([#171](https://github.com/FB-UNIV/trip-challenges/issues/171)) ([d3895b7](https://github.com/FB-UNIV/trip-challenges/commit/d3895b783c65be578578e859dc7b28591868f11b))
+
+## [0.13.0](https://github.com/FB-UNIV/trip-challenges/compare/v0.12.1...v0.13.0) (2026-10-12)
+
+
+### Features
+
+* the ceremony shows each podium's winning photo ([#168](https://github.com/FB-UNIV/trip-challenges/issues/168)) ([e22ef29](https://github.com/FB-UNIV/trip-challenges/commit/e22ef294a3b680a687ab9ec9752ac0a0816a685e))
+
+## [0.12.1](https://github.com/FB-UNIV/trip-challenges/compare/v0.12.0...v0.12.1) (2026-10-12)
+
+
+### Bug Fixes
+
+* **web:** the privacy page says what stays on the phone, and the docs cover 0.11–0.12 ([#164](https://github.com/FB-UNIV/trip-challenges/issues/164)) ([af9d4cf](https://github.com/FB-UNIV/trip-challenges/commit/af9d4cfa1272285dfc967ff7c011f26ee830e0a1))
+
+## [0.12.0](https://github.com/FB-UNIV/trip-challenges/compare/v0.11.0...v0.12.0) (2026-10-12)
+
+
+### Features
+
+* **web:** notify students when a teacher validates or refuses their entry ([#161](https://github.com/FB-UNIV/trip-challenges/issues/161)) ([b8fd960](https://github.com/FB-UNIV/trip-challenges/commit/b8fd960a5ce26cf24391750f4c96df546e2f7152))
+* **web:** students can enlarge their team's photos ([#159](https://github.com/FB-UNIV/trip-challenges/issues/159)) ([3e14d99](https://github.com/FB-UNIV/trip-challenges/commit/3e14d99fcc08cb9ee6eb1fe773661f31ad4bf08c))
+
+
+### Bug Fixes
+
+* **api:** a trip's end date can no longer trigger an immediate erasure ([#160](https://github.com/FB-UNIV/trip-challenges/issues/160)) ([113ba24](https://github.com/FB-UNIV/trip-challenges/commit/113ba248189a66966569bf46f846c491394e54ee))
+
 ## [0.11.0](https://github.com/FB-UNIV/trip-challenges/compare/v0.10.0...v0.11.0) (2026-10-12)
 
 

@@ -9,6 +9,7 @@ vi.mock("../src/email/mailer.js", () => import("./support/fake-mailer.js"));
 import argon2 from "argon2";
 import { studentAuthRoutes } from "../src/routes/student-auth.js";
 import { sent, mailer } from "./support/fake-mailer.js";
+import { config } from "./support/config.js";
 import {
   pool, resetAll, buildApp, makeTeacher, makeTrip, makeStudent, makeTeam, auditActions, count,
 } from "./support/harness.js";
@@ -146,6 +147,41 @@ describe("POST /api/student/redeem", () => {
     expect((await redeem(s.code!)).statusCode).toBe(401);
   });
 
+  // A join link redeems on open, so a classmate's link (their own fresh code) silently swapped
+  // a signed-in phone to the classmate's account: photos and votes then went to them
+  // (security audit 2026-10). Switching account now takes an explicit confirmation.
+  describe("on a device already signed in as another student", () => {
+    const redeemOn = (cookie: string, payload: object) =>
+      app.inject({ method: "POST", url: "/api/student/redeem", headers: { cookie }, payload });
+
+    it("refuses to switch without confirmation, and spends nothing", async () => {
+      const victim = await makeStudent(trip);
+      const other = await makeStudent(await makeTrip(await makeTeacher()), { unredeemedCode: true });
+      const res = await redeemOn(victim.cookie, { code: other.code });
+      expect(res.statusCode).toBe(409);
+      expect(res.json().error).toBe("already_signed_in");
+      expect(res.cookies.find((c) => c.name === "student_session")).toBeUndefined();
+      expect(await count("student", "id = $1 AND access_code_state = 'unredeemed'", [other.id])).toBe(1);
+      expect((await me(victim.cookie)).json().studentId).toBe(victim.id);
+    });
+
+    it("switches when the request confirms it", async () => {
+      const victim = await makeStudent(trip);
+      const other = await makeStudent(trip, { unredeemedCode: true });
+      const res = await redeemOn(victim.cookie, { code: other.code, replace: true });
+      expect(res.statusCode).toBe(200);
+      expect((await me(sessionCookie(res))).json().studentId).toBe(other.id);
+    });
+
+    it("needs no confirmation for the same student's fresh code, or a stale cookie", async () => {
+      const s = await makeStudent(trip, { unredeemedCode: true });
+      expect((await redeemOn(s.cookie, { code: s.code })).statusCode).toBe(200); // lost-code link on the same phone
+
+      const t = await makeStudent(trip, { unredeemedCode: true });
+      expect((await redeemOn("student_session=00000000-0000-0000-0000-000000000000.nope", { code: t.code })).statusCode).toBe(200);
+    });
+  });
+
   // Found by e2e: React StrictMode (or a double tap / link prefetch) fires two redeems at
   // once. Both passed the "unredeemed" check before either marked the code spent, so the
   // single-use code minted two sessions and the browser kept a cookie for a revoked one.
@@ -183,7 +219,7 @@ describe("POST /api/student/reissue (lost device)", () => {
     const s = await makeStudent(trip, { email: "kid@school.test" });
     const res = await reissue({ tripId: trip, email: "KID@school.test" });
     expect(res.json()).toEqual({ ok: true });
-    expect(sent).toHaveLength(1);
+    await vi.waitFor(() => expect(sent).toHaveLength(1)); // sent after the reply
     expect(sent[0]!.to).toBe("kid@school.test");
     expect(await auditActions(trip)).toContain("access_code_reissued");
 
@@ -212,11 +248,31 @@ describe("POST /api/student/reissue (lost device)", () => {
     mailer.fail = true; // the SMTP error echoes the recipient: "550 rejected <minor@school.test>"
     await logged.inject({ method: "POST", url: "/api/student/reissue", payload: { tripId: trip, email: s.email } });
 
+    await vi.waitFor(() => expect(lines.join("")).toContain("reissue mail failed")); // after the reply
     const all = lines.join("");
-    expect(all).toContain("reissue mail failed");
     expect(all).toContain("EENVELOPE");
     expect(all).not.toContain("minor@school.test");
     await logged.close();
+  });
+
+  // The reply was neutral but the time to it wasn't: a roster match awaited argon2 and the
+  // mail before answering, a miss answered at once, which told a stranger the address is on
+  // the Roster (security audit 2026-10). The answer must not wait on any per-match work.
+  it("answers before doing any work for a match, however slow the mail is", async () => {
+    const s = await makeStudent(trip, { email: "kid@school.test" });
+    let release!: () => void;
+    mailer.hold = new Promise<void>((r) => (release = r));
+    try {
+      const outcome = await Promise.race([
+        reissue({ tripId: trip, email: s.email }).then((r) => r.json()),
+        new Promise((r) => setTimeout(() => r("still waiting"), 2000)),
+      ]);
+      expect(outcome).toEqual({ ok: true });
+      expect(sent).toHaveLength(0); // the mail is still on its way
+    } finally {
+      release();
+    }
+    await vi.waitFor(() => expect(sent).toHaveLength(1));
   });
 
   it("still answers neutrally when the mail fails", async () => {
@@ -228,18 +284,61 @@ describe("POST /api/student/reissue (lost device)", () => {
 });
 
 describe("access-code rate limit", () => {
-  it("allows RATE_LIMIT_AUTH_MAX attempts per window, then answers 429", async () => {
+  async function limitedApp() {
     const Fastify = (await import("fastify")).default;
     const limited = Fastify();
     await limited.register((await import("@fastify/cookie")).default, { secret: "x".repeat(32) });
     await limited.register((await import("@fastify/rate-limit")).default, { max: 1000, timeWindow: "1 minute" });
     await limited.register(studentAuthRoutes, { prefix: "/api/student" });
+    return limited;
+  }
+  const attemptOn = (limited: Awaited<ReturnType<typeof limitedApp>>, code: string, ip = "203.0.113.1") =>
+    limited.inject({ method: "POST", url: "/api/student/redeem", payload: { code }, remoteAddress: ip });
 
-    const attempt = () =>
-      limited.inject({ method: "POST", url: "/api/student/redeem", payload: { code: "not-a-real-code" } });
-    // test config sets RATE_LIMIT_AUTH_MAX=3
-    for (let i = 0; i < 3; i++) expect((await attempt()).statusCode).toBe(401);
-    expect((await attempt()).statusCode).toBe(429);
+  it("allows RATE_LIMIT_AUTH_MAX attempts per window, then answers 429", async () => {
+    const limited = await limitedApp();
+    const s = await makeStudent(trip, { unredeemedCode: true });
+    // test config sets RATE_LIMIT_AUTH_MAX=3, counted per access code
+    for (let i = 0; i < 3; i++) expect((await attemptOn(limited, `${s.id}.wrong-secret-value`)).statusCode).toBe(401);
+    expect((await attemptOn(limited, `${s.id}.wrong-secret-value`)).statusCode).toBe(429);
     await limited.close();
+  });
+
+  // Each attempt claimed a fresh student id, so each got its own per-code budget and one
+  // client could make the API run argon2 without limit (security audit 2026-10).
+  it("caps attempts per client address too, whatever student each one claims", async () => {
+    const limited = await limitedApp();
+    const fresh = () => `${crypto.randomUUID()}.wrong-secret-value`;
+    for (let i = 0; i < config.RATE_LIMIT_REDEEM_IP_MAX; i++) {
+      expect((await attemptOn(limited, fresh())).statusCode).toBe(401);
+    }
+    expect((await attemptOn(limited, fresh())).statusCode).toBe(429);
+    // Another address (another school) still gets its own budget.
+    expect((await attemptOn(limited, fresh(), "198.51.100.7")).statusCode).toBe(401);
+    await limited.close();
+  });
+
+  it("counts every spelling of one student id against the same access-code budget", async () => {
+    const limited = await limitedApp();
+    const s = await makeStudent(trip, { unredeemedCode: true });
+    const spellings = [s.id, s.id.toUpperCase(), s.id.replace(/^./, (c) => c.toUpperCase())];
+    for (const [i, id] of spellings.entries()) {
+      expect((await attemptOn(limited, `${id}.wrong-secret-value`, `198.51.100.${i + 1}`)).statusCode).toBe(401);
+    }
+    expect((await attemptOn(limited, `${s.id.toUpperCase()}.wrong-secret-value`, "198.51.100.9")).statusCode).toBe(429);
+    await limited.close();
+  });
+
+  it("refuses a code whose student id isn't a plain uuid without hashing anything", async () => {
+    const s = await makeStudent(trip, { unredeemedCode: true });
+    const verify = vi.spyOn(argon2, "verify");
+    try {
+      for (const id of ["not-a-uuid", `{${s.id}}`, s.id.replaceAll("-", "")]) {
+        expect((await redeem(`${id}.wrong-secret-value`)).statusCode).toBe(401);
+      }
+      expect(verify).not.toHaveBeenCalled();
+    } finally {
+      verify.mockRestore();
+    }
   });
 });

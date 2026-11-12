@@ -62,6 +62,14 @@ export const tripFrom = {
   submission: via("Photo introuvable.", `SELECT trip_id FROM submission WHERE id = $1`),
 };
 
+/** Guard options for a route that writes to a Trip: refused once it is erased. Erasure keeps
+ *  the trip row and its teachers, so without this a write could recreate data no later
+ *  sweep erases. */
+export const liveOnly = {
+  phases: ["draft", "challenge", "voting", "reveal", "grace"] as Phase[],
+  closed: { status: 409, body: { error: "erased", message: "Cette sortie a été effacée." } },
+};
+
 export type GuardOpts = {
   role: "teacher" | "student" | "public";
   /** Validated (and replaced by the parsed value) before anything else; 400 on failure. */

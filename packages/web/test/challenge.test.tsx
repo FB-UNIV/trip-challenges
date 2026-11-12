@@ -134,6 +134,20 @@ describe("challenge page", () => {
     expect(screen.getAllByRole("button", { name: /Sélectionn/ }).map((b) => b.textContent)).toEqual(["Sélectionner", "Sélectionnée ✓"]);
   });
 
+  it("enlarges a team photo full screen, and closes it again", async () => {
+    server.use(
+      challenge(), me(ME),
+      http.get("/api/submissions", () => HttpResponse.json({ submissions: [{ id: "sub1", created_at: "x", nominated: true, entry: "approved" }] })),
+    );
+    const { user } = renderAt("/c/abc");
+    await user.click(await screen.findByRole("button", { name: "Agrandir la photo" }));
+    const big = screen.getByRole("dialog", { name: "Photo" });
+    expect(big.querySelector("img")?.getAttribute("src")).toBe("/api/submissions/sub1/photo");
+    expect(big).toHaveTextContent("✅ Validée");
+    await user.click(screen.getByRole("button", { name: "Fermer" }));
+    expect(screen.queryByRole("dialog", { name: "Photo" })).not.toBeInTheDocument();
+  });
+
   // #81
   it("marks each photo's entry state and explains a rejection", async () => {
     server.use(

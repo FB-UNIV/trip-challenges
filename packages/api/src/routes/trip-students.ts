@@ -7,7 +7,7 @@ import { FixAddress, RetryRosterItem, type RosterEntry } from "@trip/shared";
 import { pool } from "../db.js";
 import { guard, teacherOf, tripFrom, tripOf, type Phase } from "../auth/guard.js";
 import { decrypt, encrypt, hmac } from "../crypto/vault.js";
-import { sendAccessCode } from "../email/mailer.js";
+import { mailDomainStatus, sendAccessCode } from "../email/mailer.js";
 import { joinUrlFor, newAccessCode, processRosterBatch } from "../roster-worker.js";
 
 const LIVE: Phase[] = ["draft", "challenge", "voting", "reveal", "grace"];
@@ -23,8 +23,10 @@ export async function tripStudentRoutes(app: FastifyInstance) {
 
     const { rows: students } = await pool.query<{
       id: string; email_enc: Buffer; code_state: string; sent: boolean; joined: boolean; team_id: string | null;
+      mail_error: string | null;
     }>(
       `SELECT s.id, s.email_enc, s.access_code_state AS code_state, s.access_code_sent_at IS NOT NULL AS sent,
+              s.mail_error,
               EXISTS (SELECT 1 FROM student_session ss WHERE ss.student_id = s.id) AS joined,
               (SELECT m.team_id FROM team_member m WHERE m.student_id = s.id) AS team_id
          FROM student s WHERE s.trip_id = $1`,
@@ -46,7 +48,8 @@ export async function tripStudentRoutes(app: FastifyInstance) {
         kind: "student", id: s.id, email, status,
         newCodeRequested: s.joined && s.code_state === "unredeemed",
         teamId: s.team_id,
-        lastError: status === "undelivered" ? (item?.last_error ?? null) : null,
+        // A refused send leaves a failed item; a later bounce (#104) is recorded on the student.
+        lastError: status === "undelivered" ? (item?.last_error ?? s.mail_error ?? null) : null,
       });
     }
     for (const it of items) {
@@ -91,6 +94,13 @@ export async function tripStudentRoutes(app: FastifyInstance) {
       const s = await notJoined(tripId, (req.params as { studentId: string }).studentId, reply);
       if (!s) return;
       const { email } = req.body as { email: string };
+      if ((await mailDomainStatus(email)) === "missing") {
+        const domain = email.slice(email.lastIndexOf("@") + 1);
+        return reply.code(422).send({
+          error: "no_mail_domain",
+          message: `Le domaine « ${domain} » ne reçoit pas d'e-mails. Vérifie l'adresse.`,
+        });
+      }
       const lookup = await hmac(tripId, Buffer.from(email, "utf8"));
       const { rowCount: taken } = await pool.query(
         `SELECT 1 FROM student WHERE trip_id = $1 AND email_lookup = $2 AND id <> $3`, [tripId, lookup, s.id],
@@ -168,12 +178,17 @@ async function deliver(
   );
   await audit(tripId, teacherId, action, studentId);
   const { rows: [trip] } = await pool.query<{ name: string }>(`SELECT name FROM trip WHERE id = $1`, [tripId]);
+  let messageId: string;
   try {
-    await sendAccessCode(email, trip!.name, joinUrlFor(studentId, secret));
+    messageId = await sendAccessCode(email, trip!.name, joinUrlFor(studentId, secret));
   } catch {
     return reply.code(502).send({ error: "mail_failed", message: "L'e-mail n'a pas pu être envoyé. Vérifie l'adresse et réessaie." });
   }
-  await pool.query(`UPDATE student SET access_code_sent_at = now() WHERE id = $1`, [studentId]);
+  // A new mail: forget the old one's bounce, and watch this one's (#104).
+  await pool.query(
+    `UPDATE student SET access_code_sent_at = now(), mail_message_id = $2, mail_error = NULL WHERE id = $1`,
+    [studentId, messageId],
+  );
   const resolved = (await openItems(tripId)).filter((it) => it.status === "failed" && bounced.includes(it.email));
   if (resolved.length) {
     await pool.query(`DELETE FROM roster_import_item WHERE id = ANY($1::uuid[])`, [resolved.map((it) => it.id)]);

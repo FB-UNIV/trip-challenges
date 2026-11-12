@@ -18,9 +18,10 @@ export function Privacy() {
         <h3>Ce que l'application garde</h3>
         <ul>
           <li><b>Ton adresse e-mail</b>, donnée par ton enseignant pour t'envoyer ton code d'accès. Elle est chiffrée.</li>
-          <li><b>Les photos</b> envoyées par ton équipe. Elles sont chiffrées, et leurs métadonnées (dont la position GPS) sont supprimées à l'envoi.</li>
+          <li><b>Les photos</b> envoyées par ton équipe. Elles sont chiffrées, et leurs métadonnées (dont la position GPS) sont retirées sur ton téléphone avant l'envoi quand il le peut, et dans tous les cas par le serveur.</li>
           <li><b>Ton équipe</b> et son nom, et <b>tes votes</b> pendant les duels.</li>
           <li>Un <b>cookie de session</b>, pour que tu restes connecté sur ton téléphone. Pas de publicité, pas de mesure d'audience, aucun pistage.</li>
+          <li>Sur ton téléphone, l'application retient seulement les décisions de tes enseignants qu'elle t'a déjà annoncées (« photo validée », « photo refusée »), pour ne pas te les répéter. Rien sur toi.</li>
         </ul>
       </Card>
 

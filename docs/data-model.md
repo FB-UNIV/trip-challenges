@@ -1,6 +1,6 @@
 # Modèle de données
 
-Conception du schéma de Trip Challenges, dérivée de `CONTEXT.md` et des ADR. Postgres
+Conception du schéma de PixExplore, dérivée de `CONTEXT.md` et des ADR. Postgres
 pour les données relationnelles, MinIO pour les fichiers photo, Vault (transit) pour les
 clés par sortie. Ce ne sont pas les migrations : c'est le contrat que le code met en
 œuvre. Les noms de tables, de colonnes et de valeurs restent ceux du code (en anglais).
@@ -76,6 +76,7 @@ simultanées).
 | max_retention_days | int | 30 par défaut |
 | grace_started_at | timestamptz null | publication des résultats (passage `reveal → grace`) ; le délai de grâce part de là (0004) |
 | hard_erase_at | timestamptz | = trip_end_date + max_retention_days ; effacement forcé quelle que soit la phase |
+| erasure_requested_at | timestamptz null | « Effacer maintenant » demandé ; garde la sortie à effacer jusqu'à la réussite, et fige ses dates (0007) |
 | vault_key_name | text | `trip-<id>` ; simple référence, la clé vit dans Vault |
 | created_at | timestamptz | |
 
@@ -111,7 +112,9 @@ plus rien ne change.
 | email_lookup | text | HMAC(email) sous une clé MAC propre à la sortie, pour dédoublonner/retrouver sans déchiffrer |
 | access_code_hash | text | argon2id du code à usage unique de 128 bits ; jamais stocké en clair |
 | access_code_state | text enum | `unredeemed \| redeemed \| reissued` |
-| access_code_sent_at | timestamptz null | le code courant a bien été envoyé par e-mail (0002) |
+| access_code_sent_at | timestamptz null | le code courant a bien été envoyé par e-mail (0002) ; remis à null si l'e-mail rebondit plus tard (#104) |
+| mail_message_id | text null | Identifiant opaque du dernier e-mail de code : celui que le relais donne en réponse (`queued as <uuid>`, Scaleway TEM), sinon notre Message-ID (`<uuid@domaine d'envoi>`). Le rebond est retrouvé par lui, jamais par l'adresse (0006, 0008) |
+| mail_error | text null | raison du rebond, en code (`MAILBOX_NOT_FOUND`…), jamais le texte du serveur qui peut contenir l'adresse (0006) |
 | created_at | timestamptz | |
 
 Même e-mail dans deux sorties = deux lignes dans deux sorties, avec des `email_lookup`
@@ -228,9 +231,10 @@ Classement par défi = tri par `wilson_score` décroissant (ADR-0002).
 | is_grand_champion | bool | |
 | team_label | text | étiquette neutre « Équipe N » (ordre de création des équipes dans la sortie), enregistrée à la révélation (les résultats calculés avant le passage au français portent « Team N ») |
 | team_name_reviewed | bool | copie de `team.name_reviewed` à la révélation |
+| submission_id | uuid fk → submission, `ON DELETE SET NULL` | la photo gagnante, pour la cérémonie (#166) ; transmise aux seuls enseignants de la sortie, jamais pour une photo retirée ; remise à `NULL` par l'effacement (qui supprime aussi les envois) |
 
 Rempli pendant la cérémonie rythmée par l'enseignant ; ne contient **ni image, ni
-identité d'élève**.
+identité d'élève**, et après l'effacement plus aucun lien vers une photo.
 
 ### audit_log — sans données personnelles par conception
 | colonne | type | remarques |
@@ -283,7 +287,7 @@ sequenceDiagram
 1. Supprimer les objets MinIO de la sortie (suppression définitive des fichiers en
    production, au mieux).
 2. Remplacer chaque nom d'équipe non vérifié dans `result` par son étiquette neutre
-   (ADR-0007), puis supprimer toutes les lignes rattachées à la sortie (student, team,
+   (ADR-0007) et effacer le lien `result.submission_id`, puis supprimer toutes les lignes rattachées à la sortie (student, team,
    submission, nomination, duel, stats, sessions, invitations, file d'import, défis).
 3. Rien à nettoyer dans les journaux : aucune donnée personnelle d'élève n'y entre (voir
    [durcissement § 5](./production-hardening.md#5-hygiène-des-journaux-audit-régulier)) ;
@@ -333,12 +337,16 @@ limites sont des verrous de sécurité (🔒), pas de confort — voir la colonn
 | `trip.name` | toutes (`≠ erased`) | cosmétique |
 | `trip.points_table`, `challenge.multiplier` | `< reveal` | n'alimentent que `computeResults` ; figés une fois les résultats calculés |
 | `challenge.title`, `challenge.instructions` | `< reveal` | texte uniquement ; `qr_slug` ne change jamais |
-| `trip.challenge_opens_at` / `voting_opens_at` / `voting_closes_at`, `grace_days`, `trip_end_date`, `max_retention_days` | `≠ erased` | `hard_erase_at` recalculé à l'écriture |
+| `trip.challenge_opens_at` / `voting_opens_at` / `voting_closes_at`, `grace_days`, `trip_end_date`, `max_retention_days` | `≠ erased` | `hard_erase_at` recalculé à l'écriture ; `grace_days`, `trip_end_date` et `max_retention_days` refusés (`409 erasure_pending`) une fois l'effacement demandé |
 | **`trip.max_team_size`** 🔒 | **`draft` uniquement** | les équipes se figent au début des défis ; réduire la taille ensuite laisserait des membres orphelins |
 | **ajout de défi** | `< voting` | rien n'empêche d'ajouter des défis en cours de sortie |
 | **suppression de défi** 🔒 | **`draft` uniquement** | le QR est imprimé/distribué dès que le défi existe — le supprimer laisserait un QR mort dans la nature |
 
 Une modification hors de la phase autorisée renvoie `409`. `hard_erase_at` est toujours
-recalculé à partir de `trip_end_date + max_retention_days` à l'écriture. Toutes les
+recalculé à partir de `trip_end_date + max_retention_days` à l'écriture. Une modification ne
+peut pas avancer `hard_erase_at` à moins de 24 h (`400 erasure_too_soon`) : les alertes J-1 et
+H-1 doivent pouvoir partir, et effacer plus tôt passe par « Effacer maintenant ». Reculer
+l'échéance est toujours permis. À la création, `trip_end_date` ne peut pas être passée
+(`400 end_date_past`, un jour de tolérance pour les fuseaux horaires). Toutes les
 modifications de configuration sont réservées au responsable et aux co-enseignants, et
 journalisées dans l'audit.

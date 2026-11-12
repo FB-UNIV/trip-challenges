@@ -26,12 +26,12 @@ Cette page rassemble ce qu'il faut vérifier, avec pour chaque garantie **où el
 | **Effacement vérifiable** | Destruction de la clé Vault de la sortie, qui rend illisible toute copie, sauvegardes comprises | Exiger le test décrit au [durcissement § 2](../production-hardening.md#2-sauvegardes-et-garantie-deffacement) : restaurer une sauvegarde antérieure à un effacement et constater que les photos ne se déchiffrent pas. |
 | **Effacement même en cas d'oubli** | Date butoir forcée quelle que soit la phase ; nouvelles tentatives chaque minute en cas d'échec, alertes e-mail, sonde de surveillance | Demander la configuration `ALERT_EMAIL` / `HEARTBEAT_URL` de l'hébergeur. |
 | **Séparation des sauvegardes** | Règle d'exploitation : stockage Vault sauvegardé à part | Demander le plan de sauvegarde écrit. **C'est le point le plus important.** |
-| **Minimisation** | Seul l'e-mail identifie un élève ; métadonnées et GPS retirés des photos (ré-encodage) ; pas de « vu pour la dernière fois », pas de suivi individuel | [ADR 0006](../adr/0006-teachers-read-student-emails-back.md) |
+| **Minimisation** | Seul l'e-mail identifie un élève ; métadonnées et GPS retirés des photos (sur le téléphone avant l'envoi quand le navigateur le peut, puis toujours au ré-encodage par le serveur) ; pas de « vu pour la dernière fois », pas de suivi individuel | [ADR 0006](../adr/0006-teachers-read-student-emails-back.md) |
 | **Pas de données personnelles dans les journaux** | Masquage des `email`/`code`, URL sans paramètres, erreurs SMTP réduites à leur code ; testé automatiquement | [durcissement § 5](../production-hardening.md#5-hygiène-des-journaux-audit-régulier) |
 | **Noms d'équipe** | Seuls les noms vérifiés par un enseignant survivent à l'effacement | [ADR 0007](../adr/0007-team-names-survive-erasure-only-if-reviewed.md) |
 | **Cloisonnement** | Chaque route vérifie le rôle, la sortie et la phase ; un test échoue si une route n'est pas protégée | Code : `packages/api/src/auth/guard.ts`, `test/guard.test.ts` |
 | **Antivirus** | Chaque envoi est analysé avant stockage ; refusé si l'antivirus est indisponible | Fichier de test EICAR refusé ([durcissement § 4](../production-hardening.md#4-antivirus-sur-les-envois)) |
-| **Pas de pistage** | Aucun script tiers ; un seul cookie de session (élève) ou de connexion (enseignant) | Politique de sécurité du contenu (CSP) `script-src 'self'` |
+| **Pas de pistage** | Aucun script tiers ; un seul cookie de session (élève) ou de connexion (enseignant). Côté élève, le stockage local du navigateur ne retient que les décisions de modération déjà annoncées (identifiants de défi et état, aucune donnée personnelle) | Politique de sécurité du contenu (CSP) `script-src 'self'` |
 
 ### Ce que protège la clé de la sortie
 

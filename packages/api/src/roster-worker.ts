@@ -7,7 +7,7 @@ import argon2 from "argon2";
 import { config } from "./config.js";
 import { pool } from "./db.js";
 import { encrypt, decrypt, hmac } from "./crypto/vault.js";
-import { sendAccessCode } from "./email/mailer.js";
+import { mailDomainStatus, sendAccessCode } from "./email/mailer.js";
 
 const ROSTER_LOCK = 553311; // advisory lock key, distinct from the erasure scheduler's
 const BATCH = 25;
@@ -56,10 +56,17 @@ export async function processRosterBatch(): Promise<void> {
         const { rows: items } = await client.query<{
           id: string; trip_id: string; email_enc: Buffer; attempts: number;
         }>(
-          `SELECT id, trip_id, email_enc, attempts
-             FROM roster_import_item
-            WHERE status = 'pending'
-            ORDER BY created_at
+          // Never for an erased trip: an item queued just before Erasure must not become a
+          // student after it (Erasure deletes the queue, but not work already in flight).
+          // Trips take turns (each one's oldest item, then each one's next…), so a big import,
+          // or one whose domains each wait out the DNS timeout, can't hold the others back.
+          `SELECT id, trip_id, email_enc, attempts FROM (
+             SELECT i.id, i.trip_id, i.email_enc, i.attempts, i.created_at,
+                    row_number() OVER (PARTITION BY i.trip_id ORDER BY i.created_at) AS turn
+               FROM roster_import_item i JOIN trip t ON t.id = i.trip_id
+              WHERE i.status = 'pending' AND t.phase <> 'erased'
+           ) q
+            ORDER BY turn, created_at
             LIMIT $1`,
           [BATCH],
         );
@@ -77,6 +84,11 @@ export async function processRosterBatch(): Promise<void> {
 async function processItem(it: { id: string; trip_id: string; email_enc: Buffer; attempts: number }): Promise<void> {
   try {
     const email = (await decrypt(it.trip_id, it.email_enc.toString("utf8"))).toString("utf8");
+    // A domain that can't receive mail would be accepted by the relay and fail later, silently
+    // (#104): fail it now, for good — retrying won't create the domain.
+    if ((await mailDomainStatus(email)) === "missing") {
+      throw Object.assign(new Error("no mail server for this domain"), { code: "ENODOMAIN", permanent: true });
+    }
     const lookup = await hmac(it.trip_id, Buffer.from(email, "utf8"));
     const studentId = randomUUID();
     const { secret, hash } = await newAccessCode();
@@ -104,13 +116,16 @@ async function processItem(it: { id: string; trip_id: string; email_enc: Buffer;
     }
     if (recipient) {
       const { rows: tr } = await pool.query<{ name: string }>(`SELECT name FROM trip WHERE id = $1`, [it.trip_id]);
-      await sendAccessCode(email, tr[0]?.name ?? "the trip", joinUrlFor(recipient, secret)); // throws → retried below
-      await pool.query(`UPDATE student SET access_code_sent_at = now() WHERE id = $1`, [recipient]);
+      const messageId = await sendAccessCode(email, tr[0]?.name ?? "the trip", joinUrlFor(recipient, secret)); // throws → retried below
+      await pool.query(
+        `UPDATE student SET access_code_sent_at = now(), mail_message_id = $2, mail_error = NULL WHERE id = $1`,
+        [recipient, messageId],
+      );
     }
     await pool.query(`UPDATE roster_import_item SET status = 'done', processed_at = now() WHERE id = $1`, [it.id]);
   } catch (e: any) {
     const attempts = it.attempts + 1;
-    const status = attempts >= MAX_ATTEMPTS ? "failed" : "pending";
+    const status = e?.permanent || attempts >= MAX_ATTEMPTS ? "failed" : "pending";
     // Store only an error code/name — SMTP errors can echo the recipient address,
     // which must never land in the DB (Erasure › no student PII in logs).
     const reason = String(e?.code ?? e?.name ?? "error").slice(0, 100);

@@ -80,12 +80,16 @@ export type TeamView = { id: string; name: string; members: number };
 export type TripSummary = { id: string; name: string; phase: string; role: string; trip_end_date: string };
 export type ChallengeSummary = { id: string; title: string; instructions: string; multiplier: number; qr_slug: string };
 export type NominationRow = { id: string; challenge_id: string; team_id: string; submission_id: string; state: string };
-export type ResultRow = { id: string; challenge_title: string; placement: number; team_name_vetted: string; points: number; is_grand_champion: boolean };
+/** `photo_id`: the photo that won this place (#166), given to the trip's teachers only, until Erasure. */
+export type ResultRow = {
+  id: string; challenge_title: string; placement: number; team_name_vetted: string; points: number;
+  is_grand_champion: boolean; photo_id?: string | null;
+};
 
 export const api = {
   // ---- student ----
-  redeemCode: (code: string) =>
-    req<{ ok: true }>("/api/student/redeem", { method: "POST", body: JSON.stringify({ code }) }),
+  redeemCode: (code: string, opts: { replace?: boolean } = {}) =>
+    req<{ ok: true }>("/api/student/redeem", { method: "POST", body: JSON.stringify(opts.replace ? { code, replace: true } : { code }) }),
   requestReissue: (tripId: string, email: string) =>
     req<{ ok: true }>("/api/student/reissue", { method: "POST", body: JSON.stringify({ tripId, email }) }),
   me: () => req<Me>("/api/student/me"),

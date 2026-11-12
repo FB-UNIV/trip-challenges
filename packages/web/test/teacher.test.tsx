@@ -106,6 +106,14 @@ describe("teacher home", () => {
     expect(screen.queryByRole("button", { name: "Annuler" })).not.toBeInTheDocument();
   });
 
+  it("doesn't offer an end date in the past", async () => {
+    home([]);
+    renderAt("/teacher");
+    const d = new Date();
+    const today = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+    expect(await screen.findByLabelText("Date de fin de la sortie")).toHaveAttribute("min", today);
+  });
+
   it("tells the teacher when a trip can't be created", async () => {
     home([]);
     server.use(
@@ -155,8 +163,8 @@ function adminApi(over: Partial<Trip> = {}) {
     students: [
       { kind: "student", id: "s1", email: "ana@school.test", status: "joined", newCodeRequested: true, teamId: "team1", lastError: null },
       { kind: "student", id: "s2", email: "tom@school.test", status: "invited", newCodeRequested: false, teamId: null, lastError: null },
-      { kind: "student", id: "s3", email: "lea@shcool.test", status: "undelivered", newCodeRequested: false, teamId: null, lastError: "EENVELOPE" },
-      { kind: "import", id: "i1", email: "orphan@shcool.test", status: "undelivered", newCodeRequested: false, teamId: null, lastError: "ECONNRESET" },
+      { kind: "student", id: "s3", email: "lea@shcool.test", status: "undelivered", newCodeRequested: false, teamId: null, lastError: "MAILBOX_NOT_FOUND" },
+      { kind: "import", id: "i1", email: "orphan@shcool.test", status: "undelivered", newCodeRequested: false, teamId: null, lastError: "ENODOMAIN" },
     ] as { kind: string; id: string; email: string; status: string; newCodeRequested: boolean; teamId: string | null; lastError: string | null }[],
     teams: [
       { id: "team1", name: "Léa & Tom 4B", label: "Team 1", nameReviewed: false, members: ["s1"], photos: 2, challengesEntered: 1,
@@ -588,6 +596,17 @@ describe("trip admin", () => {
       expect(row("tom@school.test")).toHaveTextContent("Invité");
       expect(row("tom@school.test")).toHaveTextContent("sans équipe");
       expect(row("lea@shcool.test")).toHaveTextContent("Non distribué");
+    });
+
+    // #104: the teacher sees why, in words — not a mail-server code.
+    it("says why a code wasn't delivered", async () => {
+      adminApi();
+      renderAt("/teacher/trips/t1/students");
+      await list();
+      expect(row("lea@shcool.test")).toHaveTextContent("adresse inexistante");
+      expect(row("orphan@shcool.test")).toHaveTextContent("domaine introuvable");
+      expect(row("lea@shcool.test")).not.toHaveTextContent("MAILBOX_NOT_FOUND");
+      expect(row("tom@school.test")).not.toHaveTextContent("introuvable");
     });
 
     it("filters with chips kept in the URL, and searches by email", async () => {
