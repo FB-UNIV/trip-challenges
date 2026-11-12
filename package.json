@@ -23,7 +23,7 @@
     "docs:preview": "vitepress preview docs"
   },
   "engines": {
-    "node": ">=20"
+    "node": ">=24"
   },
   "devDependencies": {
     "mermaid": "^11.12.0",
